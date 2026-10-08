@@ -22,6 +22,44 @@ headers, and testing; the package is not yet a production release.
 For automatic package builds and publishing tagged GitHub Releases, see
 [CI and release management](docs/releases.md).
 
+## Distribution test matrix
+
+Status as of 2026-10-08, for x86_64/amd64. **Passed** means the stated check
+succeeded; **Partial** means limited testing; **Not tested** means no result
+is recorded. A successful build does not establish full distribution support.
+
+| Distribution | Package | Package build/check | Driver compilation | Package installation | Audio on hardware |
+| --- | --- | --- | --- | --- | --- |
+| Ubuntu 24.04 LTS | `.deb` | Not tested on this OS | Passed: `6.8.0-31-generic` | Not tested | Not tested |
+| Ubuntu 24.10 | `.deb` | Not tested on this OS | Passed: `6.11.0-8-generic` | Not tested | Not tested |
+| Ubuntu 25.04 | `.deb` | Not tested on this OS | Passed: `6.14.0-15-generic` | Not tested | Not tested |
+| Ubuntu 25.10 | `.deb` | Not tested on this OS | Passed: `6.17.0-5-generic` | Not tested | Not tested |
+| Ubuntu 26.04 LTS | `.deb` | Passed locally | Passed: `7.0.0-38-generic` | Partial: beta4 installed on development host | Partial: capture and playback at 48 kHz |
+| Ubuntu 26.10 beta | `.deb` | Not tested on this OS | Passed: `7.3.0-9-generic` | Not tested | Not tested |
+| Fedora Workstation | `.rpm` proposed; not implemented | Not tested | Not tested | Not tested | Not tested |
+| Debian | `.deb` adaptation not validated | Not tested | Not tested | Not tested | Not tested |
+| openSUSE | `.rpm` proposed; not implemented | Not tested | Not tested | Not tested | Not tested |
+| Arch Linux | PKGBUILD/AUR proposed; not implemented | Not tested | Not tested | Not tested | Not tested |
+
+The Ubuntu driver compilation checks used matching sources and headers on the
+Ubuntu 26.04 development host, rather than separate installations of each OS.
+Exact kernel versions, fingerprints, and historical build
+results are in [the build matrix](docs/compatibility-builds.json).
+HWE/OEM kernels, other architectures, and later kernel updates are not covered.
+The additional distributions above are candidates, not supported targets.
+
+The beta4 installation check confirms the package is installed on the existing
+development host; clean installation, upgrade, removal, and reboot validation
+are still pending. The hardware result covers a five-second capture and audible
+playback at 48 kHz with an earlier driver revision, not complete testing of the
+current packaged driver. See [the hardware investigation](docs/investigation.md).
+Simultaneous recording/playback, sustained audio, REAPER audio, Secure Boot,
+and all controls/rates still need full validation.
+
+The [CI workflow](.github/workflows/package.yml) builds and checks the `.deb`
+on Ubuntu 24.04, but its GitHub run has not yet been verified here. It does not
+compile or load the driver and does not provide hardware test coverage.
+
 The patch now targets Ubuntu source package `7.0.0-38.38` and compiled successfully
 against headers for `7.0.0-38-generic`. No system modules have been changed.
 
