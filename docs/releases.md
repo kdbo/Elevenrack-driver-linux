@@ -23,6 +23,7 @@ hardware. See [packaging](packaging.md) for the separate kernel build matrix.
 The tag pipeline repeats all checks before publishing a GitHub Release with
 the `.deb`, SHA-256 checksums, and generated release notes. Tags must match
 `VERSION`: `v0.1.0-beta5` becomes Debian version `0.1.0~beta5`.
+An underscore is also accepted: `v0.1.0_beta4` maps to `0.1.0~beta4`.
 `alpha`, `beta`, and `rc` tags create prereleases; `v0.1.0` creates a stable
 release. Only use a stable tag once the release is ready for that status.
 

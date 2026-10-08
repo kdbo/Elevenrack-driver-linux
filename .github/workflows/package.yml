@@ -42,9 +42,9 @@ jobs:
 
           version = Path('VERSION').read_text().strip()
           if os.environ['REF_TYPE'] == 'tag':
-              match = re.fullmatch(r'v(\d+\.\d+\.\d+)(?:-(alpha|beta|rc)(\d+))?', os.environ['REF_NAME'])
+              match = re.fullmatch(r'v(\d+\.\d+\.\d+)(?:[-_](alpha|beta|rc)(\d+))?', os.environ['REF_NAME'])
               if not match:
-                  raise SystemExit('Use vX.Y.Z or vX.Y.Z-betaN/alphaN/rcN')
+                  raise SystemExit('Use vX.Y.Z or vX.Y.Z-betaN/alphaN/rcN (underscore also accepted)')
               base, stage, number = match.groups()
               tagged = base + (f'~{stage}{number}' if stage else '')
               if tagged != version:
