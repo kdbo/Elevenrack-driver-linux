@@ -1,0 +1,41 @@
+--- a/sound/usb/quirks-table.h
++++ b/sound/usb/quirks-table.h
+@@ -2222,7 +2222,7 @@
+ 		.product_name = "Eleven Rack",
+ 		.ifnum = 1,
+ 		QUIRK_DATA_COMPOSITE {
+-			{ QUIRK_DATA_IGNORE(1) },
++			{ QUIRK_DATA_STANDARD_MIXER(1) },
+ 			{ QUIRK_DATA_STANDARD_MIDI(2) },
+ 			{ QUIRK_DATA_STANDARD_AUDIO(3) },
+ 			{ QUIRK_DATA_STANDARD_AUDIO(4) },
+--- a/sound/usb/mixer_maps.c
++++ b/sound/usb/mixer_maps.c
+@@ -499,7 +499,27 @@
+  * Control map entries
+  */
+ 
++/* Eleven Rack: expose clock selection without probing proprietary routing. */
++static const struct usbmix_name_map eleven_rack_map[] = {
++	{ 0x20, NULL }, /* Vendor extension unit */
++	{ 0x40, NULL }, /* Playback routing mixer */
++	{ 0x41, NULL }, /* Capture routing mixer */
++	{ 0x80, "Eleven Rack Clock Source" },
++	{}
++};
++
++static const struct usbmix_selector_map eleven_rack_selectors[] = {
++	{ .id = 0x80, .count = 3,
++	  .names = (const char *[]) { "Internal", "AES", "S/PDIF" } },
++	{}
++};
++
+ static const struct usbmix_ctl_map usbmix_ctl_maps[] = {
++ 	{
++		.id = USB_ID(0x0dba, 0xb011),
++		.map = eleven_rack_map,
++		.selector_map = eleven_rack_selectors,
++	},
+ 	{
+ 		.id = USB_ID(0x041e, 0x3000),
+ 		.map = extigy_map,

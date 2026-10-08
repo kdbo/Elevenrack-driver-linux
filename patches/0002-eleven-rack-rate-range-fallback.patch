@@ -1,0 +1,23 @@
+--- a/sound/usb/format.c
++++ b/sound/usb/format.c
+@@ -499,6 +499,20 @@
+ 	case USB_ID(0x0e41, 0x424b): /* Line6 Pod Go */
+ 	case USB_ID(0x19f7, 0x0011): /* Rode Rodecaster Pro */
+ 		return set_fixed_rate(fp, 48000, SNDRV_PCM_RATE_48000);
++	case USB_ID(0x0dba, 0xb011): { /* Digidesign Eleven Rack */
++		static const unsigned int rates[] = {
++			44100, 48000, 88200, 96000
++		};
++
++		/* GET_RANGE is unsupported; GET_CUR and SET_CUR are available. */
++		kfree(fp->rate_table);
++		fp->rate_table = kmemdup(rates, sizeof(rates), GFP_KERNEL);
++		if (!fp->rate_table)
++			return -ENOMEM;
++		fp->nr_rates = ARRAY_SIZE(rates);
++		set_rate_table_min_max(fp);
++		return 0;
++	}
+ 	}
+ 
+ 	return -ENODEV;

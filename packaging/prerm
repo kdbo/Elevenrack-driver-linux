@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+case "$1" in
+    remove|upgrade|deconfigure)
+        if dkms status -m eleven-rack -v @VERSION@ | grep -q .; then
+            dkms remove -m eleven-rack -v @VERSION@ --all
+        fi
+        ;;
+esac

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Eleven Rack Control
+Comment=Eleven Rack audio and hardware settings
+Exec=eleven-rack-control gui
+TryExec=eleven-rack-control
+Icon=eleven-rack-driver
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupNotify=true
+StartupWMClass=eleven-rack-control

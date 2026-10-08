@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+case "$1" in
+    remove)
+        # Refresh any boot image that contained the overriding audio module.
+        if command -v update-initramfs >/dev/null 2>&1; then
+            update-initramfs -u -k all
+        fi
+        ;;
+esac

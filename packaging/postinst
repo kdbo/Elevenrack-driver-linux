@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+case "$1" in
+    configure)
+        /usr/lib/dkms/common.postinst eleven-rack @VERSION@ /usr/share/eleven-rack "" "$2"
+        if command -v update-initramfs >/dev/null 2>&1; then
+            update-initramfs -u -k all
+        fi
+        echo 'Eleven Rack installed. Reboot to activate the driver and audio configuration.'
+        ;;
+esac

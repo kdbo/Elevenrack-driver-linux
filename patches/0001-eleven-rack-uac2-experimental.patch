@@ -1,0 +1,35 @@
+--- a/sound/usb/quirks-table.h
++++ b/sound/usb/quirks-table.h
+@@ -2214,6 +2214,22 @@
+ 	}
+ },
+ 
++{
++	/* Eleven Rack: vendor-class interfaces carry UAC2 descriptors. */
++	USB_DEVICE_VENDOR_SPEC(0x0dba, 0xb011),
++	QUIRK_DRIVER_INFO {
++		.vendor_name = "Digidesign",
++		.product_name = "Eleven Rack",
++		.ifnum = 1,
++		QUIRK_DATA_COMPOSITE {
++			{ QUIRK_DATA_IGNORE(1) },
++			{ QUIRK_DATA_STANDARD_MIDI(2) },
++			{ QUIRK_DATA_STANDARD_AUDIO(3) },
++			{ QUIRK_DATA_STANDARD_AUDIO(4) },
++			QUIRK_COMPOSITE_END
++		}
++	}
++},
+ /* Digidesign Mbox */
+ {
+ 	/* Thanks to Clemens Ladisch <clemens@ladisch.de> */
+--- a/sound/usb/implicit.c
++++ b/sound/usb/implicit.c
+@@ -47,6 +47,7 @@
+ /* Implicit feedback quirk table for playback */
+ static const struct snd_usb_implicit_fb_match playback_implicit_fb_quirks[] = {
+ 	/* Fixed EP */
++	IMPLICIT_FB_FIXED_DEV(0x0dba, 0xb011, 0x83, 4), /* Eleven Rack */
+ 	/* FIXME: check the availability of generic matching */
+ 	IMPLICIT_FB_FIXED_DEV(0x0763, 0x2030, 0x81, 3), /* M-Audio Fast Track C400 */
+ 	IMPLICIT_FB_FIXED_DEV(0x0763, 0x2031, 0x81, 3), /* M-Audio Fast Track C600 */

@@ -1,0 +1,13 @@
+--- a/sound/usb/quirks.c
++++ b/sound/usb/quirks.c
+@@ -2086,6 +2086,10 @@
+ 					  int stream)
+ {
+ 	switch (chip->usb_id) {
++	case USB_ID(0x0dba, 0xb011): /* Digidesign Eleven Rack */
++		/* Endpoint pitch SET_CUR fails; use the clock frequency control. */
++		fp->attributes &= ~UAC_EP_CS_ATTR_PITCH_CONTROL;
++		break;
+ 	case USB_ID(0x0a92, 0x0053): /* AudioTrak Optoplay */
+ 		/* Optoplay sets the sample rate attribute although
+ 		 * it seems not supporting it in fact.

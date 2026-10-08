@@ -1,0 +1,110 @@
+{
+  "validation_date": "2026-10-08",
+  "architecture": "amd64",
+  "scope": "Kernel builds on Ubuntu 26.04 host; no full OS installation or hardware tests",
+  "results": [
+    {
+      "ubuntu": "24.04",
+      "kernel": "6.8.0-31-generic",
+      "version": "6.8.0-31.31",
+      "series": "6.8",
+      "build_exit_code": 0,
+      "vermagic": "6.8.0-31-generic SMP preempt mod_unload modversions",
+      "module_sha256": "52a962c295df70e3b3f75064d3755996792ef2b1f099dca1577922c7109b4a2b",
+      "prepare_driver_sha256": "cc31ab71f6267b01f1f27615b11c57674255055af8ab65441ee0c90576f6f97a",
+      "hardware_tested": false,
+      "full_os_install_tested": false,
+      "validation_note": "Built with the same packaged helper during beta1 validation; module never installed or loaded."
+    },
+    {
+      "kernel": "6.11.0-8-generic",
+      "version": "6.11.0-8.8",
+      "series": "6.11",
+      "release_notes": "https://documentation.ubuntu.com/release-notes/24.10/",
+      "ubuntu": "24.10",
+      "package_sha256": {
+        "linux-source-6.11.0_6.11.0-8.8_all.deb": "31c5644cb82f595cb7c5b80a5e879eff55d9580251a9d075a355267bf45a0319",
+        "linux-headers-6.11.0-8_6.11.0-8.8_all.deb": "f2967d2000c5f2bae2eefa6d50b955a0f145482908014882a745d148849fcb12",
+        "linux-headers-6.11.0-8-generic_6.11.0-8.8_amd64.deb": "8b15b21b8b3744546775d8c44a4b156b9fd50a7caaf2088837e8c091a04b2dda"
+      },
+      "build_exit_code": 0,
+      "hardware_tested": false,
+      "full_os_install_tested": false,
+      "log": "build/compatibility/ubuntu-24.10.log",
+      "vermagic": "6.11.0-8-generic SMP preempt mod_unload modversions",
+      "module_sha256": "7515f545a066dab32ff4be027006114881233f0229c38faea4a0340deb3b8706",
+      "prepare_driver_sha256": "e8051a9dff6966d4cc3791f24447ad9efc0f6967fe90a581d8fa9f77abc019bf"
+    },
+    {
+      "kernel": "6.14.0-15-generic",
+      "version": "6.14.0-15.15",
+      "series": "6.14",
+      "release_notes": "https://documentation.ubuntu.com/release-notes/25.04/",
+      "ubuntu": "25.04",
+      "package_sha256": {
+        "linux-source-6.14.0_6.14.0-15.15_all.deb": "0298397b60fe977710007fd056fcc687b429c1c470219d8bdbe05c26bdf50fef",
+        "linux-headers-6.14.0-15_6.14.0-15.15_all.deb": "0ad1d0d33f350aff407f6e552f156aafc0aa45304c2a10fa6500910b7877b50e",
+        "linux-headers-6.14.0-15-generic_6.14.0-15.15_amd64.deb": "1857a6e62a388b9556fb30359adc21f3925fc97b92199729fabb9f36b4426861"
+      },
+      "build_exit_code": 0,
+      "hardware_tested": false,
+      "full_os_install_tested": false,
+      "log": "build/compatibility/ubuntu-25.04.log",
+      "vermagic": "6.14.0-15-generic SMP preempt mod_unload modversions",
+      "module_sha256": "41abae6a4b1f1b375eb79d77b94338badda3d3f6df19bf47517b5b06aef65c4e",
+      "prepare_driver_sha256": "e8051a9dff6966d4cc3791f24447ad9efc0f6967fe90a581d8fa9f77abc019bf"
+    },
+    {
+      "kernel": "6.17.0-5-generic",
+      "version": "6.17.0-5.5",
+      "series": "6.17",
+      "release_notes": "https://documentation.ubuntu.com/release-notes/25.10/",
+      "ubuntu": "25.10",
+      "package_sha256": {
+        "linux-source-6.17.0_6.17.0-5.5_all.deb": "6a05b2f9f75b3afe1cf76a6952504102778f44981d37dba816ab32c2c555715c",
+        "linux-headers-6.17.0-5_6.17.0-5.5_all.deb": "3bfa2ad7fccd5599d3ad313a626d154aecfc91419dea78e7242c20b029e39c33",
+        "linux-headers-6.17.0-5-generic_6.17.0-5.5_amd64.deb": "8e8ef374831ca973c67d6599b0349b2dbdb666cf92f5d223ffb6e023f87f6f12"
+      },
+      "build_exit_code": 0,
+      "hardware_tested": false,
+      "full_os_install_tested": false,
+      "log": "build/compatibility/ubuntu-25.10.log",
+      "vermagic": "6.17.0-5-generic SMP preempt mod_unload modversions",
+      "module_sha256": "8068bd9c1763217a40d7edae032b635610ffeab5d7b5e3ae731c1112c1d9ce07",
+      "prepare_driver_sha256": "e8051a9dff6966d4cc3791f24447ad9efc0f6967fe90a581d8fa9f77abc019bf"
+    },
+    {
+      "ubuntu": "26.04",
+      "kernel": "7.0.0-38-generic",
+      "version": "7.0.0-38.38",
+      "series": "7.0",
+      "build_exit_code": 0,
+      "vermagic": "7.0.0-38-generic SMP preempt mod_unload modversions",
+      "module_sha256": "e6aa0c1f2aa7b39619c8b9703ef8f9653e3ff40dadd97d31d237edeee35bb1e8",
+      "prepare_driver_sha256": "cc31ab71f6267b01f1f27615b11c57674255055af8ab65441ee0c90576f6f97a",
+      "hardware_tested": false,
+      "full_os_install_tested": false,
+      "validation_note": "Built with the same packaged helper during beta1 validation; module never installed or loaded."
+    },
+    {
+      "kernel": "7.3.0-9-generic",
+      "version": "7.3.0-9.9",
+      "series": "7.3",
+      "prerelease": true,
+      "release_notes": "https://documentation.ubuntu.com/release-notes/26.10/",
+      "ubuntu": "26.10",
+      "package_sha256": {
+        "linux-source-7.3.0_7.3.0-9.9_all.deb": "9c7b7b53a54af6c461d400a81dd035bbf37a5a9fa43de167c58b9d6f3229f398",
+        "linux-headers-7.3.0-9_7.3.0-9.9_all.deb": "38461ddb812791b5572eb4c7a48290912e9de36c64a77f632a2688f61a21a472",
+        "linux-headers-7.3.0-9-generic_7.3.0-9.9_amd64.deb": "efcfc97bac0e7e32d8b5b519c3cc158cac2a2e082bd1907a6ccbccd5dae0c0bf"
+      },
+      "build_exit_code": 0,
+      "hardware_tested": false,
+      "full_os_install_tested": false,
+      "log": "build/compatibility/ubuntu-26.10.log",
+      "vermagic": "7.3.0-9-generic SMP preempt mod_unload modversions",
+      "module_sha256": "97e95a7607af079274469df4c255409496049da21e59e22efaaa2d25858a4a1e",
+      "prepare_driver_sha256": "003e5e25c69d558061e26b600384e2ff04fee4bec761a2b04963344540d1d714"
+    }
+  ]
+}

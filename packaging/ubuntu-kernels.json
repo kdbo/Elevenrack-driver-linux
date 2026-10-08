@@ -1,0 +1,8 @@
+{
+  "24.04": {"kernel": "6.8.0-31-generic", "version": "6.8.0-31.31", "series": "6.8", "release_notes": "https://documentation.ubuntu.com/release-notes/24.04/"},
+  "24.10": {"kernel": "6.11.0-8-generic", "version": "6.11.0-8.8", "series": "6.11", "release_notes": "https://documentation.ubuntu.com/release-notes/24.10/"},
+  "25.04": {"kernel": "6.14.0-15-generic", "version": "6.14.0-15.15", "series": "6.14", "release_notes": "https://documentation.ubuntu.com/release-notes/25.04/"},
+  "25.10": {"kernel": "6.17.0-5-generic", "version": "6.17.0-5.5", "series": "6.17", "release_notes": "https://documentation.ubuntu.com/release-notes/25.10/"},
+  "26.04": {"kernel": "7.0.0-38-generic", "version": "7.0.0-38.38", "series": "7.0", "release_notes": "https://documentation.ubuntu.com/release-notes/26.04/"},
+  "26.10": {"kernel": "7.3.0-9-generic", "version": "7.3.0-9.9", "series": "7.3", "prerelease": true, "release_notes": "https://documentation.ubuntu.com/release-notes/26.10/"}
+}

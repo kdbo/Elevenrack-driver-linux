@@ -1,0 +1,17 @@
+--- a/sound/usb/mixer.c
++++ b/sound/usb/mixer.c
+@@ -2714,7 +2714,13 @@
+ 		return -EINVAL;
+ 	val = get_abs_value(cval, val);
+ 	if (val != oval) {
+-		set_cur_ctl_value(cval, cval->control << 8, val);
++		err = set_cur_ctl_value(cval, cval->control << 8, val);
++		/* Eleven Rack clock writes must report hardware failures. */
++		if (err < 0 && cval->head.mixer->chip->usb_id == USB_ID(0x0dba, 0xb011)) {
++			usb_audio_err(cval->head.mixer->chip,
++				      "Eleven Rack clock selector write failed: %d\n", err);
++			return err;
++		}
+ 		return 1;
+ 	}
+ 	return 0;
