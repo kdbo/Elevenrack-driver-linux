@@ -93,7 +93,7 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--version', default='0.1.0~beta4')
+    parser.add_argument('--version', default=(ROOT / 'VERSION').read_text().strip())
     parser.add_argument('--output', type=Path, default=ROOT / 'build/packages')
     args = parser.parse_args()
     # Version is embedded in paths and DKMS shell config, so constrain it.

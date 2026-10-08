@@ -1,0 +1,110 @@
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends desktop-file-utils
+      - name: Determine package version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+
+          version = Path('VERSION').read_text().strip()
+          if os.environ['REF_TYPE'] == 'tag':
+              match = re.fullmatch(r'v(\d+\.\d+\.\d+)(?:-(alpha|beta|rc)(\d+))?', os.environ['REF_NAME'])
+              if not match:
+                  raise SystemExit('Use vX.Y.Z or vX.Y.Z-betaN/alphaN/rcN')
+              base, stage, number = match.groups()
+              tagged = base + (f'~{stage}{number}' if stage else '')
+              if tagged != version:
+                  raise SystemExit(f'Tag version {tagged} does not match VERSION ({version})')
+          if not re.fullmatch(r'\d+\.\d+\.\d+(?:~(?:alpha|beta|rc)\d+)?', version):
+              raise SystemExit('Invalid VERSION')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'version={version}', file=output)
+              print(f'prerelease={str("~" in version).lower()}', file=output)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              print(f'PACKAGE_VERSION={version}', file=output)
+          PY
+      - name: Validate scripts and metadata
+        run: |
+          python3 -m compileall -q tools packaging
+          for script in tools/*.sh packaging/*.sh; do bash -n "$script"; done
+          for script in packaging/postinst packaging/prerm packaging/postrm; do sh -n "$script"; done
+          python3 -m json.tool packaging/ubuntu-kernels.json >/dev/null
+          python3 -m json.tool docs/compatibility-builds.json >/dev/null
+          desktop-file-validate config/eleven-rack-driver.desktop
+      - name: Build and check Debian package
+        run: |
+          python3 tools/build-deb.py --version "$PACKAGE_VERSION"
+          python3 tools/check-package.py "build/packages/eleven-rack-driver_${PACKAGE_VERSION}_all.deb" --version "$PACKAGE_VERSION"
+          cd build/packages
+          sha256sum *.deb > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: |
+            build/packages/*.deb
+            build/packages/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: debian-package
+          path: dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          cd dist
+          sha256sum --check SHA256SUMS
+          flags=(--verify-tag --generate-notes --title "Eleven Rack Control $RELEASE_TAG")
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease --latest=false); fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'Release already exists; preserving its assets.'
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" *.deb SHA256SUMS "${flags[@]}"

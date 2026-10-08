@@ -19,6 +19,9 @@ For the combined Ubuntu 24.04-and-newer beta package, see
 `python3 tools/build-deb.py`. Kernel compatibility requires matching sources,
 headers, and testing; the package is not yet a production release.
 
+For automatic package builds and publishing tagged GitHub Releases, see
+[CI and release management](docs/releases.md).
+
 The patch now targets Ubuntu source package `7.0.0-38.38` and compiled successfully
 against headers for `7.0.0-38-generic`. No system modules have been changed.
 
