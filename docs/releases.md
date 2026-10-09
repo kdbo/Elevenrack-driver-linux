@@ -1,8 +1,9 @@
 # CI and release management
 
 GitHub Actions checks Python and shell syntax, JSON metadata, the desktop
-launcher, and the built Debian package on pushes to `main`, pull requests,
-and manual runs. Download the `.deb` and `SHA256SUMS` from the run's
+launcher, and the built Debian packages on release-tag pushes, pull requests,
+and manual runs. Ordinary pushes to `main` do not start this full build,
+so pushing a release commit and its tag does not build the packages twice. Download the `.deb` and `SHA256SUMS` from the run's
 `debian-package` artifact (kept for 30 days).
 
 An additional Ubuntu 24.04 job compiles the module against HWE kernel
@@ -17,7 +18,7 @@ hardware. See [packaging](packaging.md) for the broader kernel build matrix.
 ## Editor package
 
 The same workflow tests the editor and builds an amd64 `.deb` on Ubuntu 24.04
-using Node.js 22, `npm ci`, and Electron Builder. On branch and pull request
+using Node.js 22, `npm ci`, and Electron Builder. On manual and pull request
 runs, it is available in the `editor-debian-package` artifact for 30 days.
 
 `VERSION` is the shared release version for both packages. The build converts
@@ -31,7 +32,8 @@ Hardware operation and installation are not tested by this job.
 
 1. Update `VERSION` and the installation example in `docs/packaging.md`.
    For example, set `VERSION` to `0.1.2~beta1`.
-2. Commit and push the changes to `main`. Check that its Actions run succeeds.
+2. Commit and push the changes to `main`. Validate locally, or run **Build and
+   release** manually from Actions before tagging. Pull requests also run it.
 3. Tag that commit and push the tag:
 
    ```sh
