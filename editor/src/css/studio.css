@@ -563,6 +563,8 @@ body.studio .rack-save-title, body.studio #watchdog-box h3, body.studio #scan-bo
 body.studio .rack-save-ok-btn { border-color: rgba(74,222,128,.5) !important; color: var(--green) !important; }
 body.studio #about-box { max-width: 720px; }
 body.studio #about-box h2 { color: var(--text); font-size: 20px; letter-spacing: .06em; text-transform: none; }
+body.studio .about-brand { display: flex; align-items: center; gap: 16px; }
+body.studio .about-brand img { width: 72px; height: 72px; object-fit: contain; }
 body.studio .about-version { color: var(--muted); font-family: var(--mono); font-size: 11px; }
 body.studio .about-section h3 { color: var(--amber); font-size: 11px; letter-spacing: .14em; }
 body.studio .about-section p { color: #c9d0da; font-size: 13px; line-height: 1.6; }

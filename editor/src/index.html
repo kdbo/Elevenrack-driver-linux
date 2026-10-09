@@ -2350,11 +2350,16 @@
 <!-- ══ ABOUT ══ -->
 <div id="about-overlay">
   <div id="about-box">
-    <h2>11 Edit</h2>
+    <div class="about-brand"><img src="../assets/eleven-rack-editor-logo.png" alt="Eleven Rack Editor logo"><h2>Eleven Rack Editor</h2></div>
     <div class="about-version" id="about-version">Version —</div>
-    <p style="margin:0;color:#c9d0da;font-size:13px;">The Mac build of Eleven Edit, the free editor and librarian for the Avid Eleven Rack.</p>
+    <p style="margin:0;color:#c9d0da;font-size:13px;">The Linux editor and librarian for the Avid Eleven Rack.</p>
     <div class="about-section">
-      <h3>Built by</h3>
+      <h3>Linux application</h3>
+      <p><strong>Koen de Boevé</strong> — Linux integration, ALSA MIDI bridge, editor updates and live tuner.
+      <a href="https://github.com/kdbo/Elevenrack-driver-linux" target="_blank">github.com/kdbo/Elevenrack-driver-linux</a></p>
+    </div>
+    <div class="about-section">
+      <h3>macOS ancestry</h3>
       <p><strong>Damilola Olalere (MrDees)</strong> — the macOS port: native CoreMIDI bridge,
       the Studio interface, the bundled Apple Silicon audio driver build, DMG packaging and
       hardware verification on a real Eleven Rack.<br>
@@ -2364,15 +2369,14 @@
     <div class="about-section">
       <h3>Original Windows editor</h3>
       <p><strong>Charles Wardick</strong> — Eleven Edit for Windows (MIT), the editor, protocol map
-      and patch tooling this Mac version is built from.
+      and patch tooling on which the macOS fork and this Linux application are based.
+      <a href="https://github.com/CharlesWardick/Eleven-Edit" target="_blank">github.com/CharlesWardick/Eleven-Edit</a>
       <a href="mailto:charles.wardick@gmail.com">charles.wardick@gmail.com</a> ·
       <a href="https://wardick.bandcamp.com" target="_blank">wardick.bandcamp.com</a></p>
     </div>
     <div class="about-section">
       <h3>Architecture</h3>
-      <p id="about-architecture">Java WebSocket bridge (ElevenRackBridge.jar) owns all MIDI hardware access via javax.sound.midi.
-      Electron renderer communicates over ws://localhost:57121.
-      Built with <a href="https://claude.com/claude-code" target="_blank">Claude Code</a>, Anthropic's AI coding assistant.</p>
+      <p id="about-architecture">Python ALSA/RtMidi bridge for Linux MIDI access, with a local WebSocket connection to the Electron interface.</p>
     </div>
     <div class="about-section">
       <h3>Startup Flags</h3>
@@ -2382,9 +2386,12 @@
     </div>
     <div class="about-section">
       <h3>Audio driver</h3>
-      <p><strong>Matt Housley</strong> — the open-source Eleven Rack Core Audio driver (MIT) that the
-      bundled Apple Silicon driver is built on, with playback timing and stability work added for this release.
+      <p><strong>Matt Housley</strong> — the open-source Eleven Rack Core Audio driver (MIT), used as a reference for the Linux driver project. The macOS ancestor bundles a driver based on his work.
       <a href="https://github.com/Matt-Housley/eleven-rack-driver" target="_blank">github.com/Matt-Housley/eleven-rack-driver</a></p>
+    </div>
+    <div class="about-section">
+      <h3>Driver research</h3>
+      <p><strong>Paul Bender</strong> — <a href="https://r11audio.com/" target="_blank">R11 Audio</a>, for explaining the hardware monitoring gate and mixer controls.</p>
     </div>
     <div class="about-section">
       <h3>Protocol Research Credit</h3>
@@ -2398,7 +2405,7 @@
     <div class="about-section">
       <h3>Trademarks &amp; type</h3>
       <p>Amp, cabinet and effect names shown as "based on" are trademarks of their respective
-      owners, who are not associated with 11 Edit or with Avid. They appear only to identify the
+      owners, who are not associated with Eleven Rack Editor or with Avid. They appear only to identify the
       gear whose tones the Eleven Rack models are based on. Eleven Rack is a trademark of Avid Technology.
       Type: Manrope (Mikhail Sharanda) and JetBrains Mono (JetBrains), both under the SIL Open Font License.</p>
     </div>
@@ -2407,8 +2414,7 @@
       <p>Free to use and share under the MIT License. Released to the Eleven
       Rack community with no warranty, express or implied — use at your own
       risk. Always back up your unit before loading new banks. If you build on
-      11 Edit, please keep Damilola Olalere, Charles Wardick, Guillaume Schmid
-      and Matt Housley named in your credits.</p>
+      Eleven Rack Editor, please retain the credits for Koen de Boevé, Damilola Olalere, Charles Wardick, Guillaume Schmid, Matt Housley and Paul Bender.</p>
     </div>
     <button id="btn-about-close">CLOSE</button>
   </div>

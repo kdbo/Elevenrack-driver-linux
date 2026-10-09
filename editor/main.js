@@ -1218,7 +1218,7 @@ function createWindow() {
     // Mac: the bundle's .icns is the icon; an explicit undefined here makes
     // Electron log "Argument must be a file path or a NativeImage", so the
     // key is omitted entirely rather than set to nothing.
-    ...(IS_MAC ? {} : { icon: path.join(__dirname, 'assets', 'icon.ico') }),
+    ...(IS_MAC ? {} : { icon: path.join(__dirname, 'assets', IS_LINUX ? 'eleven-rack-editor-logo.png' : 'icon.ico') }),
     backgroundColor: '#0e0e0e',
     autoHideMenuBar: true,
     show: false, // revealed only on 'app-ready' IPC — see SPLASH above

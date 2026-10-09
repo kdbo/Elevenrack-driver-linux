@@ -36,7 +36,7 @@
         "deb"
       ],
       "category": "AudioVideo",
-      "icon": "assets/icon.png",
+      "icon": "assets/eleven-rack-editor-logo.png",
       "syncDesktopName": true,
       "maintainer": "Koen de Boev\u00e9 <itsmekeuh@gmail.com>"
     },

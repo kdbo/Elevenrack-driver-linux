@@ -8,7 +8,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>11 Edit</title>
+<title>Eleven Rack Editor</title>
 <style>
   :root { --accent: #ffb000; --accent-dim: #a87400; --text: #ddd; }
   * { box-sizing: border-box; }
@@ -53,7 +53,8 @@
 </head>
 <body>
   <div id="version-tag"></div>
-  <div id="logo">ELEVEN EDIT</div>
+  <img src="../assets/eleven-rack-editor-logo.png" alt="" style="width:72px;height:72px;object-fit:contain;margin-bottom:12px">
+  <div id="logo">ELEVEN RACK EDITOR</div>
   <div id="subtitle">Patch Editor for Avid Eleven Rack</div>
   <div style="height:24px;"></div>
 
@@ -111,11 +112,11 @@
       // version; only fully quitting and relaunching the EXE picked up the
       // change). Quit-and-relaunch is the only real fix, so that's what the
       // message says instead of offering a button that cannot succeed.
-      gateMsg.innerHTML = '11 Edit could not start its Java bridge component.' +
+      gateMsg.innerHTML = 'Eleven Rack Editor could not start its Java bridge component.' +
         '<br><br>This usually means Java is not installed, or is not on the ' +
         'system PATH. 11 Edit requires a Java runtime (JRE), version 25 ' +
         'or higher, to communicate with the Eleven Rack over USB.' +
-        '<br><br>Install a Java runtime, then completely QUIT 11 Edit ' +
+        '<br><br>Install a Java runtime, then completely QUIT Eleven Rack Editor ' +
         'and start it again (a just-installed Java will not be found without ' +
         'a full restart).';
       retryBtn.style.display = 'none';
@@ -140,7 +141,7 @@
         '(including Java 8 and Java 21) have been known to freeze or crash ' +
         '(BSOD) the Windows operating system.' +
         '<br><br>Install or update to a current Java runtime, then completely ' +
-        'QUIT 11 Edit and start it again (a just-installed Java will not ' +
+        'QUIT Eleven Rack Editor and start it again (a just-installed Java will not ' +
         'be found without a full restart).';
       retryBtn.style.display = 'none';
     } else if (data && data.reason === 'bridge') {
@@ -149,7 +150,7 @@
       // this platform. Try Again stays available: restartBridge re-spawns it.
       var detail = data.detail
         ? '<br><br><span style="opacity:0.7;">' + String(data.detail).replace(/</g, '&lt;') + '</span>' : '';
-      gateMsg.innerHTML = '11 Edit could not start its MIDI bridge component (ElevenRackBridge).' +
+      gateMsg.innerHTML = 'Eleven Rack Editor could not start its MIDI bridge component (ElevenRackBridge).' +
         '<br><br>It ships inside 11 Edit.app — if this keeps happening, re-download 11 Edit ' +
         'and drag it to Applications again.' + detail +
         '<br><br>Click Try Again to relaunch the bridge. Click Quit to close.';
