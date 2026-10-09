@@ -21,7 +21,7 @@ The editor and driver are installed separately. To use the Rack's audio
 channels with this project, install the driver package first. You can skip
 the editor if you only need audio and interface settings.
 
-The examples below use `0.1.2~beta1`. Substitute the exact downloaded filenames
+The examples below use `0.1.2~beta2`. Substitute the exact downloaded filenames
 when installing another release. Keep each release's downloads in its own
 folder so older packages are not accidentally selected.
 
@@ -58,7 +58,7 @@ OEM kernels are not validated by this guide.
 From the download folder:
 
 ```sh
-sudo apt install ./eleven-rack-driver_0.1.2~beta1_all.deb
+sudo apt install ./eleven-rack-driver_0.1.2~beta2_all.deb
 ```
 
 Use `apt install` with the local filename so APT can install dependencies.
@@ -108,7 +108,7 @@ implemented yet.
 From the download folder:
 
 ```sh
-sudo apt install ./eleven-rack-editor-linux_0.1.2~beta1_amd64.deb
+sudo apt install ./eleven-rack-editor-linux_0.1.2~beta2_amd64.deb
 ```
 
 APT installs the editor's declared runtime dependencies, including the Python
@@ -170,9 +170,9 @@ alone is not a DKMS build failure. Copy the downloaded package to `/tmp/`, make
 it readable, and install that copy if needed:
 
 ```sh
-cp ./eleven-rack-driver_0.1.2~beta1_all.deb /tmp/
-chmod 644 /tmp/eleven-rack-driver_0.1.2~beta1_all.deb
-sudo apt install /tmp/eleven-rack-driver_0.1.2~beta1_all.deb
+cp ./eleven-rack-driver_0.1.2~beta2_all.deb /tmp/
+chmod 644 /tmp/eleven-rack-driver_0.1.2~beta2_all.deb
+sudo apt install /tmp/eleven-rack-driver_0.1.2~beta2_all.deb
 ```
 
 **The module built but the Rack has no audio devices:** reboot, check
