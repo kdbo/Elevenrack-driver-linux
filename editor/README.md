@@ -62,6 +62,6 @@ tuner now displays the hardware's live note and relative tuning needle using
 CMD 0x42 at 15 Hz while the hardware tuner is active. It stops on tuner-off,
 patch changes, or disconnect. The needle is not calibrated in cents; the
 hardware reference setting applies. The documented idle value cannot be
-distinguished from an exactly tuned C0. Decoder and lifecycle tests pass;
+distinguished from an exactly tuned B-flat0. Decoder and lifecycle tests pass;
 live tuning with a guitar still needs verification. Protocol credit:
 Charles Wardick's ElevenEdit Technical Reference (live tuner section).

@@ -27,10 +27,14 @@ function decodeTunerReply(data) {
   if (data.length !== 9 || data[0] !== 0xF0 || data[1] !== 0x13 ||
       data[2] !== 0x0B || data[3] !== 0x0F || data[4] !== 0x12 ||
       data[5] !== 0x42 || data[8] !== 0xF7 ||
-      data[6] > 127 || data[7] > 127 || (data[6] & 15) > 11) return null;
+      data[6] > 127 || data[7] > 127) return null;
   if (data[6] === 0 && data[7] === 64) return { idle: true };
   const notes = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
-  return { idle: false, note: notes[data[6] & 15], octave: data[6] >> 4, deviation: data[7] - 64 };
+  // Live firmware 0157 capture: open E2=0x12, A2=0x17, D3=0x1C.
+  // This is a linear semitone index, offset 22 from MIDI note numbering;
+  // it is not the octave/chromatic nibble encoding described upstream.
+  const midiNote = data[6] + 22;
+  return { idle: false, note: notes[midiNote % 12], octave: Math.floor(midiNote / 12) - 1, deviation: data[7] - 64 };
 }
 
 function clearTunerReading(message) {

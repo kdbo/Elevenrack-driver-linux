@@ -51,13 +51,15 @@ test('recognizes hardware tuner chain at startup without treating it as a rig', 
 
 test('decodes chromatic notes, center, flat, sharp and idle', () => {
   const { context: c } = setup();
-  assert.equal(c.decodeTunerReply(reply(0x24, 64)).note, 'E');
-  assert.equal(c.decodeTunerReply(reply(0x24, 64)).octave, 2);
-  assert.equal(c.decodeTunerReply(reply(0x24, 64)).deviation, 0);
+  for (const [raw, note, octave] of [[18,'E',2],[23,'A',2],[28,'D',3],[33,'G',3],[37,'B',3],[42,'E',4]]) {
+    const reading = c.decodeTunerReply(reply(raw, 64));
+    assert.equal(reading.note, note); assert.equal(reading.octave, octave);
+    assert.equal(reading.deviation, 0);
+  }
   assert.equal(c.decodeTunerReply(reply(0x03, 60)).deviation, -4);
   assert.equal(c.decodeTunerReply(reply(0x03, 68)).deviation, 4);
   assert.equal(c.decodeTunerReply(reply(0, 64)).idle, true);
-  assert.equal(c.decodeTunerReply(reply(0x0C, 64)), null);
+  assert.equal(c.decodeTunerReply(reply(0x1C, 64)).note, 'D');
   assert.equal(c.decodeTunerReply(reply(0x24, 128)), null);
   assert.equal(c.decodeTunerReply(reply(0x24, 64).slice(0, -1)), null);
 });
@@ -67,7 +69,7 @@ test('polls once per interval and stops on off or disconnect', () => {
   assert.equal(c.timers.size, 1); assert.equal(c.sends.length, 2);
   assert.equal(c.sends[0], 'F0 13 0B 0F 01 41 F7');
   assert.equal(c.sends[1], 'F0 13 0B 0F 01 42 F7');
-  c.handleLiveTunerReply(reply(0x24, 64));
+  c.handleLiveTunerReply(reply(0x12, 64));
   assert.equal(nodes.get('tuner-note').textContent, 'E2');
   assert.equal(nodes.get('tuner-reading').textContent, 'In tune');
   assert.equal(nodes.get('tuner-led-left').classList.contains('tuned'), true);

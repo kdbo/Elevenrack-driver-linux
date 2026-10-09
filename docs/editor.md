@@ -56,9 +56,13 @@ evidence that the editor bridge will work correctly there.
 The UI now shows the hardware tuner note and a relative tuning needle.
 Charles Wardick's ElevenEdit Technical Reference, section LIVE TUNER DATA,
 documents the read request `F0 13 0B 0F 01 42 F7` and reply
-`F0 13 0B 0F 12 42 [note] [tune] F7`. The note packs octave/chromatic
-index in its nibbles; tune is centered at 0x40. The documented idle reply
-is note=0/tune=0x40 (ambiguous with a tuned C0).
+`F0 13 0B 0F 12 42 [note] [tune] F7`. The upstream nibble interpretation
+proved incorrect in our firmware 0157 capture on 2026-10-09: open E2 gives
+0x12, A2 gives 0x17 and D3 gives 0x1C. The byte is a linear semitone index;
+adding 22 gives the MIDI note number. This fixes E being shown as D1 and
+D replies being discarded for an invalid chromatic nibble. Tune is centered
+at 0x40. The documented idle reply is note=0/tune=0x40, which is reserved
+as no signal (ambiguous with a tuned B-flat0 under the corrected mapping).
 
 Polling runs at 15 Hz only while the confirmed hardware tuner is on and
 MIDI is connected. Turning off, changing presets or disconnecting stops it.
