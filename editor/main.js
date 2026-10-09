@@ -1215,9 +1215,6 @@ function createWindow() {
     minWidth: 900,
     minHeight:600,
     title:    'Eleven Rack Editor',
-    // Use the desktop's own window controls and dark GTK decorations on Linux.
-    frame: true,
-    ...(IS_LINUX ? { darkTheme: true } : {}),
     // Mac: the bundle's .icns is the icon; an explicit undefined here makes
     // Electron log "Argument must be a file path or a NativeImage", so the
     // key is omitted entirely rather than set to nothing.

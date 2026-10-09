@@ -30,37 +30,35 @@ settings = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(settings)
 
 CSS = b'''
-window { font-size: 12px; background: #101010; color: #eee9e3; }
-headerbar { background: #181512; color: #eee9e3; border-bottom: 1px solid #48301f; }
-headerbar label { color: #eee9e3; font-size: 14px; }
-label { color: #eee9e3; }
-.eyebrow { color: #ff8a28; font-size: 11px; font-weight: bold; letter-spacing: 2px; }
-.title { font-size: 24px; font-weight: bold; }
-.subtitle { color: #a39c93; font-size: 12px; }
-.card { background: #1c1b19; border: 1px solid #38312a; border-radius: 9px; padding: 8px; }
-.section { font-size: 15px; font-weight: bold; }
-.channel { padding: 4px 0; border-bottom: 1px solid #302b26; font-size: 12px; }
-.channel-card { padding: 8px 12px; }
-expander title { color: #eee9e3; font-size: 14px; font-weight: bold; }
-.number { color: #ff8a28; font-family: monospace; font-weight: bold; }
-.badge { background: #342316; color: #ffac65; border: 1px solid #74401d; border-radius: 14px; padding: 5px 8px; }
-button { background: #302b26; color: #f4eee7; border: 1px solid #504238; border-radius: 7px; padding: 5px 9px; box-shadow: none; }
-button:hover { background: #473326; }
-button.accent { background: #f07820; color: #160c04; border-color: #f07820; font-weight: bold; }
-button.accent:hover { background: #ff943b; }
-button:disabled { background: #25221f; color: #77716a; border-color: #38312a; }
-combobox button { background: #121110; background-image: none; color: #eee9e3; }
-combobox cellview, combobox label, combobox arrow { color: #eee9e3; }
-combobox, entry { background-color: #121110; color: #eee9e3; }
-menu, .menu, popover, popover contents { background: #1c1b19; color: #eee9e3; }
-menu menuitem { background: #1c1b19; color: #eee9e3; }
-menu menuitem label, menu menuitem cellview { color: #eee9e3; }
-menu menuitem:hover { background: #f07820; color: #160c04; }
-menu menuitem:hover label, menu menuitem:hover cellview { color: #160c04; }
-.notice { background: #211b15; border-left: 3px solid #f07820; padding: 8px; }
-.footer { color: #b5aaa0; font-size: 11px; }
-.clock-dot { color: #706a63; font-size: 19px; padding: 0 8px; }
-.clock-dot.locked { color: #56d681; }
+.eleven-rack-panel { font-size: 12px; background: #101010; color: #eee9e3; }
+.eleven-rack-panel label { color: #eee9e3; }
+.eleven-rack-panel .eyebrow { color: #ff8a28; font-size: 11px; font-weight: bold; letter-spacing: 2px; }
+.eleven-rack-panel .title { font-size: 24px; font-weight: bold; }
+.eleven-rack-panel .subtitle { color: #a39c93; font-size: 12px; }
+.eleven-rack-panel .card { background: #1c1b19; border: 1px solid #38312a; border-radius: 9px; padding: 8px; }
+.eleven-rack-panel .section { font-size: 15px; font-weight: bold; }
+.eleven-rack-panel .channel { padding: 4px 0; border-bottom: 1px solid #302b26; font-size: 12px; }
+.eleven-rack-panel .channel-card { padding: 8px 12px; }
+.eleven-rack-panel expander title { color: #eee9e3; font-size: 14px; font-weight: bold; }
+.eleven-rack-panel .number { color: #ff8a28; font-family: monospace; font-weight: bold; }
+.eleven-rack-panel .badge { background: #342316; color: #ffac65; border: 1px solid #74401d; border-radius: 14px; padding: 5px 8px; }
+.eleven-rack-panel button { background: #302b26; color: #f4eee7; border: 1px solid #504238; border-radius: 7px; padding: 5px 9px; box-shadow: none; }
+.eleven-rack-panel button:hover { background: #473326; }
+.eleven-rack-panel button.accent { background: #f07820; color: #160c04; border-color: #f07820; font-weight: bold; }
+.eleven-rack-panel button.accent:hover { background: #ff943b; }
+.eleven-rack-panel button:disabled { background: #25221f; color: #77716a; border-color: #38312a; }
+.eleven-rack-panel combobox button { background: #121110; background-image: none; color: #eee9e3; }
+.eleven-rack-panel combobox cellview, .eleven-rack-panel combobox label, .eleven-rack-panel combobox arrow { color: #eee9e3; }
+.eleven-rack-panel combobox, .eleven-rack-panel entry { background-color: #121110; color: #eee9e3; }
+.eleven-rack-panel menu, .eleven-rack-panel .menu, .eleven-rack-panel popover, .eleven-rack-panel popover contents { background: #1c1b19; color: #eee9e3; }
+.eleven-rack-panel menu menuitem { background: #1c1b19; color: #eee9e3; }
+.eleven-rack-panel menu menuitem label, .eleven-rack-panel menu menuitem cellview { color: #eee9e3; }
+.eleven-rack-panel menu menuitem:hover { background: #f07820; color: #160c04; }
+.eleven-rack-panel menu menuitem:hover label, .eleven-rack-panel menu menuitem:hover cellview { color: #160c04; }
+.eleven-rack-panel .notice { background: #211b15; border-left: 3px solid #f07820; padding: 8px; }
+.eleven-rack-panel .footer { color: #b5aaa0; font-size: 11px; }
+.eleven-rack-panel .clock-dot { color: #706a63; font-size: 19px; padding: 0 8px; }
+.eleven-rack-panel .clock-dot.locked { color: #56d681; }
 '''
 
 
@@ -102,6 +100,7 @@ class Panel(Gtk.Window):
         scroll = Gtk.ScrolledWindow()
         self.add(scroll)
         body = box(spacing=12)
+        body.get_style_context().add_class('eleven-rack-panel')
         body.set_border_width(16)
         scroll.add(body)
         header = box(False, 12)
