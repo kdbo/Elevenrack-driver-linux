@@ -326,7 +326,13 @@
     const hint = box.querySelector('.hint');
     const slotLine = mk('div', { id: 'lcd-slot' });
     slotLine.appendChild(mk('span', { id: 'lcd-slot-text' }, '— · USER'));
-    if (hint) { hint.textContent = '◀ user · factory ▶'; slotLine.appendChild(hint); }
+    if (hint) {
+      hint.textContent = '';
+      hint.appendChild(mk('span', { 'data-preset-space': '0' }, '◀ user'));
+      hint.appendChild(document.createTextNode(' · '));
+      hint.appendChild(mk('span', { 'data-preset-space': '1' }, 'factory ▶'));
+      slotLine.appendChild(hint);
+    }
     box.insertBefore(slotLine, box.firstChild);
     box.appendChild(mk('div', { id: 'lcd-sub' }, 'Waiting for the rack…'));
     box.title = 'Click the name to rename. Click the left half for the user patch list, the right half for the factory list.';

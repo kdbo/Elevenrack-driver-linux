@@ -2780,11 +2780,9 @@ document.getElementById('btn-fxhost-close').addEventListener('click', function()
 });
 
 // Patch name box: LEFT half opens the USER Jump List, RIGHT half opens
-// FACTORY (2026-08-28 — see markup comment above). Click again on either
-// half closes it, matching the old single-target behaviour.
+// FACTORY. Each click selects that space, even when the list is already open.
 function openJumpList(space) {
   var m = document.getElementById('slot-matrix');
-  if (m.classList.contains('open')) { closeSlotMatrix(); return; }
   matrixSpace = space;
   setMatrixScopeText(space === 1 ? 'FACTORY — click to jump' : 'PATCH NAMES — click to jump');
   refreshMatrixCells();
@@ -2865,7 +2863,8 @@ document.getElementById('patch-name-box').addEventListener('click', function(e) 
   var box = document.getElementById('patch-name-box');
   var r = box.getBoundingClientRect();
   var leftHalf = (e.clientX - r.left) < (r.width / 2);
-  openJumpList(leftHalf ? 0 : 1);
+  var presetTarget = e.target.closest('[data-preset-space]');
+  openJumpList(presetTarget ? Number(presetTarget.dataset.presetSpace) : (leftHalf ? 0 : 1));
 });
 
 document.getElementById('matrix-close-btn').addEventListener('click', closeSlotMatrix);
