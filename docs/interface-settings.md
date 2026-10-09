@@ -2,10 +2,18 @@
 
 The installed WirePlumber configuration exposes all 8 inputs and 6 outputs
 in hardware order. Port names were verified in the running PipeWire graph:
-Guitar In, Mic In, Eleven Rig L/R, Line In L/R, Digital In L/R; Main Out L/R,
+Guitar In, Mic In, Eleven Rig L/R, Digital In L/R, Line In L/R; Main Out L/R,
 Re-Amp L/R, Digital Out L/R. JACK/PipeWire routing applications can display
 these names. Apps that open ALSA directly may still display channel numbers.
 This replaces the misleading surround profile for this device only.
+
+During the physical loopback check, Line Input L was confirmed on capture
+channel 7, previously mislabeled Digital In L. The last two pairs have therefore
+been relabeled: Digital In L/R on 5/6, Line In L/R on 7/8. Channel 7 is
+hardware-confirmed; the remaining members of these pairs still need separate
+physical validation. This changes display names, not audio stream order or
+MIDI Rig Input values. Existing installations need the updated configuration
+and an audio-session restart before applications show the corrected names.
 
 The configuration is `config/51-eleven-rack.conf`, installed at
 `~/.config/wireplumber/wireplumber.conf.d/51-eleven-rack.conf`. Restart

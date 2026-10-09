@@ -43,8 +43,8 @@ and replaces the misleading surround profile for this device:
 | --- | --- |
 | Guitar In, Mic In | Main Out L/R |
 | Eleven Rig L/R | Re-Amp L/R |
-| Line In L/R | Digital Out L/R |
-| Digital In L/R | |
+| Digital In L/R | Digital Out L/R |
+| Line In L/R | |
 
 ALSA provides the driver; PipeWire and WirePlumber handle desktop audio and
 routing above it. Applications opening ALSA directly may still show channel

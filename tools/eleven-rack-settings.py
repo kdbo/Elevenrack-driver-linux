@@ -13,8 +13,8 @@ BUFFERS = (0, 64, 128, 256, 512, 1024, 2048)
 CLOCKS = {"internal": 1, "aes": 2, "spdif": 3}
 RIG_INPUTS = ("guitar", "reamp", "mic", "line-l", "line-r", "line-lr",
               "digital-l", "digital-r", "digital-lr")
-INPUTS = ("Guitar In", "Mic In", "Eleven Rig L", "Eleven Rig R", "Line In L",
-          "Line In R", "Digital In L", "Digital In R")
+INPUTS = ("Guitar In", "Mic In", "Eleven Rig L", "Eleven Rig R", "Digital In L",
+          "Digital In R", "Line In L", "Line In R")
 OUTPUTS = ("Main Out L", "Main Out R", "Re-Amp L", "Re-Amp R", "Digital Out L", "Digital Out R")
 
 

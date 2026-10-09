@@ -16,7 +16,7 @@ local rules = {
       ["audio.channels"] = 8,
       ["audio.position"] = "[ AUX0 AUX1 AUX2 AUX3 AUX4 AUX5 AUX6 AUX7 ]",
       ["api.alsa.use-chmap"] = false,
-      ["node.channel-names"] = '[ "Guitar In" "Mic In" "Eleven Rig L" "Eleven Rig R" "Line In L" "Line In R" "Digital In L" "Digital In R" ]',
+      ["node.channel-names"] = '[ "Guitar In" "Mic In" "Eleven Rig L" "Eleven Rig R" "Digital In L" "Digital In R" "Line In L" "Line In R" ]',
       ["node.device-port-name-prefix"] = "",
       ["audio.allowed-rates"] = "[ 44100 48000 88200 96000 ]",
     },
