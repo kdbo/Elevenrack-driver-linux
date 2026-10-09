@@ -65,3 +65,10 @@ hardware reference setting applies. The documented idle value cannot be
 distinguished from an exactly tuned B-flat0. Decoder and lifecycle tests pass;
 live tuning with a guitar still needs verification. Protocol credit:
 Charles Wardick's ElevenEdit Technical Reference (live tuner section).
+
+The tuner also has an `A=… Hz` reference input and ±1 Hz buttons. Two original
+editor MIDI captures established CMD 0x41 reference writes and the 438–440 Hz
+mapping. A reference reply confirms the displayed value. If no initial reply
+arrives, enter a desired value explicitly; the editor does not assume A=440.
+Linux reference writes still need hardware validation. See
+[capture analysis](../docs/tuner-reference-capture.md).

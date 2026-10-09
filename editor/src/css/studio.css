@@ -601,6 +601,10 @@ body.studio #tuner-needle { position: absolute; left: 50%; bottom: 11.11%; heigh
 body.studio #tuner-needle[hidden] { display: none; }
 body.studio .tuner-pivot { position: absolute; bottom: calc(11.11% - 10px); left: calc(50% - 10px); width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; background: radial-gradient(circle at 35% 25%, #595b60, #18191c); border: 2px solid #272e38; box-shadow: 1px 2px 3px #0006; }
 body.studio #tuner-reading { text-align: center; font: 600 24px/1.4 var(--mono); }
+body.studio .tuner-reference-row { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; font: 500 16px var(--mono); }
+body.studio .tuner-reference-row button { width: 30px; height: 30px; color: var(--text); background: #262b34; border: 1px solid var(--line-2); border-radius: 6px; cursor: pointer; font-size: 20px; }
+body.studio #tuner-reference { width: 70px; padding: 5px; text-align: center; color: var(--amber); background: #0c1016; border: 1px solid var(--line-2); border-radius: 6px; font: inherit; }
+body.studio #tuner-reference-status { min-height: 16px; margin-top: 6px; text-align: center; color: var(--muted); font-size: 11px; }
 body.studio #tuner-panel.in-tune #tuner-note, body.studio #tuner-panel.in-tune #tuner-reading { color: #82ca8a; }
 body.studio #tuner-panel.in-tune #tuner-needle { background: #25201c; }
 body.studio #tuner-panel p { margin: 16px 0 0; text-align: center; font-size: 12px; color: var(--muted); }

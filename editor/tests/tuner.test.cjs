@@ -21,7 +21,7 @@ function setup() {
     window: { addEventListener() {} }, Date,
     tunerOn: true, bridgeMidiReady: true, CC_TUNER: 69,
     sends: [], timers: new Map(), sendCC() {},
-    sendHex(hex) { context.sends.push(hex); },
+    sendHex(hex) { context.sends.push(hex); return true; },
     setInterval(fn) { context.timers.set(1, fn); return 1; },
     clearInterval(id) { context.timers.delete(id); },
     handleTunerCC() { context.tunerOn = false; context.syncSoftwareTuner(); },
@@ -31,6 +31,21 @@ function setup() {
   return { context, nodes };
 }
 const reply = (note, tune) => [0xF0, 0x13, 0x0B, 0x0F, 0x12, 0x42, note, tune, 0xF7];
+
+test('reference writes match controlled capture and update only from Rack replies', () => {
+  const { context: c, nodes } = setup();
+  assert.equal(c.encodeTunerReference(440), 'F0 13 0B 0F 00 41 40 00 F7');
+  assert.equal(c.encodeTunerReference(438), 'F0 13 0B 0F 00 41 3E 00 F7');
+  for (const invalid of [409,481,440.5,NaN]) assert.equal(c.encodeTunerReference(invalid), null);
+  assert.equal(c.changeTunerReference(440), true);
+  assert.equal(nodes.get('tuner-reference-status').textContent, 'Waiting for Rack…');
+  c.handleTunerNeedleReply([240,19,11,15,2,65,64,0,247]);
+  assert.equal(nodes.get('tuner-reference').value, '440');
+  assert.equal(nodes.get('tuner-reference-status').textContent, '');
+  assert.equal(c.handleTunerReferenceReply([240,19,11,15,2,65,64,1,247]), false);
+  c.bridgeMidiReady = false;
+  assert.equal(c.changeTunerReference(438), false);
+});
 
 test('recognizes hardware tuner chain at startup without treating it as a rig', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/js/sysex-handler.js'), 'utf8');

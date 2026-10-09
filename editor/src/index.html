@@ -3610,6 +3610,14 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
     <div id="tuner-needle" hidden></div><div class="tuner-pivot"></div>
   </div>
   <div id="tuner-reading" role="status">Play a single note</div>
+  <div class="tuner-reference-row">
+    <button id="tuner-reference-down" type="button" aria-label="Lower tuning reference by 1 Hz">−</button>
+    <label for="tuner-reference">A=</label>
+    <input id="tuner-reference" type="number" min="410" max="480" step="1" placeholder="—" aria-label="Tuning reference in Hz">
+    <span>Hz</span>
+    <button id="tuner-reference-up" type="button" aria-label="Raise tuning reference by 1 Hz">+</button>
+  </div>
+  <div id="tuner-reference-status" role="status"></div>
 </section>
 
 <!-- ══ APPLICATION SCRIPTS — load order matters ══ -->

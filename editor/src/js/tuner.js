@@ -7,6 +7,34 @@ let tunerPollTimer = null;
 let tunerLastReply = 0;
 let tunerNeedleLastReply = 0;
 let tunerHasNote = false;
+let tunerReferenceHz = null;
+
+function encodeTunerReference(hz) {
+  if (!Number.isInteger(hz) || hz < 410 || hz > 480) return null;
+  // Two original-editor captures: 440->438->440 = 64->62->64.
+  return 'F0 13 0B 0F 00 41 ' + (hz - 376).toString(16).padStart(2, '0').toUpperCase() + ' 00 F7';
+}
+
+function handleTunerReferenceReply(data) {
+  if (data.length !== 9 || data[0] !== 0xF0 || data[1] !== 0x13 ||
+      data[2] !== 0x0B || data[3] !== 0x0F ||
+      (data[4] !== 2 && data[4] !== 0x12) || data[5] !== 0x41 ||
+      data[7] !== 0 || data[8] !== 0xF7 || data[6] > 127) return false;
+  const hz = data[6] + 376;
+  if (hz < 410 || hz > 480) return false;
+  tunerReferenceHz = hz;
+  document.getElementById('tuner-reference').value = String(hz);
+  document.getElementById('tuner-reference-status').textContent = '';
+  return true;
+}
+
+function changeTunerReference(hz) {
+  const hex = encodeTunerReference(hz);
+  if (!hex || !bridgeMidiReady || !tunerOn) return false;
+  if (!sendHex(hex)) return false;
+  document.getElementById('tuner-reference-status').textContent = 'Waiting for Rack…';
+  return true;
+}
 
 function setTunerNeedle(deviation) {
   const needle = document.getElementById('tuner-needle');
@@ -15,6 +43,7 @@ function setTunerNeedle(deviation) {
 }
 
 function handleTunerNeedleReply(data) {
+  if (handleTunerReferenceReply(data)) return;
   if (!tunerOn || !tunerHasNote || data.length !== 9 || data[0] !== 0xF0 ||
       data[1] !== 0x13 || data[2] !== 0x0B || data[3] !== 0x0F ||
       (data[4] !== 0 && data[4] !== 2) || data[5] !== 0x41 ||
@@ -78,6 +107,9 @@ function syncSoftwareTuner() {
     clearInterval(tunerPollTimer);
     tunerPollTimer = null;
     clearTunerReading('Play a single note');
+    tunerReferenceHz = null;
+    document.getElementById('tuner-reference').value = '';
+    document.getElementById('tuner-reference-status').textContent = '';
     return;
   }
   if (tunerPollTimer !== null) return;
@@ -99,5 +131,21 @@ function syncSoftwareTuner() {
 
 document.getElementById('tuner-close').addEventListener('click', function () {
   if (bridgeMidiReady && tunerOn) sendCC(CC_TUNER, 0);
+});
+document.getElementById('tuner-reference').addEventListener('change', function () {
+  const input = document.getElementById('tuner-reference');
+  if (!changeTunerReference(Number(input.value))) {
+    input.value = tunerReferenceHz === null ? '' : String(tunerReferenceHz);
+    document.getElementById('tuner-reference-status').textContent = 'Choose 410–480 Hz while connected';
+  }
+});
+['down', 'up'].forEach(function (direction) {
+  document.getElementById('tuner-reference-' + direction).addEventListener('click', function () {
+    if (tunerReferenceHz === null) {
+      document.getElementById('tuner-reference-status').textContent = 'Enter a reference frequency first';
+      return;
+    }
+    changeTunerReference(tunerReferenceHz + (direction === 'up' ? 1 : -1));
+  });
 });
 window.addEventListener('beforeunload', function () { clearInterval(tunerPollTimer); });
