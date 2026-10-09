@@ -1587,7 +1587,10 @@ function updateMuteButton(channel, muted) {
   else if (channel === MUTE_CH_PHONES) mutePhonesState = muted;
   const id = (channel === MUTE_CH_MAIN) ? 'btn-mute-main' : 'btn-mute-phones';
   const btn = document.getElementById(id);
-  if (btn) btn.classList.toggle('mute-active', muted);
+  if (btn) {
+    btn.classList.toggle('mute-active', muted);
+    btn.setAttribute('aria-pressed', String(muted));
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {

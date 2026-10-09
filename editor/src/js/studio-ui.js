@@ -338,7 +338,21 @@
     box.title = 'Click the name to rename. Click the left half for the user patch list, the right half for the factory list.';
     const flexRow = top.querySelector('.flex-row.ml-auto');
     const sizeBtns = top.querySelector('.size-btns');
+    const outputMutes = mk('div', { id: 'top-output-mutes', role: 'group', 'aria-label': 'Output mute controls' });
+    outputMutes.appendChild(mk('span', { class: 'label' }, 'MUTE'));
+    const muteRow = mk('div', { class: 'mute-row' });
+    ['btn-mute-phones', 'btn-mute-main'].forEach(function (id) {
+      const button = $(id);
+      if (!button) return;
+      const oldRow = button.parentElement;
+      button.setAttribute('aria-pressed', 'false');
+      button.setAttribute('aria-label', id === 'btn-mute-phones' ? 'Mute headphones' : 'Mute main output');
+      muteRow.appendChild(button);
+      if (oldRow && !oldRow.children.length) oldRow.remove();
+    });
+    outputMutes.appendChild(muteRow);
     [box, top.querySelector('.patch-nav'), $('input-group'), $('btn-tuner'), brand].forEach(el => el && top.appendChild(el));
+    top.insertBefore(outputMutes, brand);
     if (flexRow) flexRow.style.display = 'none';
     const winRow = $('settings-window-row');
     if (winRow && sizeBtns) winRow.querySelector('.settings-row-controls').insertBefore(sizeBtns, winRow.querySelector('.settings-row-controls').firstChild);
