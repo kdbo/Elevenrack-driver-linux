@@ -564,10 +564,24 @@ function showImportResults(done, total, rejected, cancelled, looksLikeWin11) {
   });
 
   async function runImportFlow() {
+    try {
+      await chooseImportBank();
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      setStatus('Import failed: ' + message);
+      appLog('Import file picker failed: ' + message);
+    }
+  }
+
+  async function chooseImportBank() {
     if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('Import Rigs');
-    if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
+    setStatus('Choose a bank XML or ZIP file…');
     const srcResult = await window.electronAPI.chooseImportSource();
-    if (!srcResult || !srcResult.ok) return; // cancelled
+    if (!srcResult || !srcResult.ok) {
+      setStatus(srcResult && srcResult.canceled ? 'Import cancelled' :
+        'Import failed: ' + (srcResult && srcResult.error ? srcResult.error : 'Could not open file picker'));
+      return;
+    }
 
     setStatus('Reading bank…');
     const readResult = await window.electronAPI.readImportBank(srcResult.path);
@@ -642,6 +656,7 @@ function showImportResults(done, total, rejected, cancelled, looksLikeWin11) {
       pendingEntries = null;
     });
     if (okBtn) okBtn.addEventListener('click', function() {
+      if (!bridgeMidiReady) { setStatus('Connect Eleven Rack before importing patches'); return; }
       modal.classList.remove('open');
       if (pendingEntries && pendingEntries.length) importRigs(pendingEntries);
       pendingEntries = null;

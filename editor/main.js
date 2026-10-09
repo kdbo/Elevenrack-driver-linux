@@ -464,7 +464,7 @@ ipcMain.handle('export-bank', function(e, folder, bankName, entries) {
 
 ipcMain.handle('choose-import-source', async function() {
   try {
-    const win = BrowserWindow.getAllWindows()[0];
+    const win = mainWindow;
     const result = await dialog.showOpenDialog(win, {
       title: 'Import Rigs — Choose Bank XML or ZIP',
       defaultPath: getCapturesDir(),
