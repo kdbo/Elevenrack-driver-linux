@@ -282,10 +282,10 @@
   }
 
   function slidersOn() { return document.body.classList.contains('sliders'); }
-  // Take over the tick-knob renderer: ui.js's drawKnob dispatches to
-  // drawTickKnob by name for every data-style="tick" knob in the app.
+  // Keep the original round pointer knobs; Studio still supplies the faders.
+  const drawRoundKnob = window.drawTickKnob;
   window.drawTickKnob = function (canvas, value127, wrap) {
-    if (slidersOn()) drawGlassFader(canvas, value127, wrap); else drawGlassKnob(canvas, value127, wrap);
+    if (slidersOn()) drawGlassFader(canvas, value127, wrap); else drawRoundKnob(canvas, value127, wrap);
   };
   try { drawTickKnob = window.drawTickKnob; } catch (e) {}
 
