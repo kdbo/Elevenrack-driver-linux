@@ -3593,12 +3593,18 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
   <div class="tuner-note-row"><span id="tuner-led-left" class="tuner-led" aria-label="Flat">◀</span><div id="tuner-note">—</div><span id="tuner-led-right" class="tuner-led" aria-label="Sharp">▶</span></div>
   <div class="tuner-scale"><span>♭ FLAT</span><span>0</span><span>SHARP ♯</span></div>
   <div class="tuner-meter">
-    <svg class="tuner-dial" viewBox="0 0 360 160" aria-hidden="true">
-      <path d="M 57 74 A 150 150 0 0 1 303 74" fill="none" stroke="#7b8593" stroke-width="2"/>
-      <path d="M 166 10 A 150 150 0 0 1 194 10" fill="none" stroke="#82ca8a" stroke-width="5"/>
-      <g stroke="#7b8593" stroke-width="2">
+    <svg class="tuner-dial" viewBox="0 0 360 180" aria-hidden="true">
+      <path d="M 57 74 A 150 150 0 0 1 303 74" fill="none" stroke="#332c23" stroke-width="2"/>
+      <path d="M 166 10 A 150 150 0 0 1 194 10" fill="none" stroke="#4e8054" stroke-width="5"/>
+      <g stroke="#332c23" stroke-width="2">
         <path d="M180 8V25"/><path d="M180 8V20" transform="rotate(-44 180 160)"/><path d="M180 8V20" transform="rotate(-33 180 160)"/><path d="M180 8V20" transform="rotate(-22 180 160)"/><path d="M180 8V20" transform="rotate(-11 180 160)"/>
         <path d="M180 8V20" transform="rotate(44 180 160)"/><path d="M180 8V20" transform="rotate(33 180 160)"/><path d="M180 8V20" transform="rotate(22 180 160)"/><path d="M180 8V20" transform="rotate(11 180 160)"/>
+      </g>
+      <g fill="#40372c" font-family="Arial, sans-serif" text-anchor="middle">
+        <text x="180" y="43" font-size="13" font-weight="bold">0</text>
+        <text x="84" y="93" font-size="11">FLAT</text><text x="276" y="93" font-size="11">SHARP</text>
+        <text x="180" y="115" font-size="22" font-weight="bold" letter-spacing="3">TUNING</text>
+        <text x="180" y="134" font-size="9" letter-spacing="2">ELEVEN RACK</text>
       </g>
     </svg>
     <div id="tuner-needle" hidden></div><div class="tuner-pivot"></div>
