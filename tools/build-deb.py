@@ -53,6 +53,7 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
         write(source_dir + '/dkms.conf', text)
         for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py'):
             copy('tools/' + name, 'usr/lib/eleven-rack/tools/' + name, True)
+        write('usr/lib/eleven-rack/VERSION', version + '\n')
         copy('assets/eleven-rack-control-logo-v2.png',
              'usr/lib/eleven-rack/assets/eleven-rack-control-logo-v2.png')
         copy('assets/eleven-rack-control-logo-v2.png', 'usr/share/pixmaps/eleven-rack-driver.png')

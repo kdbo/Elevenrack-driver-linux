@@ -185,7 +185,12 @@ class Panel(Gtk.Window):
         self.message.set_line_wrap(True)
         self.message.set_selectable(True)
         body.pack_start(self.message, False, False, 0)
-        body.pack_start(label('Experimental driver · 48 kHz recording and playback verified · Settings use ALSA', 'footer'), False, False, 0)
+        footer = box(False, 12)
+        footer.pack_start(label('Experimental driver · 48 kHz recording and playback verified · Settings use ALSA', 'footer'), True, True, 0)
+        about = Gtk.Button(label='About')
+        about.connect('clicked', self.show_about)
+        footer.pack_end(about, False, False, 0)
+        body.pack_start(footer, False, False, 0)
         self.choices = {'clock': self.clock, 'rate': self.rate, 'rig-input': self.rig, 'buffer': self.buffer}
         for command, choice in self.choices.items():
             choice.connect('changed', self.selection_changed, command)
@@ -197,6 +202,34 @@ class Panel(Gtk.Window):
         GLib.idle_add(lambda: (self.poll_buffer(), False)[1])
         # Establish a real rollback value before the first clock selection.
         GLib.idle_add(self.run, ['status'])
+
+    def show_about(self, _button):
+        try:
+            version = (ROOT.parent / 'VERSION').read_text().strip()
+        except OSError:
+            version = 'Development version'
+        dialog = Gtk.AboutDialog(transient_for=self, modal=True)
+        dialog.set_program_name('Eleven Rack Control')
+        dialog.set_version(version)
+        dialog.set_logo(self.get_icon())
+        dialog.set_comments('Linux audio routing and hardware settings for the Eleven Rack.')
+        dialog.set_copyright('Copyright © 2026 Koen de Boevé')
+        dialog.set_authors(['Koen de Boevé — development and Linux integration'])
+        dialog.set_website('https://github.com/kdbo/Elevenrack-driver-linux')
+        dialog.set_website_label('Project, documentation and full credits')
+        dialog.set_license('Original tools and control panel: MIT.\n'
+                           'Original kernel patches and patch helper: GPL-2.0-or-later.\n'
+                           'Upstream kernel code and dependencies retain their own licenses.\n'
+                           'See LICENSING.md in the project for the complete license scope.')
+        dialog.set_wrap_license(True)
+        dialog.add_credit_section('Driver and protocol references', [
+            'Linux kernel and ALSA contributors', 'Ubuntu kernel team',
+            'Matt Housley — eleven-rack-driver',
+            'Paul Bender — R11 Audio; hardware-monitoring protocol guidance'])
+        dialog.add_credit_section('Audio infrastructure', [
+            'PipeWire and WirePlumber contributors', 'DKMS contributors'])
+        dialog.connect('response', lambda widget, _response: widget.destroy())
+        dialog.show()
 
     def card(self, title):
         card = box(spacing=7)
