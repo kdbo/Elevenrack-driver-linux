@@ -1,0 +1,83 @@
+{
+  "method": "Linked ALSA streams; recording sample offset relative to playback stimulus sample index. This excludes software queue wait and requires start-timing validation before treating as physical hardware delay.",
+  "results": [
+    {
+      "period_frames": 64,
+      "results": [
+        {
+          "stimulus_frame": 24000,
+          "lag_frames": 172,
+          "lag_ms": 3.5833333333333335,
+          "correlation": 0.9975035977274832
+        },
+        {
+          "stimulus_frame": 72000,
+          "lag_frames": 172,
+          "lag_ms": 3.5833333333333335,
+          "correlation": 0.9975522895275647
+        },
+        {
+          "stimulus_frame": 120000,
+          "lag_frames": 172,
+          "lag_ms": 3.5833333333333335,
+          "correlation": 0.9976428012564871
+        }
+      ]
+    },
+    {
+      "period_frames": 128,
+      "results": [
+        {
+          "stimulus_frame": 24000,
+          "lag_frames": 188,
+          "lag_ms": 3.9166666666666665,
+          "correlation": 0.9976091176623892
+        },
+        {
+          "stimulus_frame": 72000,
+          "lag_frames": 188,
+          "lag_ms": 3.9166666666666665,
+          "correlation": 0.9976904860125908
+        },
+        {
+          "stimulus_frame": 120000,
+          "lag_frames": 188,
+          "lag_ms": 3.9166666666666665,
+          "correlation": 0.9976505905485411
+        }
+      ]
+    },
+    {
+      "period_frames": 256,
+      "results": [
+        {
+          "stimulus_frame": 24000,
+          "lag_frames": 199,
+          "lag_ms": 4.145833333333333,
+          "correlation": 0.997937339965356
+        },
+        {
+          "stimulus_frame": 72000,
+          "lag_frames": 199,
+          "lag_ms": 4.145833333333333,
+          "correlation": 0.9978580331289691
+        },
+        {
+          "stimulus_frame": 120000,
+          "lag_frames": 199,
+          "lag_ms": 4.145833333333333,
+          "correlation": 0.99776740412999
+        }
+      ]
+    }
+  ],
+  "sample_rate": 48000,
+  "date": "2026-10-09",
+  "no_xruns": true,
+  "capture_channel": 7,
+  "limits": [
+    "Linked start does not establish sample-accurate USB playback/capture phase",
+    "Do not compare these sample offsets directly with REAPER total software RTL",
+    "No direction-specific hardware offset determined"
+  ]
+}

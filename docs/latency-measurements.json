@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-09",
+  "path": "REAPER via PipeWire/JACK, Main Out L to physical Line In L (capture channel 7)",
+  "recording_compensation_enabled": false,
+  "manual_offsets_samples": 0,
+  "settings_confirmed_by_user": true,
+  "method": "Cross-correlation with offline-rendered REAPER click; WAV source offsets respected",
+  "results": [
+    {
+      "buffer_frames": 64,
+      "rate_hz": 48000,
+      "measured_round_trip_ms": 9.0416666667,
+      "reaper_reported_input_ms": 2.0,
+      "reaper_reported_output_ms": 2.0,
+      "difference_ms": 5.041666666699999
+    },
+    {
+      "buffer_frames": 128,
+      "rate_hz": 48000,
+      "measured_round_trip_ms": 12.4166666667,
+      "reaper_reported_input_ms": 4.0,
+      "reaper_reported_output_ms": 4.0,
+      "difference_ms": 4.416666666699999
+    },
+    {
+      "buffer_frames": 256,
+      "rate_hz": 48000,
+      "measured_round_trip_ms": 21.6041666667,
+      "reaper_reported_input_ms": 8.0,
+      "reaper_reported_output_ms": 8.0,
+      "difference_ms": 5.604166666699999
+    }
+  ],
+  "limitations": [
+    "Single session and one take per setting; not a device-wide calibration",
+    "No independent input/output hardware-delay attribution",
+    "Direct ALSA comparison still pending"
+  ]
+}
