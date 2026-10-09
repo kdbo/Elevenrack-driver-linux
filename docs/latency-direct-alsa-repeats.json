@@ -1,0 +1,48 @@
+{
+  "period_frames": 64,
+  "buffer_frames": 256,
+  "rate": 48000,
+  "linked_start": true,
+  "results": [
+    {
+      "repeat": 1,
+      "lag_frames": [
+        178,
+        178,
+        178
+      ],
+      "lag_ms": [
+        3.7083333333333335,
+        3.7083333333333335,
+        3.7083333333333335
+      ]
+    },
+    {
+      "repeat": 2,
+      "lag_frames": [
+        173,
+        173,
+        173
+      ],
+      "lag_ms": [
+        3.6041666666666665,
+        3.6041666666666665,
+        3.6041666666666665
+      ]
+    },
+    {
+      "repeat": 3,
+      "lag_frames": [
+        172,
+        172,
+        172
+      ],
+      "lag_ms": [
+        3.5833333333333335,
+        3.5833333333333335,
+        3.5833333333333335
+      ]
+    }
+  ],
+  "interpretation": "Sample-timeline offsets; not total software RTL or a calibrated hardware correction"
+}

@@ -1,0 +1,272 @@
+{
+  "rate": 48000,
+  "quantum": 64,
+  "ports": [
+    {
+      "port": "Eleven Rack Inputs:Guitar In",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Inputs:Mic In",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Inputs:Eleven Rig L",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Inputs:Eleven Rig R",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Inputs:Line In L",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Inputs:Line In R",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Inputs:Digital In L",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Inputs:Digital In R",
+      "capture": {
+        "min_frames": 96,
+        "max_frames": 96
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:Main Out L",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 96,
+        "max_frames": 96
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:Main Out R",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 96,
+        "max_frames": 96
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:Re-Amp L",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 96,
+        "max_frames": 96
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:Re-Amp R",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 96,
+        "max_frames": 96
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:Digital Out L",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 96,
+        "max_frames": 96
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:Digital Out R",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 96,
+        "max_frames": 96
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:monitor_Main Out L",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:monitor_Main Out R",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:monitor_Re-Amp L",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:monitor_Re-Amp R",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:monitor_Digital Out L",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Eleven Rack Outputs:monitor_Digital Out R",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Midi-Bridge:Eleven Rack: Rig (capture)",
+      "capture": {
+        "min_frames": 64,
+        "max_frames": 64
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Midi-Bridge:Eleven Rack: External (capture)",
+      "capture": {
+        "min_frames": 64,
+        "max_frames": 64
+      },
+      "playback": {
+        "min_frames": 0,
+        "max_frames": 0
+      }
+    },
+    {
+      "port": "Midi-Bridge:Eleven Rack: Rig (playback)",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 64,
+        "max_frames": 64
+      }
+    },
+    {
+      "port": "Midi-Bridge:Eleven Rack: External (playback)",
+      "capture": {
+        "min_frames": 0,
+        "max_frames": 0
+      },
+      "playback": {
+        "min_frames": 64,
+        "max_frames": 64
+      }
+    }
+  ],
+  "scope": "Physical JACK port ranges, not a REAPER client path or loopback measurement",
+  "date": "2026-10-09"
+}

@@ -117,3 +117,24 @@ or identify an input-only hardware delay. Keep it as a user-specific recording
 calibration for this tested path, not a universal driver constant. Revalidate
 for other rates, buffer settings, devices, and signal paths. Residual variability
 still needs investigation with synchronized timing and xrun logs.
+
+## Reporting and restart checks
+
+At 48 kHz / quantum 64, a read-only JACK client queried the Rack's physical
+port ranges: capture ports report 96 frames, and playback ports report
+96 frames (2 ms in each direction). This independently agrees with REAPER's
+2/2 ms display. Monitor and MIDI ports have separate ranges and are not part
+of this audio comparison. The labels still reflect the installed older mapping;
+identify the physical line input by channel 7. See
+[JACK ranges](latency-jack-port-ranges.json).
+
+Three new direct ALSA stream starts at period 64 / buffer 256 yielded
+178, 173, and 172 frames of sample-timeline offset (3.71, 3.60, 3.58 ms).
+Each run's three bursts had the same offset; all runs completed without xruns.
+This supports repeatability within a stream and a small restart-dependent
+phase difference. It still does not establish an exact input/output delay split
+or total software RTL. See [repeat results](latency-direct-alsa-repeats.json).
+PipeWire services were restored after testing. The next investigation must
+account for USB-start timing and PipeWire's transport/buffer latency calculation
+before introducing a device-specific correction. No driver/configuration
+latency correction has been applied.
