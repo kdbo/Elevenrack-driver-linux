@@ -31,7 +31,7 @@
         ]
       },
       {
-        "from": "assets/eleven-rack-editor-logo.png",
+        "from": "../assets/eleven-rack-linux-editor-logo-v1.png",
         "to": "eleven-rack-editor-logo.png"
       }
     ],
