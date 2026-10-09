@@ -1,3 +1,6 @@
+SPDX-License-Identifier: GPL-2.0-or-later
+Copyright (c) 2026 Koen de Boevé
+
 --- a/sound/usb/mixer.c
 +++ b/sound/usb/mixer.c
 @@ -2714,7 +2714,13 @@

@@ -68,6 +68,8 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
               'exec /usr/bin/python3 /usr/lib/eleven-rack/tools/eleven-rack-settings.py "$@"\n', True)
         copy('docs/packaging.md', 'usr/share/doc/eleven-rack-driver/README.md')
         copy('LICENSE', 'usr/share/doc/eleven-rack-driver/LICENSE')
+        copy('LICENSING.md', 'usr/share/doc/eleven-rack-driver/LICENSING.md')
+        copy('LICENSES/GPL-2.0.txt', 'usr/share/doc/eleven-rack-driver/GPL-2.0.txt')
         copy('CREDITS.md', 'usr/share/doc/eleven-rack-driver/CREDITS.md')
         copy('docs/interface-settings.md', 'usr/share/doc/eleven-rack-driver/interface-settings.md')
         copy('docs/compatibility-builds.json',

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (c) 2026 Koen de Boevé
 """Apply the Eleven Rack changes to matching distro snd-usb-audio sources.
 
 Use stable context rather than line-number patches to accommodate kernel series.

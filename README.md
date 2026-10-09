@@ -1,7 +1,9 @@
 # Eleven Rack on Linux
 
-Original project code is available under the [MIT License](LICENSE).
-Linux kernel code and any third-party components retain their respective licenses.
+Original tools and the control panel use the [MIT License](LICENSE).
+Original kernel patches and the kernel patch helper use GPL-2.0-or-later.
+Existing kernel code and third-party components retain their upstream licenses.
+See [the licensing overview](LICENSING.md) for the exact scope and license texts.
 
 See [credits and references](CREDITS.md) for the projects, developers, and
 documentation used during development and investigation.

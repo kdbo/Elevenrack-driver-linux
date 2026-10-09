@@ -50,7 +50,9 @@ points for a future Linux editor. No editor code is currently included.
 
 ## Licensing
 
-The [MIT License](LICENSE) applies to original project code. Credits do not
-relicense external code, kernel patches, or dependencies. Their respective
-licenses and copyright notices remain applicable. Any future editor import
+The [MIT License](LICENSE) applies to original tools and the control panel.
+Original kernel patches and `packaging/prepare-driver.py` use GPL-2.0-or-later.
+See [LICENSING.md](LICENSING.md) for the exact scope. Credits do not relicense
+upstream kernel code or dependencies. Their respective licenses and copyright
+notices remain applicable. Any future editor import
 must preserve the licensing and attribution of the exact upstream revision.
