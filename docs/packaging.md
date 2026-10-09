@@ -1,7 +1,7 @@
 # Ubuntu package (experimental)
 
 For step-by-step installation of released driver and editor packages, see
-[the installation guide](installation.md). This document covers package
+[the installation guide](../INSTALLATION.md). This document covers package
 construction and kernel compatibility in more detail.
 
 One `eleven-rack-driver_*_all.deb` contains the driver control panel, logo,

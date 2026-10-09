@@ -53,7 +53,7 @@ and [the patches](patches/) for implementation details and hardware findings.
 
 ## Installation and use
 
-Start with the [installation guide](docs/installation.md) for downloading
+Start with the [installation guide](INSTALLATION.md) for downloading
 release packages, installing the driver and editor, first-use checks, and
 troubleshooting.
 

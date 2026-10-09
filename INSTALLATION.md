@@ -3,7 +3,7 @@
 This guide covers the Ubuntu `.deb` packages for **Eleven Rack Control and the
 patched audio driver**, and the separate **Eleven Rack Editor**. The packages
 target Ubuntu 24.04 LTS and newer; actual test coverage is listed in the
-[README distribution matrix](../README.md#distribution-test-matrix).
+[README distribution matrix](README.md#distribution-test-matrix).
 These are experimental beta packages.
 
 ## 1. Download the packages
@@ -50,7 +50,7 @@ sources when needed, including HWE sources. The first build may download
 hundreds of MB and need several GB of temporary disk space and network access.
 
 If exact headers or sources are unavailable, consult
-[the packaging guide](packaging.md) before proceeding. Custom, mainline, and
+[the packaging guide](docs/packaging.md) before proceeding. Custom, mainline, and
 OEM kernels are not validated by this guide.
 
 ## 3. Install the driver and Control panel
@@ -95,7 +95,7 @@ patched audio driver is active.
 
 The configured interface has eight capture and six playback channels:
 **Eleven Rig L/R** are capture channels 3/4, and **Main Out L/R** are playback
-channels 1/2. See [interface settings](interface-settings.md) for the complete
+channels 1/2. See [interface settings](docs/interface-settings.md) for the complete
 mapping and Control's clock, rate, Rig Input, and buffer settings.
 
 Start with an internal clock and 48 kHz for the first audio check; capture and
@@ -121,7 +121,7 @@ application is using the same MIDI ports, close it and retry.
 
 The application is installed under `/opt/Eleven Rack Editor/`; its launcher
 is installed under `/usr/share/applications/`. See
-[the editor guide](../editor/README.md) for usage and current limitations.
+[the editor guide](editor/README.md) for usage and current limitations.
 
 ## 6. Set up DAW and desktop audio
 
@@ -132,9 +132,9 @@ For a JACK-capable DAW on a PipeWire desktop, use PipeWire's JACK compatibility
 so the DAW and desktop audio can share the interface. Direct ALSA hardware
 access can conflict with PipeWire's ownership of the device.
 
-Follow [DAWs, the Eleven Rack, and system audio](daw-audio.md) for installation,
+Follow [DAWs, the Eleven Rack, and system audio](docs/daw-audio.md) for installation,
 launching, port connections, and buffer settings. The
-[REAPER example](reaper.md) provides application-specific settings.
+[REAPER example](docs/reaper.md) provides application-specific settings.
 
 ## Updates and removal
 
@@ -161,7 +161,7 @@ configuration removed. Per-user settings are not removed by these commands.
 **DKMS reports a bad module build status:** read the `make.log` path printed
 by DKMS. Check the exact kernel version, matching headers, and source download
 failure before retrying. Once the cause is fixed, `sudo dpkg --configure -a`
-retries package configuration. See [packaging](packaging.md) for source handling
+retries package configuration. See [packaging](docs/packaging.md) for source handling
 and log locations.
 
 **APT says a local download was performed unsandboxed as root:** APT's `_apt`
@@ -181,7 +181,7 @@ Secure Boot, confirm that the signing key was enrolled. Include the kernel
 version and DKMS/kernel error when reporting an issue.
 
 **The DAW reports a busy device or produces no sound:** use
-[the shared-audio troubleshooting guide](daw-audio.md#when-audio-is-missing).
+[the shared-audio troubleshooting guide](docs/daw-audio.md#when-audio-is-missing).
 Check audio connections to the Rack rather than the built-in sound card.
 
 **Rig Input or editor MIDI reads fail:** another MIDI application may own the
