@@ -138,3 +138,27 @@ PipeWire services were restored after testing. The next investigation must
 account for USB-start timing and PipeWire's transport/buffer latency calculation
 before introducing a device-specific correction. No driver/configuration
 latency correction has been applied.
+
+## Session calibration through PipeWire reporting
+
+`tools/eleven-rack-latency.py apply` sets a reversible 210-frame ProcessLatency
+term on the Rack capture node, only when PipeWire is configured at 48 kHz /
+quantum 64. This assigns the measured aggregate recording residual to the
+capture reporting path as a local calibration; it does not establish physical
+ADC-only latency. REAPER manual input/output offsets must be zero to avoid
+counting the correction twice. Keep reported-latency compensation enabled.
+
+The tool saves the prior ProcessLatency fields, checks readback, refuses an
+existing correction, and supports `status` and `reset`. The snapshot lives in
+`build/latency/pipewire-calibration-state.json`. This is session-only and must
+be reset before changing rates/quanta. PipeWire was changed from Automatic to
+forced quantum 64 for this test; resetting the tool restores ProcessLatency,
+not the quantum setting. Return Buffer size to Automatic separately if desired.
+
+A JACK query while audio nodes were inactive showed capture latency increasing
+from 64 to 274 frames, confirming the 210-frame term reaches JACK. Active-node
+base latency may differ (the previous active query was 96 frames). End-to-end
+REAPER recording validation with zero manual offset is pending. No default
+calibration is shipped for every Rack, rate, channel, or distribution.
+
+Reference: [WirePlumber extra latency properties](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/alsa.html).
