@@ -45,7 +45,9 @@ state, followed by ordinary read queries for the current rig.
   which response direction. No such request is present in this capture.
 - Whether the trailing byte is a selector or part of a wider numeric encoding.
 
-No reference writes have been sent by our editor based on this capture.
+At the initial analysis stage no reference writes had yet been sent by our editor.
+After implementation, the user confirmed on 2026-10-09 that the Rack follows
+reference changes from the Linux editor.
 
 ## Second controlled capture
 
@@ -70,7 +72,7 @@ The user subsequently confirmed that the second recording went from 440 to
 1 Hz step. The editor now sends the captured CMD 0x41 write and displays
 reference broadcasts with trailing 00 separately from needle traffic with
 trailing 01. Its UI accepts the upstream documented 410–480 Hz range; only
-438–440 has been confirmed by this controlled capture. No new reference
-writes or reference read requests have yet been verified on Linux hardware.
+438–440 has been confirmed by this controlled capture. Reference writes have since been confirmed working on Linux hardware by the
+user. Initial reference read requests remain unverified.
 If the initial read does not return reference state, the UI leaves the value
 blank and lets the user explicitly enter a frequency, rather than assuming 440.

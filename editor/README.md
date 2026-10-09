@@ -70,5 +70,6 @@ The tuner also has an `A=… Hz` reference input and ±1 Hz buttons. Two origina
 editor MIDI captures established CMD 0x41 reference writes and the 438–440 Hz
 mapping. A reference reply confirms the displayed value. If no initial reply
 arrives, enter a desired value explicitly; the editor does not assume A=440.
-Linux reference writes still need hardware validation. See
+The user confirmed on 2026-10-09 that reference changes from the Linux editor
+are applied by the Rack. See
 [capture analysis](../docs/tuner-reference-capture.md).
