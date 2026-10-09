@@ -61,6 +61,12 @@ CSS = b'''
 .eleven-rack-panel .clock-dot.locked { color: #56d681; }
 .eleven-rack-panel stack, .eleven-rack-panel notebook, .eleven-rack-panel textview text { background: #101010; color: #eee9e3; }
 .eleven-rack-panel button:link, .eleven-rack-panel button:visited { color: #ff8a28; }
+.eleven-rack-about-content, .eleven-rack-about-content box,
+.eleven-rack-about-content label, .eleven-rack-about-content viewport,
+.eleven-rack-about-content scrolledwindow, .eleven-rack-about-content stack,
+.eleven-rack-about-content textview, .eleven-rack-about-content textview text {
+    background-color: #101010; color: #eee9e3;
+}
 '''
 
 
@@ -212,6 +218,7 @@ class Panel(Gtk.Window):
             version = 'Development version'
         dialog = Gtk.AboutDialog(transient_for=self, modal=True)
         dialog.get_content_area().get_style_context().add_class('eleven-rack-panel')
+        dialog.get_content_area().get_style_context().add_class('eleven-rack-about-content')
         dialog.get_action_area().get_style_context().add_class('eleven-rack-panel')
         dialog.set_program_name('Eleven Rack Control')
         dialog.set_version(version)
