@@ -67,6 +67,13 @@ reference setting applies; no cents conversion is claimed without a verified
 calibration. Decoder/lifecycle tests pass. Live guitar tuning remains to be
 verified on hardware.
 
+The traditional pivoting needle now uses the companion CMD 0x41 stream
+(requested once on activation), falling back to CMD 0x42 if that stream is
+unavailable. The left arrow blinks red for flat notes, the right for sharp
+notes; both turn steady green at the reported center value. Idle or stale
+readings clear both LEDs. The relative scale is not labeled in cents because
+the upstream reference explicitly leaves its calibration unresolved.
+
 ## Initial Linux implementation
 
 The macOS UI has been imported with upstream MIT license and notices. Linux

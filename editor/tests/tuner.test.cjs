@@ -8,7 +8,14 @@ function setup() {
   const nodes = new Map();
   const context = {
     document: { getElementById(id) {
-      if (!nodes.has(id)) nodes.set(id, { hidden: false, style: {}, classList: { remove() {}, toggle() {} }, addEventListener() {} });
+      if (!nodes.has(id)) {
+        const classes = new Set();
+        nodes.set(id, { hidden: false, style: {}, classList: {
+          remove(...names) { names.forEach(n => classes.delete(n)); },
+          toggle(name, on) { if (on) classes.add(name); else classes.delete(name); },
+          contains(name) { return classes.has(name); },
+        }, addEventListener() {} });
+      }
       return nodes.get(id);
     } },
     window: { addEventListener() {} }, Date,
@@ -40,13 +47,26 @@ test('decodes chromatic notes, center, flat, sharp and idle', () => {
 test('polls once per interval and stops on off or disconnect', () => {
   const { context: c, nodes } = setup();
   c.syncSoftwareTuner(); c.syncSoftwareTuner();
-  assert.equal(c.timers.size, 1); assert.equal(c.sends.length, 1);
-  assert.equal(c.sends[0], 'F0 13 0B 0F 01 42 F7');
+  assert.equal(c.timers.size, 1); assert.equal(c.sends.length, 2);
+  assert.equal(c.sends[0], 'F0 13 0B 0F 01 41 F7');
+  assert.equal(c.sends[1], 'F0 13 0B 0F 01 42 F7');
   c.handleLiveTunerReply(reply(0x24, 64));
   assert.equal(nodes.get('tuner-note').textContent, 'E2');
   assert.equal(nodes.get('tuner-reading').textContent, 'In tune');
+  assert.equal(nodes.get('tuner-led-left').classList.contains('tuned'), true);
+  assert.equal(nodes.get('tuner-led-right').classList.contains('tuned'), true);
+  c.handleLiveTunerReply(reply(0x24, 60));
+  assert.equal(nodes.get('tuner-led-left').classList.contains('flat'), true);
+  assert.equal(nodes.get('tuner-led-right').classList.contains('tuned'), false);
+  c.handleTunerNeedleReply([0xF0,0x13,0x0B,0x0F,0,0x41,44,1,0xF7]);
+  assert.equal(nodes.get('tuner-needle').style.transform, 'rotate(-27.5deg)');
+  c.handleLiveTunerReply(reply(0x24, 68));
+  assert.equal(nodes.get('tuner-led-right').classList.contains('sharp'), true);
+  c.handleLiveTunerReply(reply(0x24, 64));
+  assert.equal(nodes.get('tuner-needle').style.transform, 'rotate(0deg)');
   c.handleLiveTunerReply(reply(0, 64));
   assert.equal(nodes.get('tuner-needle').hidden, true);
+  assert.equal(nodes.get('tuner-led-left').classList.contains('tuned'), false);
   c.bridgeMidiReady = false; c.timers.get(1)();
   assert.equal(c.timers.size, 0); assert.equal(nodes.get('tuner-panel').hidden, true);
   c.bridgeMidiReady = true; c.tunerOn = true; c.syncSoftwareTuner();

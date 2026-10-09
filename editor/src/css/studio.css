@@ -589,10 +589,18 @@ body.studio .tuner-header, body.studio .tuner-scale { display: flex; justify-con
 body.studio #tuner-close { padding: 6px 10px; cursor: pointer; color: var(--text); background: #262b34; border: 1px solid var(--line-2); border-radius: 6px; }
 body.studio #tuner-note { font: 700 64px/1.4 var(--mono); text-align: center; color: var(--amber); }
 body.studio .tuner-scale { font-size: 12px; color: var(--muted); }
-body.studio .tuner-meter { position: relative; height: 36px; margin: 10px 0 16px; border: 1px solid var(--line-2); border-radius: 6px; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), #ffffff18 calc(10% - 1px), #ffffff18 10%); }
-body.studio .tuner-center { position: absolute; left: calc(50% - 1px); width: 2px; height: 100%; background: #82ca8a; }
-body.studio #tuner-needle { position: absolute; left: 50%; top: 3px; bottom: 3px; width: 4px; margin-left: -2px; background: var(--amber); }
+body.studio .tuner-note-row { display: flex; align-items: center; justify-content: center; gap: 28px; }
+body.studio .tuner-led { font-size: 30px; color: #343b44; }
+body.studio .tuner-led.flat, body.studio .tuner-led.sharp { color: #ff4545; text-shadow: 0 0 10px #ff454580; animation: tuner-led-blink .6s steps(2, jump-none) infinite; }
+body.studio .tuner-led.tuned { color: #82ef8a; text-shadow: 0 0 10px #82ef8a80; animation: none; }
+@keyframes tuner-led-blink { from { opacity: 1; } to { opacity: .25; } }
+body.studio .tuner-meter { position: relative; aspect-ratio: 360 / 160; margin: 10px 0 16px; overflow: hidden; border-radius: 8px; background: #0c1016; }
+body.studio .tuner-dial { display: block; width: 100%; height: 100%; }
+body.studio #tuner-needle { position: absolute; left: 50%; bottom: 0; height: 88%; width: 3px; margin-left: -1.5px; background: var(--amber); transform-origin: 50% 100%; transition: transform 60ms linear; border-radius: 3px; }
+body.studio #tuner-needle[hidden] { display: none; }
+body.studio .tuner-pivot { position: absolute; bottom: -8px; left: calc(50% - 10px); width: 20px; height: 20px; border-radius: 50%; background: #9da4ae; border: 2px solid #272e38; }
 body.studio #tuner-reading { text-align: center; font-size: 16px; }
 body.studio #tuner-panel.in-tune #tuner-note, body.studio #tuner-panel.in-tune #tuner-reading { color: #82ca8a; }
 body.studio #tuner-panel.in-tune #tuner-needle { background: #82ca8a; }
 body.studio #tuner-panel p { margin: 16px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { body.studio .tuner-led.flat, body.studio .tuner-led.sharp { animation: none; } body.studio #tuner-needle { transition: none; } }
