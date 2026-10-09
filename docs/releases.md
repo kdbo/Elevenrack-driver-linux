@@ -63,3 +63,11 @@ from the driver and is not installed automatically with it.
 
 The release command uses GitHub CLI's
 [release creation options](https://cli.github.com/manual/gh_release_create).
+
+## Periodic kernel package checks
+
+The separate **Kernel package availability** workflow checks the pinned
+Ubuntu 24.10, 25.04, and 25.10 source/header packages every Monday and can be
+started manually. Failed reachability checks fail the job; its JSON report is
+retained as an artifact. This does not run another release build. See
+[package availability](packaging.md#kernel-package-availability) for scope.

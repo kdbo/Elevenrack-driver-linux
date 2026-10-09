@@ -157,3 +157,26 @@ vermagic, records SHA-256 fingerprints of the input packages and output module,
 and saves per-release logs and JSON results in `build/compatibility/`.
 It does not install the `.deb`, load a module, or modify the running system.
 Full Ubuntu installation, Secure Boot and hardware validation remain separate.
+
+## Kernel package availability
+
+On 2026-10-09, HTTP availability checks succeeded for the three pinned build
+inputs (kernel source archive package, common headers, and amd64 generic
+headers) for each of Ubuntu 24.10, 25.04, and 25.10. Ubuntu 24.10 required
+`old-releases.ubuntu.com`; the tested 25.04 and 25.10 files were reachable at
+`archive.ubuntu.com`. The exact URLs and check time are recorded in
+[kernel-package-availability.json](kernel-package-availability.json).
+
+Recheck with:
+
+```sh
+python3 tools/check-kernel-packages.py --releases 24.10 25.04 25.10
+```
+
+The **Kernel package availability** workflow runs weekly and manually, retaining
+a JSON report even on failure. It checks HTTP reachability without downloading,
+installing, or compiling packages. It does not verify package contents,
+repository signatures, the latest kernel updates, or all build/runtime
+dependencies. Actual DKMS source retrieval still performs its authenticated
+APT checks. A reachable archived file does not prove that the user's configured
+APT repositories can resolve it.
