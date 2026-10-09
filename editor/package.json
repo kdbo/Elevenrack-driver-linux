@@ -29,6 +29,10 @@
         "filter": [
           "*.py"
         ]
+      },
+      {
+        "from": "assets/eleven-rack-editor-logo.png",
+        "to": "eleven-rack-editor-logo.png"
       }
     ],
     "linux": {
@@ -38,7 +42,12 @@
       "category": "AudioVideo",
       "icon": "assets/eleven-rack-editor-logo.png",
       "syncDesktopName": true,
-      "maintainer": "Koen de Boev\u00e9 <itsmekeuh@gmail.com>"
+      "maintainer": "Koen de Boevé <itsmekeuh@gmail.com>",
+      "desktop": {
+        "entry": {
+          "Icon": "/opt/Eleven Rack Editor/resources/eleven-rack-editor-logo.png"
+        }
+      }
     },
     "deb": {
       "depends": [
@@ -58,7 +67,7 @@
   "license": "MIT",
   "homepage": "https://github.com/kdbo/Elevenrack-driver-linux",
   "contributors": [
-    "Koen de Boev\u00e9 (Linux integration)",
+    "Koen de Boevé (Linux integration)",
     "Damilola Olalere (macOS fork)"
   ],
   "desktopName": "eleven-rack-editor-linux.desktop"
