@@ -8,6 +8,9 @@ See [the licensing overview](LICENSING.md) for the exact scope and license texts
 See [credits and references](CREDITS.md) for the projects, developers, and
 documentation used during development and investigation.
 
+For the separate Linux editor investigation and planned UI tuner, see
+[the editor comparison](docs/editor.md).
+
 Experimental ALSA support for the Digidesign Eleven Rack (`0dba:b011`).
 
 The connected device currently exposes two MIDI inputs and outputs through
