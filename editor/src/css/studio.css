@@ -258,7 +258,8 @@ body.studio #panel-ampcab { display: grid; gap: 0; width: 100%; justify-items: c
 body.studio #panel-ampcab > .scard { display: none !important; }
 body.studio .stagebox { position: relative; padding: 6px 8px 0; display: grid; justify-items: center; width: 100%; }
 body.studio .stagebox::before { content: ""; position: absolute; left: 50%; top: -30px; width: 740px; max-width: 100%; height: 250px; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 20%, rgba(255,140,60,.22), rgba(255,122,26,.06) 40%, transparent 68%); filter: blur(6px); pointer-events: none; }
-body.studio .amp { position: relative; width: 760px; max-width: 100%; transform: perspective(1400px) rotateX(4deg); transform-origin: 50% 100%; filter: drop-shadow(0 34px 34px rgba(0,0,0,.6)); -webkit-box-reflect: below -6px linear-gradient(transparent 76%, rgba(255,255,255,.08)); }
+/* Keep text and controls flat so Chromium does not resample them in 3D. */
+body.studio .amp { position: relative; width: 760px; max-width: 100%; transform: none; filter: none; box-shadow: 0 34px 34px rgba(0,0,0,.6); }
 body.studio .amp .top-panel {
   position: relative; min-height: 84px; padding: 10px 14px 6px; border: 1px solid #000; border-bottom: 0; border-radius: 12px 12px 0 0;
   display: grid; grid-template-columns: 44px 1fr auto; align-items: start; gap: 10px;
@@ -353,7 +354,7 @@ body.studio .pedal {
   border: 1px solid rgba(0,0,0,.75) !important;
   box-shadow: inset 0 2px 0 rgba(255,255,255,.30), inset 0 0 0 3px rgba(255,255,255,.05), inset 0 -2px 0 rgba(0,0,0,.35),
               0 28px 44px rgba(0,0,0,.62), 0 4px 0 rgba(0,0,0,.55) !important;
-  transform: perspective(1200px) rotateX(5deg); transform-origin: 50% 100%;
+  transform: none;
   min-height: 0 !important; overflow: visible;
 }
 body.studio .pedal::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(112deg, rgba(255,255,255,.22), rgba(255,255,255,.04) 38%, transparent 55%, rgba(255,255,255,.05)); pointer-events: none; }
