@@ -153,6 +153,7 @@ jobs:
           test "$(dpkg-deb -f "$package" Package)" = eleven-rack-editor-linux
           test "$(dpkg-deb -f "$package" Version)" = "$PACKAGE_VERSION"
           test "$(dpkg-deb -f "$package" Architecture)" = amd64
+          mkdir -p build/editor-package-check
           dpkg-deb -x "$package" build/editor-package-check
           resources="build/editor-package-check/opt/Eleven Rack Editor/resources"
           test -s "$resources/app.asar"
