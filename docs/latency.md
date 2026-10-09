@@ -69,3 +69,19 @@ PipeWire/JACK latency ranges for the actual connected ports, and verify REAPER
 recording placement with compensation enabled. Establish any device-specific
 input/output contribution separately before changing ALSA or PipeWire latency
 reporting. No fixed correction has been applied.
+
+## Compensated REAPER recording
+
+A subsequent user-recorded 64-frame test with driver-reported compensation
+enabled gave residual delays of 267, 238, 216, and 205 frames at successive
+clicks (5.56, 4.96, 4.50, 4.27 ms at 48 kHz). The first click has lower
+correlation than the following three. The item starts at zero with zero source
+offset. See [measurement metadata](latency-reaper-compensated.json).
+
+The nonzero residual supports a compensation problem in this setup. Its
+variation within the take means a fixed correction is not yet justified.
+A longer capture after stream warmup should distinguish a startup effect from
+ongoing timing drift; actual JACK/ALSA timing should be recorded alongside it.
+The REAPER preference itself is global and not stored in this RPP; its enabled
+state follows the user's test instructions rather than an independent config
+readback.
