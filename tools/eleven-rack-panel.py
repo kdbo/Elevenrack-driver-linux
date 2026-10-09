@@ -22,7 +22,7 @@ from gi.repository import Gtk, Gdk, GdkPixbuf, GLib
 
 ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / 'eleven-rack-settings.py'
-DRIVER_LOGO = ROOT.parent / 'assets' / 'eleven-rack-linux-logo-v1.png'
+DRIVER_LOGO = ROOT.parent / 'assets' / 'eleven-rack-control-logo-v2.png'
 GLib.set_prgname('eleven-rack-control')
 GLib.set_application_name('Eleven Rack Control')
 spec = importlib.util.spec_from_file_location('settings', BACKEND)

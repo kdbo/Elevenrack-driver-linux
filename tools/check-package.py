@@ -36,7 +36,7 @@ def check(package, version):
         subprocess.run(['desktop-file-validate', str(launcher)], check=True)
         assert 'Name=Eleven Rack Control\n' in launcher.read_text()
         icon = root / 'usr/share/pixmaps/eleven-rack-driver.png'
-        assert icon.read_bytes() == (root / 'usr/lib/eleven-rack/assets/eleven-rack-linux-logo-v1.png').read_bytes()
+        assert icon.read_bytes() == (root / 'usr/lib/eleven-rack/assets/eleven-rack-control-logo-v2.png').read_bytes()
         assert (root / 'usr/bin/eleven-rack-control').stat().st_mode & 0o111
         for path in root.rglob('*'):
             assert path.stat().st_mode & 0o004, f'Not world-readable: {path}'

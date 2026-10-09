@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       prerelease: ${{ steps.version.outputs.prerelease }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -112,9 +113,66 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  editor:
+    name: Build editor Debian package
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PACKAGE_VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: editor/package-lock.json
+      - name: Install editor build dependencies
+        working-directory: editor
+        run: npm ci
+      - name: Check Linux bridge and renderer
+        run: |
+          python3 -m unittest discover -s editor/bridge-linux/tests
+          node --test editor/tests/*.test.cjs
+          python3 -m compileall -q editor/bridge-linux
+          node --check editor/main.js
+          node --check editor/preload.js
+          for script in editor/src/js/*.js; do node --check "$script"; done
+      - name: Build editor with release version
+        working-directory: editor
+        run: |
+          EDITOR_VERSION="${PACKAGE_VERSION/~/-}"
+          npm run build:linux -- --x64 --config.extraMetadata.version="$EDITOR_VERSION"
+      - name: Validate editor package
+        run: |
+          packages=(editor/dist/*.deb)
+          test "${#packages[@]}" -eq 1
+          package="${packages[0]}"
+          test "$(dpkg-deb -f "$package" Package)" = eleven-rack-editor-linux
+          test "$(dpkg-deb -f "$package" Version)" = "$PACKAGE_VERSION"
+          test "$(dpkg-deb -f "$package" Architecture)" = amd64
+          dpkg-deb -x "$package" build/editor-package-check
+          resources="build/editor-package-check/opt/Eleven Rack Editor/resources"
+          test -s "$resources/app.asar"
+          test -s "$resources/bridge-linux/bridge.py"
+          test -s "$resources/eleven-rack-editor-logo.png"
+          test -s build/editor-package-check/usr/share/applications/eleven-rack-editor-linux.desktop
+          cd editor/dist
+          sha256sum *.deb > EDITOR-SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: editor-debian-package
+          path: |
+            editor/dist/*.deb
+            editor/dist/EDITOR-SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
   release:
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: [build, hwe]
+    needs: [build, hwe, editor]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -123,6 +181,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: debian-package
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: editor-debian-package
           path: dist
       - name: Publish GitHub Release
         env:
@@ -133,7 +195,9 @@ jobs:
         run: |
           cd dist
           sha256sum --check SHA256SUMS
-          flags=(--verify-tag --generate-notes --title "Eleven Rack Control $RELEASE_TAG")
+          sha256sum --check EDITOR-SHA256SUMS
+          sha256sum *.deb > SHA256SUMS
+          flags=(--verify-tag --generate-notes --title "Eleven Rack Linux $RELEASE_TAG")
           if [ "$PRERELEASE" = true ]; then flags+=(--prerelease --latest=false); fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo 'Release already exists; preserving its assets.'

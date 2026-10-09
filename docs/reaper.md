@@ -1,5 +1,8 @@
 # REAPER with Eleven Rack and system audio
 
+For the general explanation of hardware access and shared audio, see
+[DAWs, the Eleven Rack, and system audio](daw-audio.md).
+
 ALSA exposes 8 capture and 6 playback channels. REAPER's saved direct ALSA
 configuration already requests those counts. PipeWire currently holds both
 hardware streams, so REAPER cannot concurrently open the same hardware PCM.
@@ -23,10 +26,9 @@ Select/route the Eleven Rack ports rather than the built-in sound card. Input
 3/4 is Eleven Rig L/R; output 1/2 is Main Out L/R. PipeWire/JACK routing may
 need explicit connections depending on REAPER's auto-connect options.
 
-The installed native REAPER executable inspected in this session was
-`/home/koen/Downloads/reaper782_linux_x86_64/reaper_linux_x86_64/REAPER/reaper`.
-The JACK package was not installed when these instructions were written.
-REAPER recording/playback through this path still needs validation.
+This PipeWire/JACK approach was used to address the project's REAPER and
+system-audio sharing issue. It does not establish validation of every REAPER
+recording/playback scenario or other DAWs.
 
 The local launcher and wrapper are kept outside this repository in
 `~/.local/share/eleven-rack-local/reaper/`. They are not shipped in the driver
