@@ -27,6 +27,13 @@ also uses MIDI; concurrent control-panel/editor access is not yet validated.
 
 ## Build and check
 
+`eleven-rack-editor-linux.desktop` is a development launcher for this checkout
+at `/home/koen/git/Eleven-Rack-Linux/editor`. Install it in
+`~/.local/share/applications/` to start the editor from the application menu.
+Adjust its Exec, Path and Icon entries if the checkout is moved. Packaged
+builds generate their own launcher for the installed application.
+
+## Build and check commands
 ```sh
 npm test
 npm run build:linux

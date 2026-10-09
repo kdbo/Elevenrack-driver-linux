@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Eleven Rack Editor
+Comment=Edit and manage Eleven Rack rigs
+Comment[nl]=Bewerk en beheer Eleven Rack-presets
+Exec=/usr/bin/npm start --prefix /home/koen/git/Eleven-Rack-Linux/editor
+Path=/home/koen/git/Eleven-Rack-Linux/editor
+Icon=/home/koen/git/Eleven-Rack-Linux/editor/assets/eleven-rack-editor-logo.png
+Terminal=false
+Categories=AudioVideo;Audio;Midi;
+StartupNotify=true
