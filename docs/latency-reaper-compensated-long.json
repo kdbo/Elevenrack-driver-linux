@@ -1,0 +1,285 @@
+{
+  "date": "2026-10-09",
+  "project": "test-64-compensated-20sec.RPP",
+  "sample_rate_hz": 48000,
+  "buffer_frames_user_setting": 64,
+  "recording_compensation_enabled_user_setting": true,
+  "results": [
+    {
+      "click_s": 0.0,
+      "residual_frames": 243,
+      "residual_ms": 5.0625,
+      "correlation": 0.9464019646792866
+    },
+    {
+      "click_s": 0.5,
+      "residual_frames": 226,
+      "residual_ms": 4.708333333333333,
+      "correlation": 0.9998885373100825
+    },
+    {
+      "click_s": 1.0,
+      "residual_frames": 215,
+      "residual_ms": 4.479166666666667,
+      "correlation": 0.9998907126799768
+    },
+    {
+      "click_s": 1.5,
+      "residual_frames": 211,
+      "residual_ms": 4.395833333333333,
+      "correlation": 0.999613911257278
+    },
+    {
+      "click_s": 2.0,
+      "residual_frames": 208,
+      "residual_ms": 4.333333333333333,
+      "correlation": 0.9991738737496328
+    },
+    {
+      "click_s": 2.5,
+      "residual_frames": 208,
+      "residual_ms": 4.333333333333333,
+      "correlation": 0.9995336239856359
+    },
+    {
+      "click_s": 3.0,
+      "residual_frames": 207,
+      "residual_ms": 4.3125,
+      "correlation": 0.9998924149563817
+    },
+    {
+      "click_s": 3.5,
+      "residual_frames": 207,
+      "residual_ms": 4.3125,
+      "correlation": 0.9992250399451008
+    },
+    {
+      "click_s": 4.0,
+      "residual_frames": 208,
+      "residual_ms": 4.333333333333333,
+      "correlation": 0.9994821586249848
+    },
+    {
+      "click_s": 4.5,
+      "residual_frames": 209,
+      "residual_ms": 4.354166666666667,
+      "correlation": 0.999527435281548
+    },
+    {
+      "click_s": 5.0,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9997271941857189
+    },
+    {
+      "click_s": 5.5,
+      "residual_frames": 146,
+      "residual_ms": 3.0416666666666665,
+      "correlation": 0.7673820034281756
+    },
+    {
+      "click_s": 6.0,
+      "residual_frames": 214,
+      "residual_ms": 4.458333333333333,
+      "correlation": 0.9974389449338371
+    },
+    {
+      "click_s": 6.5,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.999470072396687
+    },
+    {
+      "click_s": 7.0,
+      "residual_frames": 206,
+      "residual_ms": 4.291666666666667,
+      "correlation": 0.9992505672128784
+    },
+    {
+      "click_s": 7.5,
+      "residual_frames": 205,
+      "residual_ms": 4.270833333333333,
+      "correlation": 0.9995514064826354
+    },
+    {
+      "click_s": 8.0,
+      "residual_frames": 132,
+      "residual_ms": 2.75,
+      "correlation": 0.9974671451328269
+    },
+    {
+      "click_s": 8.5,
+      "residual_frames": 218,
+      "residual_ms": 4.541666666666667,
+      "correlation": 0.9995084211737173
+    },
+    {
+      "click_s": 9.0,
+      "residual_frames": 197,
+      "residual_ms": 4.104166666666667,
+      "correlation": 0.9990107027617144
+    },
+    {
+      "click_s": 9.5,
+      "residual_frames": 158,
+      "residual_ms": 3.2916666666666665,
+      "correlation": 0.9988736013619017
+    },
+    {
+      "click_s": 10.0,
+      "residual_frames": 179,
+      "residual_ms": 3.7291666666666665,
+      "correlation": 0.9958113299314174
+    },
+    {
+      "click_s": 10.5,
+      "residual_frames": 192,
+      "residual_ms": 4.0,
+      "correlation": 0.9994552571606539
+    },
+    {
+      "click_s": 11.0,
+      "residual_frames": 213,
+      "residual_ms": 4.4375,
+      "correlation": 0.9996314115259064
+    },
+    {
+      "click_s": 11.5,
+      "residual_frames": 212,
+      "residual_ms": 4.416666666666667,
+      "correlation": 0.9988703615144936
+    },
+    {
+      "click_s": 12.0,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9993298697469795
+    },
+    {
+      "click_s": 12.5,
+      "residual_frames": 209,
+      "residual_ms": 4.354166666666667,
+      "correlation": 0.9993868428678834
+    },
+    {
+      "click_s": 13.0,
+      "residual_frames": 209,
+      "residual_ms": 4.354166666666667,
+      "correlation": 0.9991814198965874
+    },
+    {
+      "click_s": 13.5,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9998938190367486
+    },
+    {
+      "click_s": 14.0,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.999825620023941
+    },
+    {
+      "click_s": 14.5,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9988595512640522
+    },
+    {
+      "click_s": 15.0,
+      "residual_frames": 211,
+      "residual_ms": 4.395833333333333,
+      "correlation": 0.9984123420101867
+    },
+    {
+      "click_s": 15.5,
+      "residual_frames": 211,
+      "residual_ms": 4.395833333333333,
+      "correlation": 0.9988745463479105
+    },
+    {
+      "click_s": 16.0,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9957454001525637
+    },
+    {
+      "click_s": 16.5,
+      "residual_frames": 211,
+      "residual_ms": 4.395833333333333,
+      "correlation": 0.9990358215115966
+    },
+    {
+      "click_s": 17.0,
+      "residual_frames": 211,
+      "residual_ms": 4.395833333333333,
+      "correlation": 0.9988818006844696
+    },
+    {
+      "click_s": 17.5,
+      "residual_frames": 211,
+      "residual_ms": 4.395833333333333,
+      "correlation": 0.9986107491939041
+    },
+    {
+      "click_s": 18.0,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9981842809438114
+    },
+    {
+      "click_s": 18.5,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9986747349828691
+    },
+    {
+      "click_s": 19.0,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9990812952963399
+    },
+    {
+      "click_s": 19.5,
+      "residual_frames": 210,
+      "residual_ms": 4.375,
+      "correlation": 0.9994218321324152
+    },
+    {
+      "click_s": 20.0,
+      "residual_frames": 206,
+      "residual_ms": 4.291666666666667,
+      "correlation": 0.9998227429021683
+    },
+    {
+      "click_s": 20.5,
+      "residual_frames": 207,
+      "residual_ms": 4.3125,
+      "correlation": 0.999397925752219
+    },
+    {
+      "click_s": 21.0,
+      "residual_frames": 208,
+      "residual_ms": 4.333333333333333,
+      "correlation": 0.9996719961954622
+    },
+    {
+      "click_s": 21.5,
+      "residual_frames": 209,
+      "residual_ms": 4.354166666666667,
+      "correlation": 0.9996786725201009
+    }
+  ],
+  "late_window_summary": {
+    "start_s": 15,
+    "min_frames": 206,
+    "median_frames": 210.0,
+    "max_frames": 211,
+    "median_ms": 4.375
+  },
+  "limitations": [
+    "Recording compensation and quantum follow user test setup; not stored independently in RPP",
+    "Isolated timing outliers retained; no xrun or PipeWire timing log was recorded during the take",
+    "Does not separate input and output hardware delay"
+  ]
+}

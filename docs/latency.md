@@ -85,3 +85,19 @@ ongoing timing drift; actual JACK/ALSA timing should be recorded alongside it.
 The REAPER preference itself is global and not stored in this RPP; its enabled
 state follows the user's test instructions rather than an independent config
 readback.
+
+## Longer compensated take at 64 frames
+
+The follow-up `test-64-compensated-20sec.RPP` actually contains a 22-second
+click source and 44 measured clicks. After the initial settling, most residuals
+are around 207–211 frames (4.31–4.40 ms). The final window, from 15 seconds,
+spans 206–211 frames with a median of 210 frames (4.375 ms).
+
+Individual outliers occur around 5.5–10.5 seconds, including a low-correlation
+click at 5.5 seconds. They are retained in the
+[full measurement](latency-reaper-compensated-long.json); no contemporaneous
+xrun/timing log establishes their cause. The result shows a mostly stable
+late offset after startup, not continuously accumulating drift in this take.
+A 210-frame correction would be a provisional calibration for this one path
+and setup, not an established device-wide ALSA correction or a justified split
+between input and output delays. No correction has been applied.
