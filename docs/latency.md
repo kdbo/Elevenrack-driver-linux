@@ -101,3 +101,19 @@ late offset after startup, not continuously accumulating drift in this take.
 A 210-frame correction would be a provisional calibration for this one path
 and setup, not an established device-wide ALSA correction or a justified split
 between input and output delays. No correction has been applied.
+
+## Provisional manual input offset check
+
+With REAPER's reported-latency compensation enabled and an additional input
+manual offset of 210 samples, the subsequent 22-second take has residuals
+between -32 and +30 frames (-0.67 to +0.63 ms), compared with approximately
++210 frames in the settled previous take. For the first 16.5 seconds the
+residual is within -4 to +12 frames. Larger timing changes occur later in the
+take. See [full results](latency-reaper-offset210.json).
+
+The positive input offset moves the recording earlier as intended and improves
+alignment for this configuration. It does not reduce physical monitoring delay
+or identify an input-only hardware delay. Keep it as a user-specific recording
+calibration for this tested path, not a universal driver constant. Revalidate
+for other rates, buffer settings, devices, and signal paths. Residual variability
+still needs investigation with synchronized timing and xrun logs.

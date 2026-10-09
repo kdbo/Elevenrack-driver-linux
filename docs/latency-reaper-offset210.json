@@ -1,0 +1,284 @@
+{
+  "date": "2026-10-09",
+  "project": "test-64-offset210.RPP",
+  "sample_rate_hz": 48000,
+  "buffer_frames_user_setting": 64,
+  "recording_compensation_enabled_user_setting": true,
+  "input_manual_offset_samples_user_setting": 210,
+  "results": [
+    {
+      "click_s": 0.0,
+      "residual_frames": 2,
+      "residual_ms": 0.041666666666666664,
+      "correlation": 0.9443214158141687
+    },
+    {
+      "click_s": 0.5,
+      "residual_frames": 3,
+      "residual_ms": 0.0625,
+      "correlation": 0.9987764202293254
+    },
+    {
+      "click_s": 1.0,
+      "residual_frames": 3,
+      "residual_ms": 0.0625,
+      "correlation": 0.9982413370761269
+    },
+    {
+      "click_s": 1.5,
+      "residual_frames": 4,
+      "residual_ms": 0.08333333333333333,
+      "correlation": 0.9987071305352452
+    },
+    {
+      "click_s": 2.0,
+      "residual_frames": 5,
+      "residual_ms": 0.10416666666666667,
+      "correlation": 0.9995754554750559
+    },
+    {
+      "click_s": 2.5,
+      "residual_frames": 6,
+      "residual_ms": 0.125,
+      "correlation": 0.9994550767982302
+    },
+    {
+      "click_s": 3.0,
+      "residual_frames": 7,
+      "residual_ms": 0.14583333333333334,
+      "correlation": 0.9997768529953409
+    },
+    {
+      "click_s": 3.5,
+      "residual_frames": 8,
+      "residual_ms": 0.16666666666666666,
+      "correlation": 0.9998926712423175
+    },
+    {
+      "click_s": 4.0,
+      "residual_frames": 8,
+      "residual_ms": 0.16666666666666666,
+      "correlation": 0.9932837278972793
+    },
+    {
+      "click_s": 4.5,
+      "residual_frames": 9,
+      "residual_ms": 0.1875,
+      "correlation": 0.9983742181019939
+    },
+    {
+      "click_s": 5.0,
+      "residual_frames": 10,
+      "residual_ms": 0.20833333333333334,
+      "correlation": 0.99972253212191
+    },
+    {
+      "click_s": 5.5,
+      "residual_frames": 11,
+      "residual_ms": 0.22916666666666666,
+      "correlation": 0.9995191248893773
+    },
+    {
+      "click_s": 6.0,
+      "residual_frames": 11,
+      "residual_ms": 0.22916666666666666,
+      "correlation": 0.9998289535199308
+    },
+    {
+      "click_s": 6.5,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9988562520094465
+    },
+    {
+      "click_s": 7.0,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9998065365215903
+    },
+    {
+      "click_s": 7.5,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9998647681126909
+    },
+    {
+      "click_s": 8.0,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9998198659776177
+    },
+    {
+      "click_s": 8.5,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9992611255421022
+    },
+    {
+      "click_s": 9.0,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9991999250301496
+    },
+    {
+      "click_s": 9.5,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9993463729504126
+    },
+    {
+      "click_s": 10.0,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9997988047726277
+    },
+    {
+      "click_s": 10.5,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9998520576057611
+    },
+    {
+      "click_s": 11.0,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.9998774494108044
+    },
+    {
+      "click_s": 11.5,
+      "residual_frames": 12,
+      "residual_ms": 0.25,
+      "correlation": 0.999418464861574
+    },
+    {
+      "click_s": 12.0,
+      "residual_frames": 1,
+      "residual_ms": 0.020833333333333332,
+      "correlation": 0.9998297360823641
+    },
+    {
+      "click_s": 12.5,
+      "residual_frames": -2,
+      "residual_ms": -0.041666666666666664,
+      "correlation": 0.9997565211701214
+    },
+    {
+      "click_s": 13.0,
+      "residual_frames": -3,
+      "residual_ms": -0.0625,
+      "correlation": 0.9994634082095032
+    },
+    {
+      "click_s": 13.5,
+      "residual_frames": -4,
+      "residual_ms": -0.08333333333333333,
+      "correlation": 0.9989426799183271
+    },
+    {
+      "click_s": 14.0,
+      "residual_frames": -4,
+      "residual_ms": -0.08333333333333333,
+      "correlation": 0.9997826732613329
+    },
+    {
+      "click_s": 14.5,
+      "residual_frames": -3,
+      "residual_ms": -0.0625,
+      "correlation": 0.9990404721555148
+    },
+    {
+      "click_s": 15.0,
+      "residual_frames": -3,
+      "residual_ms": -0.0625,
+      "correlation": 0.9997035241393544
+    },
+    {
+      "click_s": 15.5,
+      "residual_frames": -3,
+      "residual_ms": -0.0625,
+      "correlation": 0.9996909860679127
+    },
+    {
+      "click_s": 16.0,
+      "residual_frames": -4,
+      "residual_ms": -0.08333333333333333,
+      "correlation": 0.9938432068110209
+    },
+    {
+      "click_s": 16.5,
+      "residual_frames": -3,
+      "residual_ms": -0.0625,
+      "correlation": 0.9986097596342082
+    },
+    {
+      "click_s": 17.0,
+      "residual_frames": 30,
+      "residual_ms": 0.625,
+      "correlation": 0.9998970586732622
+    },
+    {
+      "click_s": 17.5,
+      "residual_frames": -12,
+      "residual_ms": -0.25,
+      "correlation": 0.9985757391508029
+    },
+    {
+      "click_s": 18.0,
+      "residual_frames": -22,
+      "residual_ms": -0.4583333333333333,
+      "correlation": 0.9973978182276346
+    },
+    {
+      "click_s": 18.5,
+      "residual_frames": -27,
+      "residual_ms": -0.5625,
+      "correlation": 0.999081376937452
+    },
+    {
+      "click_s": 19.0,
+      "residual_frames": -31,
+      "residual_ms": -0.6458333333333334,
+      "correlation": 0.9984989219192569
+    },
+    {
+      "click_s": 19.5,
+      "residual_frames": -32,
+      "residual_ms": -0.6666666666666666,
+      "correlation": 0.9997962989596955
+    },
+    {
+      "click_s": 20.0,
+      "residual_frames": -32,
+      "residual_ms": -0.6666666666666666,
+      "correlation": 0.9997810661027238
+    },
+    {
+      "click_s": 20.5,
+      "residual_frames": -31,
+      "residual_ms": -0.6458333333333334,
+      "correlation": 0.9998837158994224
+    },
+    {
+      "click_s": 21.0,
+      "residual_frames": -30,
+      "residual_ms": -0.625,
+      "correlation": 0.9993927914565132
+    },
+    {
+      "click_s": 21.5,
+      "residual_frames": 3,
+      "residual_ms": 0.0625,
+      "correlation": 0.9993875631019847
+    }
+  ],
+  "summary": {
+    "min_frames": -32,
+    "median_frames": 3.5,
+    "max_frames": 30
+  },
+  "limitations": [
+    "One take at 64 frames / 48 kHz with user-set input offset 210",
+    "Not a device-wide driver calibration",
+    "Time-varying residual still present; no synchronized timing log"
+  ]
+}
