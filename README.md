@@ -3,6 +3,9 @@
 Original project code is available under the [MIT License](LICENSE).
 Linux kernel code and any third-party components retain their respective licenses.
 
+See [credits and references](CREDITS.md) for the projects, developers, and
+documentation used during development and investigation.
+
 Experimental ALSA support for the Digidesign Eleven Rack (`0dba:b011`).
 
 The connected device currently exposes two MIDI inputs and outputs through

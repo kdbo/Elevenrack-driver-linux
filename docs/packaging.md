@@ -121,8 +121,10 @@ instead of `remove` if you also want package-owned routing configuration deleted
 This is a local beta artifact, not a published release. Monitoring switching
 still awaits verified protocol details; clock selection has known limitations
 documented in `interface-settings.md`. Full hardware testing on Ubuntu 24.04
-is required before advertising production support. The project's distribution
-license and release maintainer details must be finalized before public release.
+is required before advertising production support. Original project code is
+MIT-licensed; see [LICENSE](../LICENSE) and [credits](../CREDITS.md) for attribution
+and the scope of third-party licensing. Release maintainer details and licensing
+of any future imported components must be reviewed before public release.
 
 Build validation: the package build helper compiled successfully against the
 Ubuntu 24.04 `6.8.0-31-generic` sources/headers and Ubuntu 26.04
