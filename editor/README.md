@@ -34,8 +34,8 @@ npm run build:linux
 
 The editor `.deb` appears under `editor/dist/`, separately from the DKMS driver
 package. It declares Python MIDI/WebSocket dependencies. It does not install
-or replace the kernel driver. The upstream manual is included as a reference;
-its Windows/macOS installation instructions do not apply to this Linux port.
+or replace the kernel driver. The bundled UserManual.txt describes the current Linux interface, tuner,
+reference-frequency control and output mutes, and preserves upstream credits.
 
 To check MIDI without launching the UI:
 
