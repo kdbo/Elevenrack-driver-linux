@@ -77,7 +77,7 @@ python3 tools/build-deb.py
 Install it through APT so package dependencies are resolved:
 
 ```sh
-sudo apt install ./build/packages/eleven-rack-driver_0.1.1~beta3_all.deb
+sudo apt install ./build/packages/eleven-rack-driver_0.1.2~beta1_all.deb
 ```
 
 Matching headers for the target kernel must be available. Close audio

@@ -84,7 +84,7 @@ Save work and close audio applications. Install the local package through APT
 so dependencies are resolved:
 
 ```sh
-sudo apt install ./build/packages/eleven-rack-driver_0.1.1~beta3_all.deb
+sudo apt install ./build/packages/eleven-rack-driver_0.1.2~beta1_all.deb
 ```
 
 For an HWE kernel, ensure its exact headers are installed:
