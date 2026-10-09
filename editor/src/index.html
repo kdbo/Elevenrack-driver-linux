@@ -2878,7 +2878,9 @@ document.getElementById('matrix-close-btn').addEventListener('click', closeSlotM
 // Close matrix on outside click
 document.addEventListener('click', function(e) {
   var m = document.getElementById('slot-matrix');
-  if (m.classList.contains('open') && !m.contains(e.target) && !document.getElementById('patch-name-box').contains(e.target)) {
+  if (m.classList.contains('open') && !m.contains(e.target) &&
+      !document.getElementById('patch-name-box').contains(e.target) &&
+      !document.getElementById('btn-patches').contains(e.target)) {
     closeSlotMatrix();
   }
 });
