@@ -31,7 +31,7 @@ is recorded. A successful build does not establish full distribution support.
 | Distribution | Package | Package build/check | Driver compilation | Package installation | Audio on hardware |
 | --- | --- | --- | --- | --- | --- |
 | Ubuntu 24.04 LTS | `.deb` | Not tested on this OS | Passed: `6.8.0-31-generic` | Not tested | Not tested |
-| Ubuntu 24.04 LTS, HWE 7.0 | `.deb` | beta5 built/checked on development host | Passed: `7.0.0-38-generic` HWE sources/headers | beta4 failed: missing sources; beta5 retry pending | Not tested |
+| Ubuntu 24.04 LTS, HWE 7.0 | `.deb` | beta5 built/checked on development host | Passed: `7.0.0-38-generic` HWE sources/headers | Passed: beta5, user-confirmed on VM | Specific audio tests not recorded |
 | Ubuntu 24.10 | `.deb` | Not tested on this OS | Passed: `6.11.0-8-generic` | Not tested | Not tested |
 | Ubuntu 25.04 | `.deb` | Not tested on this OS | Passed: `6.14.0-15-generic` | Not tested | Not tested |
 | Ubuntu 25.10 | `.deb` | Not tested on this OS | Passed: `6.17.0-5-generic` | Not tested | Not tested |
@@ -49,6 +49,11 @@ results are in [the build matrix](docs/compatibility-builds.json) and
 [the HWE regression result](docs/hwe-build.json).
 HWE/OEM kernels, other architectures, and later kernel updates are not covered.
 The additional distributions above are candidates, not supported targets.
+
+The user confirmed on 2026-10-09 that beta5 installs and works on the Ubuntu
+24.04 VM with HWE kernel `7.0.0-38-generic`, resolving beta4's missing-source
+failure. Specific audio scenarios, reboot, upgrade/removal, and Secure Boot
+results were not reported for this VM.
 
 The beta4 installation check confirms the package is installed on the existing
 development host; clean installation, upgrade, removal, and reboot validation
