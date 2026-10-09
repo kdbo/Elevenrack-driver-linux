@@ -3262,6 +3262,7 @@ function handleTunerCC(val) {
   else if (val === 0x3F || val === 0) tunerOn = false;
   else return; // unrecognized value — not the state broadcast, ignore
   document.getElementById('btn-tuner').classList.toggle('on', tunerOn);
+  if (typeof syncSoftwareTuner === 'function') syncSoftwareTuner();
   setStatus('Tuner ' + (tunerOn ? 'ON' : 'OFF'));
   appLog('Tuner ' + (tunerOn ? 'ON' : 'OFF') + ' (confirmed via hardware)');
   // Roller safety gate (2026-08-11, same family as SAVE/Load TFX/Export/

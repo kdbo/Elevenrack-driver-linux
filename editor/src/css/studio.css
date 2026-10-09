@@ -582,3 +582,17 @@ body.studio.sliders #master { --fader: 92px; }
 /* Scrollbars */
 body.studio ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border: 2px solid transparent; background-clip: padding-box; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) { body.studio .chain-slot, body.studio .chain-slot-stack { transition: none; } }
+/* Live hardware tuner. Flat DOM text keeps the readout crisp. */
+body.studio #tuner-panel { position: fixed; z-index: 10000; top: 110px; left: 50%; transform: translateX(-50%); width: 420px; max-width: calc(100vw - 40px); box-sizing: border-box; padding: 22px; border: 1px solid var(--amber); border-radius: 14px; background: #14171d; color: var(--text); box-shadow: 0 18px 60px #000a; }
+body.studio #tuner-panel[hidden] { display: none; }
+body.studio .tuner-header, body.studio .tuner-scale { display: flex; justify-content: space-between; align-items: center; }
+body.studio #tuner-close { padding: 6px 10px; cursor: pointer; color: var(--text); background: #262b34; border: 1px solid var(--line-2); border-radius: 6px; }
+body.studio #tuner-note { font: 700 64px/1.4 var(--mono); text-align: center; color: var(--amber); }
+body.studio .tuner-scale { font-size: 12px; color: var(--muted); }
+body.studio .tuner-meter { position: relative; height: 36px; margin: 10px 0 16px; border: 1px solid var(--line-2); border-radius: 6px; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), #ffffff18 calc(10% - 1px), #ffffff18 10%); }
+body.studio .tuner-center { position: absolute; left: calc(50% - 1px); width: 2px; height: 100%; background: #82ca8a; }
+body.studio #tuner-needle { position: absolute; left: 50%; top: 3px; bottom: 3px; width: 4px; margin-left: -2px; background: var(--amber); }
+body.studio #tuner-reading { text-align: center; font-size: 16px; }
+body.studio #tuner-panel.in-tune #tuner-note, body.studio #tuner-panel.in-tune #tuner-reading { color: #82ca8a; }
+body.studio #tuner-panel.in-tune #tuner-needle { background: #82ca8a; }
+body.studio #tuner-panel p { margin: 16px 0 0; text-align: center; font-size: 12px; color: var(--muted); }

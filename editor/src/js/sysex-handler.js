@@ -64,6 +64,7 @@ async function parseSysEx(data) {
     case 0x21: return handleChainMap(data);
     case 0x07: return handleRigVolumeBroadcast(data);
     case 0x40: return handleTunerBroadcast(data);
+    case 0x42: return handleLiveTunerReply(data);
     case 0x0D: return handleMonoBroadcast(data);
     case 0x50: return handleRigTempoBroadcast(data);
     case 0x36: return handleToAmpVolumeBroadcast(data);

@@ -20,6 +20,7 @@ jobs:
       - name: Check Linux bridge and renderer
         run: |
           python3 -m unittest discover -s editor/bridge-linux/tests
+          node --test editor/tests/*.test.cjs
           python3 -m compileall -q editor/bridge-linux
           node --check editor/main.js
           node --check editor/preload.js

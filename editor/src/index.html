@@ -3588,6 +3588,15 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 });
 </script>
 
+<section id="tuner-panel" hidden aria-label="Live tuner">
+  <div class="tuner-header"><strong>TUNER</strong><button id="tuner-close" type="button">Close tuner</button></div>
+  <div id="tuner-note">—</div>
+  <div class="tuner-scale"><span>♭</span><span>IN TUNE</span><span>♯</span></div>
+  <div class="tuner-meter"><div class="tuner-center"></div><div id="tuner-needle" hidden></div></div>
+  <div id="tuner-reading" role="status">Play a single note</div>
+  <p>Uses the Eleven Rack tuner and its reference setting.</p>
+</section>
+
 <!-- ══ APPLICATION SCRIPTS — load order matters ══ -->
 <script src="js/state.js"></script>
 <script src="js/protocol.js"></script>
@@ -3598,6 +3607,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/capture-scan.js"></script>
 <script src="js/bank-transfer.js"></script>   <!-- Export All Rigs, 2026-08-10 -->
 <script src="js/sysex-handler.js"></script>
+<script src="js/tuner.js"></script>
 <script src="js/patch-nav.js"></script>
 <script src="js/rig-balance.js"></script>   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
 <script src="js/studio-ui.js"></script>   <!-- Studio look: layout, knobs, VU meters, 2026-09-15 -->

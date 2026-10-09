@@ -51,19 +51,21 @@ The driver panel also accesses the Rack's MIDI ports. Test concurrent access
 and reply ownership explicitly; the unresolved VM Rig Input readback is not
 evidence that the editor bridge will work correctly there.
 
-## Requested UI tuner (later)
+## Live UI tuner
 
-Clicking Tuner should eventually show a software tuner in the editor UI,
-including note, cents offset, and tuning indication. This is deferred until
-the basic editor works on Linux.
+The UI now shows the hardware tuner note and a relative tuning needle.
+Charles Wardick's ElevenEdit Technical Reference, section LIVE TUNER DATA,
+documents the read request `F0 13 0B 0F 01 42 F7` and reply
+`F0 13 0B 0F 12 42 [note] [tune] F7`. The note packs octave/chromatic
+index in its nibbles; tune is centered at 0x40. The documented idle reply
+is note=0/tune=0x40 (ambiguous with a tuned C0).
 
-The reviewed fork's `handleTunerBroadcast()` and `handleTunerCC()` handle
-tuner enabled/disabled status, not measured pitch. Do not assume those events
-carry note or cents data. First investigate whether the device exposes pitch
-telemetry. Otherwise implement software pitch detection from a verified dry
-guitar capture channel, with separate audio access and tuning-mode tests.
-The hardware tuner may change routing, so confirm that the required signal
-remains available when it is enabled.
+Polling runs at 15 Hz only while the confirmed hardware tuner is on and
+MIDI is connected. Turning off, changing presets or disconnecting stops it.
+No audio capture or additional pitch algorithm is needed. The hardware's
+reference setting applies; no cents conversion is claimed without a verified
+calibration. Decoder/lifecycle tests pass. Live guitar tuning remains to be
+verified on hardware.
 
 ## Initial Linux implementation
 
