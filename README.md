@@ -24,13 +24,14 @@ For automatic package builds and publishing tagged GitHub Releases, see
 
 ## Distribution test matrix
 
-Status as of 2026-10-08, for x86_64/amd64. **Passed** means the stated check
+Status as of 2026-10-09, for x86_64/amd64. **Passed** means the stated check
 succeeded; **Partial** means limited testing; **Not tested** means no result
 is recorded. A successful build does not establish full distribution support.
 
 | Distribution | Package | Package build/check | Driver compilation | Package installation | Audio on hardware |
 | --- | --- | --- | --- | --- | --- |
 | Ubuntu 24.04 LTS | `.deb` | Not tested on this OS | Passed: `6.8.0-31-generic` | Not tested | Not tested |
+| Ubuntu 24.04 LTS, HWE 7.0 | `.deb` | beta5 built/checked on development host | Passed: `7.0.0-38-generic` HWE sources/headers | beta4 failed: missing sources; beta5 retry pending | Not tested |
 | Ubuntu 24.10 | `.deb` | Not tested on this OS | Passed: `6.11.0-8-generic` | Not tested | Not tested |
 | Ubuntu 25.04 | `.deb` | Not tested on this OS | Passed: `6.14.0-15-generic` | Not tested | Not tested |
 | Ubuntu 25.10 | `.deb` | Not tested on this OS | Passed: `6.17.0-5-generic` | Not tested | Not tested |
@@ -44,7 +45,8 @@ is recorded. A successful build does not establish full distribution support.
 The Ubuntu driver compilation checks used matching sources and headers on the
 Ubuntu 26.04 development host, rather than separate installations of each OS.
 Exact kernel versions, fingerprints, and historical build
-results are in [the build matrix](docs/compatibility-builds.json).
+results are in [the build matrix](docs/compatibility-builds.json) and
+[the HWE regression result](docs/hwe-build.json).
 HWE/OEM kernels, other architectures, and later kernel updates are not covered.
 The additional distributions above are candidates, not supported targets.
 
@@ -57,8 +59,9 @@ Simultaneous recording/playback, sustained audio, REAPER audio, Secure Boot,
 and all controls/rates still need full validation.
 
 The [CI workflow](.github/workflows/package.yml) builds and checks the `.deb`
-on Ubuntu 24.04, but its GitHub run has not yet been verified here. It does not
-compile or load the driver and does not provide hardware test coverage.
+and compiles the Ubuntu 24.04 HWE driver, but its GitHub run has not yet been
+verified here. It does not install the driver package, load the driver, or
+provide hardware test coverage.
 
 The patch now targets Ubuntu source package `7.0.0-38.38` and compiled successfully
 against headers for `7.0.0-38-generic`. No system modules have been changed.

@@ -9,13 +9,17 @@ if ! dpkg --compare-versions "$kernel_series" ge 6.8; then
     exit 1
 fi
 source_archive=${ELEVEN_SOURCE_ARCHIVE:-/usr/src/linux-source-${kernel_series}.0.tar.bz2}
-if [ ! -f "$source_archive" ]; then
-    echo "Missing matching kernel sources: $source_archive" >&2
-    echo "Install linux-source-${kernel_series}.0 and linux-headers-$kernel_release, then run sudo dkms autoinstall -k $kernel_release." >&2
-    exit 1
-fi
 test -f "$headers/Makefile" || { echo "Missing headers: $headers" >&2; exit 1; }
 build_root="$PWD"
+source_prefix=${ELEVEN_SOURCE_PREFIX:-linux-source-${kernel_series}.0}
+if [ -z "${ELEVEN_SOURCE_ARCHIVE:-}" ]; then
+    source_identity=$(python3 "$build_root/fetch-kernel-source.py" "$kernel_release" --identify)
+    if [[ "$source_identity" == linux-hwe-* ]] || [ ! -f "$source_archive" ]; then
+        source_archive=$(python3 "$build_root/fetch-kernel-source.py" "$kernel_release")
+        source_prefix=linux-source
+    fi
+fi
+test -f "$source_archive" || { echo "Missing kernel sources: $source_archive" >&2; exit 1; }
 source_root="$build_root/kernel-source"
 # DKMS can retry builds. Clear only the generated subtree in its build directory.
 python3 - "$source_root" <<'PY'
@@ -30,7 +34,7 @@ if p.exists():
 p.mkdir()
 PY
 tar -xjf "$source_archive" -C "$source_root" --strip-components=1 \
-    "linux-source-${kernel_series}.0/sound/usb"
+    "$source_prefix/sound/usb"
 python3 "$build_root/prepare-driver.py" "$source_root/sound/usb"
 compiler=${CC:-gcc}
 auto_conf="$headers/include/config/auto.conf"

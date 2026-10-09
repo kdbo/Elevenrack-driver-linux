@@ -28,7 +28,7 @@ def check(package, version):
         source = root / f'usr/src/eleven-rack-{version}'
         assert f'PACKAGE_VERSION="{version}"' in (source / 'dkms.conf').read_text()
         assert '@VERSION@' not in (source / 'dkms.conf').read_text()
-        for name in ('build-driver.sh', 'prepare-driver.py'):
+        for name in ('build-driver.sh', 'prepare-driver.py', 'fetch-kernel-source.py'):
             assert (source / name).stat().st_mode & 0o111, name
         for path in root.rglob('*.py'):
             ast.parse(path.read_text(), filename=str(path))

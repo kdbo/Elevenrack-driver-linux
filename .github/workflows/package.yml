@@ -60,10 +60,12 @@ jobs:
       - name: Validate scripts and metadata
         run: |
           python3 -m compileall -q tools packaging
+          python3 tools/test-kernel-source.py
           for script in tools/*.sh packaging/*.sh; do bash -n "$script"; done
           for script in packaging/postinst packaging/prerm packaging/postrm; do sh -n "$script"; done
           python3 -m json.tool packaging/ubuntu-kernels.json >/dev/null
           python3 -m json.tool docs/compatibility-builds.json >/dev/null
+          python3 -m json.tool docs/hwe-build.json >/dev/null
           desktop-file-validate config/eleven-rack-driver.desktop
       - name: Build and check Debian package
         run: |
@@ -80,9 +82,39 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  hwe:
+    name: Ubuntu 24.04 HWE driver build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install matching HWE headers and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends build-essential dpkg-dev ca-certificates bzip2 xz-utils kmod \
+            linux-headers-7.0.0-38-generic=7.0.0-38.38~24.04.4
+      - name: Build using automatic exact HWE sources
+        run: |
+          mkdir -p build/hwe
+          cp packaging/prepare-driver.py packaging/fetch-kernel-source.py build/hwe/
+          cd build/hwe
+          set -o pipefail
+          ELEVEN_SOURCE_CACHE="$PWD/source-cache" bash ../../packaging/build-driver.sh \
+            7.0.0-38-generic /usr/src/linux-headers-7.0.0-38-generic 2>&1 | tee build.log
+          modinfo -F vermagic kernel-source/sound/usb/snd-usb-audio.ko | grep -q '^7.0.0-38-generic '
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ubuntu-24.04-hwe-build-log
+          path: build/hwe/build.log
+          if-no-files-found: warn
+          retention-days: 30
+
   release:
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: build
+    needs: [build, hwe]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

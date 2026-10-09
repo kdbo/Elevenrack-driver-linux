@@ -1,0 +1,19 @@
+{
+  "validation_date": "2026-10-09",
+  "ubuntu": "24.04",
+  "kernel": "7.0.0-38-generic",
+  "source_package": "linux-hwe-7.0",
+  "source_version": "7.0.0-38.38~24.04.4",
+  "architecture": "amd64",
+  "build_exit_code": 0,
+  "vermagic": "7.0.0-38-generic SMP preempt mod_unload modversions",
+  "scope": "Exact HWE sources retrieved via signed APT metadata and compiled against matching HWE headers on Ubuntu 26.04 host. Automatic cached source dispatch checked using simulated installed-package identity. No driver package installation or module loading.",
+  "hardware_tested": false,
+  "full_os_install_tested": false,
+  "sha256": {
+    "linux-hwe-7.0-headers-7.0.0-38_7.0.0-38.38~24.04.4_all.deb": "8806dc00159307a485e7608ed52cc2482b0cdb6211550f55354586afef5e7e5e",
+    "linux-headers-7.0.0-38-generic_7.0.0-38.38~24.04.4_amd64.deb": "44e6fa84a94dc7f8efbb85d48822a0030bd1e0e20f3696924f4d86834239931f",
+    "linux-hwe-7.0_7.0.0-38.38~24.04.4.tar.bz2": "a5abcdf976c6b0953ca523a4eeb5592bb808d1e7c3b2738a6307966307f7feb4",
+    "snd-usb-audio.ko": "29603eed2b7d4c65aa5d954396f2bc4f6fc92558b9f1d2736ebf09a7736a4acd"
+  }
+}

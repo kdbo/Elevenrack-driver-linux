@@ -5,8 +5,14 @@ launcher, and the built Debian package on pushes to `main`, pull requests,
 and manual runs. Download the `.deb` and `SHA256SUMS` from the run's
 `debian-package` artifact (kept for 30 days).
 
-These checks do not compile the kernel module, install the package, or test
-hardware. See [packaging](packaging.md) for the separate kernel build matrix.
+An additional Ubuntu 24.04 job compiles the module against HWE kernel
+`7.0.0-38-generic`, using exact `linux-hwe-7.0` sources fetched automatically
+through isolated, authenticated APT metadata. Release publication requires
+both the package checks and this HWE build to pass. The pinned headers and
+sources must remain available in Ubuntu's repositories; update the pin and
+revalidate together when moving to a newer kernel.
+CI does not install the driver package or load a module, and does not test
+hardware. See [packaging](packaging.md) for the broader kernel build matrix.
 
 ## Publish a release
 

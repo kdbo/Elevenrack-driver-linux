@@ -22,7 +22,7 @@ repositories. This package does not rewrite APT sources or upgrade Ubuntu.
 
 The driver replaces the system `snd-usb-audio` module using DKMS's module
 override mechanism, affecting all devices handled by that module. DKMS builds
-from the distro's matching `linux-source-X.Y.0` archive and headers rather than
+from the distro's kernel sources and matching headers rather than
 using a precompiled module. The driver adaptations work with the older quirk
 initializers used by Linux 6.8 as well as the Linux 7.0 layout. Unrecognized
 source layouts or existing Eleven Rack support cause a build failure.
@@ -48,12 +48,23 @@ kernel packages can report compiler-version differences; native builds using
 each Ubuntu release's default toolchain still need validation. HWE/OEM/other
 architectures and all future kernel updates are not covered by this table.
 
-Headers and sources must match the running kernel's series. The generic
-dependencies cover the default Ubuntu kernel. HWE, OEM, mainline and custom
-kernels can need additional source/header packages; having Ubuntu 24.04 alone
-does not ensure every such kernel works. A new kernel series requires its
-matching source package before DKMS can build. No source is downloaded by
-maintainer scripts.
+Headers and sources must match the kernel being built. Starting with beta5,
+HWE kernels use the exact source package and version recorded by the installed
+kernel packages (for example `linux-hwe-7.0=7.0.0-38.38~24.04.4`). Missing
+standard kernel source archives also use this automatic retrieval route.
+The helper derives temporary `deb-src` entries from the configured repositories,
+uses isolated APT lists/caches with signature and checksum verification, and
+applies the Ubuntu source changes before caching only `sound/usb` under
+`/var/cache/eleven-rack/kernel-sources/`. System repository files are not edited.
+
+The first build for each fetched source version needs network access and several
+GB of temporary disk space; the HWE 7.0 test downloaded approximately 258 MB.
+Subsequent builds of that source version use the cache. An unavailable exact
+source version or a repository/network failure stops the build with an error;
+the helper never substitutes another kernel version. Source downloads happen
+during the DKMS build, including package configuration and kernel updates.
+OEM, mainline and custom kernels remain unvalidated; matching headers must
+already be installed. No recursive package installation is performed by DKMS.
 
 ## Build
 
@@ -69,14 +80,13 @@ Save work and close audio applications. Install the local package through APT
 so dependencies are resolved:
 
 ```sh
-sudo apt install ./build/packages/eleven-rack-driver_0.1.0~beta4_all.deb
+sudo apt install ./build/packages/eleven-rack-driver_0.1.0~beta5_all.deb
 ```
 
-For an HWE/OEM kernel, first install the matching source and headers, e.g. for
-a 6.8 kernel:
+For an HWE kernel, ensure its exact headers are installed:
 
 ```sh
-sudo apt install linux-source-6.8.0 linux-headers-$(uname -r)
+sudo apt install linux-headers-$(uname -r)
 ```
 
 Then reboot and open **Eleven Rack Control** in the application menu, or run
@@ -91,7 +101,8 @@ build successfully but fail to load if its signing key is not trusted.
 
 ## Updates and removal
 
-DKMS rebuilds for kernel updates when matching sources and headers exist.
+DKMS rebuilds for kernel updates when matching sources and headers are available.
+For HWE kernels, an uncached source version is fetched automatically as above.
 Check `dkms status` after updates. DKMS prints the build-log path on failure;
 depending on its version, logs are under
 `/var/lib/dkms/eleven-rack/<version>/build/` or the kernel/architecture `log/`

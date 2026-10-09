@@ -34,7 +34,7 @@ Section: sound
 Priority: optional
 Architecture: all
 Maintainer: Eleven Rack Linux contributors <noreply@localhost>
-Depends: python3 (>= 3.12), python3-gi, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04
+Depends: python3 (>= 3.12), python3-gi, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, apt, dpkg-dev, ca-certificates, bzip2, xz-utils, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04
 Recommends: mokutil
 Description: Eleven Rack Linux audio driver and control panel (experimental)
  Patched snd-usb-audio built for the host kernel using DKMS, with a native
@@ -47,7 +47,7 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
             text = (ROOT / 'packaging' / name).read_text().replace('@VERSION@', version)
             write(f'DEBIAN/{name}', text, True)
         source_dir = f'usr/src/eleven-rack-{version}'
-        for name in ('build-driver.sh', 'prepare-driver.py'):
+        for name in ('build-driver.sh', 'prepare-driver.py', 'fetch-kernel-source.py'):
             copy('packaging/' + name, source_dir + '/' + name, True)
         text = (ROOT / 'packaging/dkms.conf').read_text().replace('@VERSION@', version)
         write(source_dir + '/dkms.conf', text)
@@ -70,6 +70,7 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
         copy('docs/interface-settings.md', 'usr/share/doc/eleven-rack-driver/interface-settings.md')
         copy('docs/compatibility-builds.json',
              'usr/share/doc/eleven-rack-driver/compatibility-builds.json')
+        copy('docs/hwe-build.json', 'usr/share/doc/eleven-rack-driver/hwe-build.json')
         copy('packaging/ubuntu-kernels.json', 'usr/share/doc/eleven-rack-driver/ubuntu-kernels.json')
         # Do not copy developer umask permissions onto system directories.
         stage.chmod(0o755)
