@@ -161,7 +161,8 @@ function knobColor(canvas, value127) {
 // visible even with the colour cue gone.
 function drawTickKnob(canvas, value127, wrap) {
   const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const w = Number(canvas.dataset.logicalSize) || canvas.width;
+  const h = Number(canvas.dataset.logicalSize) || canvas.height;
   const cx = w/2, cy = h/2, r = (w-6)/2;
   const startRad = -Math.PI/2 + (225 * Math.PI/180);
   const sweepRad = 270 * Math.PI/180;

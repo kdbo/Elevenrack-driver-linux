@@ -290,8 +290,12 @@
     } else {
       // Reset the fader's backing size/transform and fit the round drawing
       // to its layout box instead of overflowing it at its native 70px.
-      canvas.width = 70;
-      canvas.height = 70;
+      const size = wrap.clientWidth || 56;
+      const pixels = Math.round(size * (window.devicePixelRatio || 1));
+      canvas.width = pixels;
+      canvas.height = pixels;
+      canvas.dataset.logicalSize = '70';
+      canvas.getContext('2d').setTransform(pixels / 70, 0, 0, pixels / 70, 0, 0);
       canvas.style.width = '100%';
       canvas.style.height = '100%';
       drawRoundKnob(canvas, value127, wrap);
@@ -316,6 +320,8 @@
     const top = $('topbar');
     const brand = top.querySelector('.app-title').parentElement;
     brand.classList.add('brand');
+    const logo = mk('img', { class: 'editor-logo', src: '../assets/eleven-rack-editor-logo.png', alt: 'Eleven Rack Editor logo' });
+    brand.prepend(logo);
     const box = $('patch-name-box');
     const hint = box.querySelector('.hint');
     const slotLine = mk('div', { id: 'lcd-slot' });

@@ -1214,7 +1214,7 @@ function createWindow() {
     height:   winBounds.height,
     minWidth: 900,
     minHeight:600,
-    title:    '11 Edit',
+    title:    'Eleven Rack Editor',
     // Mac: the bundle's .icns is the icon; an explicit undefined here makes
     // Electron log "Argument must be a file path or a NativeImage", so the
     // key is omitted entirely rather than set to nothing.
