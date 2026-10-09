@@ -285,7 +285,17 @@
   // Keep the original round pointer knobs; Studio still supplies the faders.
   const drawRoundKnob = window.drawTickKnob;
   window.drawTickKnob = function (canvas, value127, wrap) {
-    if (slidersOn()) drawGlassFader(canvas, value127, wrap); else drawRoundKnob(canvas, value127, wrap);
+    if (slidersOn()) {
+      drawGlassFader(canvas, value127, wrap);
+    } else {
+      // Reset the fader's backing size/transform and fit the round drawing
+      // to its layout box instead of overflowing it at its native 70px.
+      canvas.width = 70;
+      canvas.height = 70;
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      drawRoundKnob(canvas, value127, wrap);
+    }
   };
   try { drawTickKnob = window.drawTickKnob; } catch (e) {}
 

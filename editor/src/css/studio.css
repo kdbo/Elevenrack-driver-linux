@@ -268,8 +268,8 @@ body.studio .amp .jacks .label, body.studio .amp .pilot-wrap .label { font-size:
 body.studio .amp .pilot-wrap { display: grid; gap: 6px; justify-items: center; padding-top: 16px; }
 body.studio .amp .pilot { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ff8f80, #c53a2e 55%, #4a0d09); box-shadow: 0 0 14px rgba(255,90,70,.8), 0 0 4px rgba(255,90,70,.9); }
 body.studio #amp-controls { display: flex; align-items: flex-start; gap: 10px; min-width: 0; flex-wrap: wrap; }
-body.studio #tone-knobs-row { gap: 4px !important; flex-wrap: nowrap !important; }
-body.studio .amp .ctrl-knob { width: 56px; gap: 2px; --knob: 44px; }
+body.studio #tone-knobs-row { gap: 10px 12px !important; flex-wrap: wrap !important; }
+body.studio .amp .ctrl-knob { width: 68px; gap: 6px; --knob: 56px; }
 body.studio .amp .ctrl-knob label { font-size: 8px; letter-spacing: .1em; color: #d9d5c8; min-height: 12px; text-shadow: 0 1px 0 rgba(0,0,0,.8); }
 body.studio .amp .knob-val { font-size: 9px; padding: 1px 4px; min-width: 34px; }
 body.studio .knob-wrap[data-style="tick"] { width: var(--knob, 70px); height: var(--knob, 70px); }
@@ -372,7 +372,7 @@ body.studio .pedal .pedal-treadle { width: 58%; height: 44px; margin: 0; border-
   box-shadow: 0 12px 16px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.22), inset 0 -3px 6px rgba(0,0,0,.6); }
 /* control plate */
 body.studio .pedal [id$="-knob-row"] { width: 100%; padding: 10px 12px !important; justify-content: center; gap: 8px !important; border-radius: 12px; background: rgba(0,0,0,.22); border: 1px solid rgba(0,0,0,.4); box-shadow: inset 0 1px 0 rgba(0,0,0,.4), inset 0 -1px 0 rgba(255,255,255,.08); }
-body.studio .pedal .ctrl-knob { width: 62px; gap: 2px; }
+body.studio .pedal .ctrl-knob { width: 72px; gap: 6px; --knob: 56px; }
 body.studio .pedal .knob-val { font-size: 9.5px; padding: 1px 5px; min-width: 36px; }
 body.studio .pedal [id$="-knob-row"] > div { background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none; flex-wrap: wrap !important; justify-content: center; max-width: 100%; }
 body.studio .pedal [id$="-knob-row"] > div > div[style*="display:flex"] { flex-wrap: wrap !important; justify-content: center; }
@@ -475,7 +475,7 @@ body.studio .toamp-src-col { gap: 4px; align-self: center; }
 body.studio .toamp-src-cap { font-size: 9px; letter-spacing: .12em; }
 body.studio .toamp-src-num { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 9px; }
 body.studio .toamp-src-select { font-size: 10.5px; padding: 3px 18px 3px 6px; width: 100px; }
-body.studio #master .ctrl-knob { width: 56px; gap: 3px; }
+body.studio #master .ctrl-knob { width: 68px; gap: 6px; }
 body.studio #master .ctrl-knob label { min-height: 12px; font-size: 8.5px; letter-spacing: .1em; }
 body.studio #master.hide-row1-nums .knob-val, body.studio #master.hide-row1-nums .sctrl-val { visibility: hidden; }
 /* VU pair, glass-fronted */
