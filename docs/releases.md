@@ -21,8 +21,8 @@ using Node.js 22, `npm ci`, and Electron Builder. On branch and pull request
 runs, it is available in the `editor-debian-package` artifact for 30 days.
 
 `VERSION` is the shared release version for both packages. The build converts
-`0.1.1~beta2` to Electron's `0.1.1-beta2`; Electron Builder converts it back to
-`0.1.1~beta2` in the Debian metadata. The source `editor/package.json` and lockfile
+`0.1.1~beta3` to Electron's `0.1.1-beta3`; Electron Builder converts it back to
+`0.1.1~beta3` in the Debian metadata. The source `editor/package.json` and lockfile
 are not rewritten. CI checks the package identity, version, architecture,
 application archive, Python bridge, desktop launcher, and icon before uploading.
 Hardware operation and installation are not tested by this job.
@@ -30,19 +30,19 @@ Hardware operation and installation are not tested by this job.
 ## Publish a release
 
 1. Update `VERSION` and the installation example in `docs/packaging.md`.
-   For example, set `VERSION` to `0.1.1~beta2`.
+   For example, set `VERSION` to `0.1.1~beta3`.
 2. Commit and push the changes to `main`. Check that its Actions run succeeds.
 3. Tag that commit and push the tag:
 
    ```sh
-   git tag -a v0.1.1-beta2 -m "Eleven Rack Linux 0.1.1 beta2"
-   git push origin v0.1.1-beta2
+   git tag -a v0.1.1-beta3 -m "Eleven Rack Linux 0.1.1 beta3"
+   git push origin v0.1.1-beta3
    ```
 
 The tag pipeline repeats all checks before publishing a GitHub Release with
 both the driver and editor `.deb` files, a shared `SHA256SUMS` file, and
 generated release notes. Tags must match
-`VERSION`: `v0.1.1-beta2` becomes Debian version `0.1.1~beta2`.
+`VERSION`: `v0.1.1-beta3` becomes Debian version `0.1.1~beta3`.
 An underscore is also accepted: `v0.1.0_beta4` maps to `0.1.0~beta4`.
 `alpha`, `beta`, and `rc` tags create prereleases; `v0.1.0` creates a stable
 release. Only use a stable tag once the release is ready for that status.
