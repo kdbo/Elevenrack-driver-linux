@@ -37,11 +37,14 @@ test('recognizes hardware tuner chain at startup without treating it as a rig', 
   const start = source.indexOf('function handleChainMap(data)');
   const end = source.indexOf('\n  const trip = [];', start);
   let state = null;
-  const c = { appLog() {}, handleTunerCC(value) { state = value; } };
+  let readinessChecks = 0;
+  const c = { initialChainMapDone: false, checkInitialPopulateReady() { readinessChecks++; }, appLog() {}, handleTunerCC(value) { state = value; } };
   vm.createContext(c);
   vm.runInContext(source.slice(start, end) + '\n}', c);
   c.handleChainMap([240,19,11,15,18,33,2,55,112,11,37,111,0,247]);
   assert.equal(state, 127);
+  assert.equal(c.initialChainMapDone, true);
+  assert.equal(readinessChecks, 1);
   state = null; c.handleChainMap([240,19,11,15,18,33,0,247]);
   assert.equal(state, null);
 });

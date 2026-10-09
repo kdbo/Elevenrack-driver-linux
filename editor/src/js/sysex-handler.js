@@ -712,6 +712,8 @@ function handleChainMap(data) {
       data[9] === 0x0B && data[10] === 0x25 && data[12] === 0 && data[13] === 0xF7) {
     appLog('CMD 0x21: active tuner chain — reflecting hardware tuner state');
     handleTunerCC(127);
+    initialChainMapDone = true;
+    checkInitialPopulateReady();
     return;
   }
   if (data.length < base + TRIPLETS * 3 + 2) {
