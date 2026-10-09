@@ -32,6 +32,8 @@ class Bridge:
         self.clients = set()
         self.owner = None
         self.connected = None
+        self.rig_lock = asyncio.Lock()
+        self.rig_reply = None
         self.refresh()
 
     def refresh(self):
@@ -59,6 +61,11 @@ class Bridge:
             self.loop.call_soon_threadsafe(self.deliver, list(message))
 
     def deliver(self, message):
+        if (len(message) == 8 and message[:4] == [0xF0, 0x13, 0x0B, 0x0F]
+                and message[4] in (0x02, 0x12) and message[5] == 0x3D
+                and message[7] == 0xF7 and 0 <= message[6] < 9):
+            if self.rig_reply is not None and not self.rig_reply.done():
+                self.rig_reply.set_result(message[6])
         asyncio.create_task(self.emit({'type': 'midi_in', 'bytes': message,
                                       'hex': ' '.join(f'{b:02X}' for b in message)}))
 
@@ -99,6 +106,28 @@ class Bridge:
         if not isinstance(message, dict):
             raise ValueError('Expected a JSON object')
         command = message.get('cmd')
+        if command == 'rig_input':
+            value = message.get('value')
+            if value is not None and (type(value) is not int or not 0 <= value < 9):
+                raise ValueError('Invalid Rig Input value')
+            async with self.rig_lock:
+                if self.owner is None or not self.connected or any(
+                        'eleven rack' not in device['name'].lower() for device in self.connected):
+                    return {'type': 'rig_input', 'available': False}
+                self.rig_reply = self.loop.create_future()
+                try:
+                    if value is not None:
+                        self.output.send_message([0xF0, 0x13, 0x0B, 0x0F, 0, 0x3D, value, 0xF7])
+                    self.output.send_message([0xF0, 0x13, 0x0B, 0x0F, 1, 0x3D, 0xF7])
+                    try:
+                        actual = await asyncio.wait_for(self.rig_reply, timeout=2)
+                    except asyncio.TimeoutError:
+                        raise ValueError('No recognized Rig Input reply from the Rack')
+                    if value is not None and actual != value:
+                        raise ValueError('Rig Input change was not confirmed by the Rack')
+                    return {'type': 'rig_input', 'available': True, 'value': actual}
+                finally:
+                    self.rig_reply = None
         if command == 'list_ports':
             return self.refresh()
         if command == 'connect':

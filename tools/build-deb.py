@@ -34,7 +34,7 @@ Section: sound
 Priority: optional
 Architecture: all
 Maintainer: Eleven Rack Linux contributors <noreply@localhost>
-Depends: python3 (>= 3.12), python3-gi, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, apt, dpkg-dev, ca-certificates, bzip2, xz-utils, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04
+Depends: python3 (>= 3.12), python3-gi, python3-websockets, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, apt, dpkg-dev, ca-certificates, bzip2, xz-utils, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04
 Recommends: mokutil
 Description: Eleven Rack Linux audio driver and control panel (experimental)
  Patched snd-usb-audio built for the host kernel using DKMS, with a native

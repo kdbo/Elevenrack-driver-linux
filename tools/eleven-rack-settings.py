@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Eleven Rack interface controls through ALSA mixer, PCM, and MIDI."""
 import argparse
+import asyncio
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -69,7 +71,42 @@ def require_idle():
         raise RuntimeError('Stop audio applications before changing clock or rate.')
 
 
+async def editor_rig_input(name):
+    try:
+        from websockets.legacy.client import connect
+    except ImportError:
+        return None
+    try:
+        socket = await connect('ws://127.0.0.1:57121', open_timeout=1)
+    except OSError:
+        return None
+    try:
+        await socket.send(json.dumps({'cmd': 'rig_input',
+                                      'value': None if name is None else RIG_INPUTS.index(name)}))
+        while True:
+            event = json.loads(await asyncio.wait_for(socket.recv(), timeout=3))
+            if event.get('type') == 'error':
+                raise RuntimeError('Editor MIDI bridge: ' + event.get('message', 'request failed') +
+                                   '\nRestart the updated editor and retry.')
+            if event.get('type') == 'rig_input':
+                if not event.get('available'):
+                    return None
+                value = event.get('value')
+                if type(value) is not int or not 0 <= value < len(RIG_INPUTS):
+                    raise RuntimeError('Invalid Rig Input reply from the editor bridge.')
+                return RIG_INPUTS[value]
+
+    finally:
+        await socket.close()
+
+
 def rig_input(name=None):
+    try:
+        shared = asyncio.run(editor_rig_input(name))
+    except asyncio.TimeoutError:
+        raise RuntimeError('Editor MIDI bridge did not confirm Rig Input. Restart the editor and retry.')
+    if shared is not None:
+        return shared
     # USB-MIDI cable 0 carries editor messages. Do not probe arbitrary object values.
     command = [0xf0, 0x13, 0x0b, 0x0f, 1 if name is None else 0, 0x3d]
     if name is not None:

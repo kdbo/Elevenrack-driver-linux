@@ -61,6 +61,12 @@ python3 tools/eleven-rack-settings.py clock spdif
 python3 tools/eleven-rack-settings.py rate 48000
 ```
 
+When the updated editor is connected to the Rack, Control sends Rig Input
+requests through the editor's local MIDI bridge and verifies the hardware reply.
+Without an active editor connection, it uses the direct ALSA MIDI route.
+Both applications must be updated for shared access; restart the editor after
+updating. An older running bridge reports an error rather than being bypassed.
+
 Rig Input uses ALSA USB MIDI and accepts only the reference driver's known
 values: guitar, reamp, mic, line-l, line-r, line-lr, digital-l, digital-r,
 digital-lr. Reading the current Rig Input was hardware tested and returned
