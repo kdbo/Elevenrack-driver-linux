@@ -1,5 +1,9 @@
 # Ubuntu package (experimental)
 
+For step-by-step installation of released driver and editor packages, see
+[the installation guide](installation.md). This document covers package
+construction and kernel compatibility in more detail.
+
 One `eleven-rack-driver_*_all.deb` contains the driver control panel, logo,
 application-menu launcher, routing configuration, and DKMS build instructions.
 The rig editor is a separate application and is not included.

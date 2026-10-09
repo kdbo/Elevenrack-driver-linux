@@ -53,6 +53,10 @@ and [the patches](patches/) for implementation details and hardware findings.
 
 ## Installation and use
 
+Start with the [installation guide](docs/installation.md) for downloading
+release packages, installing the driver and editor, first-use checks, and
+troubleshooting.
+
 The Ubuntu `.deb` package includes the driver patches, DKMS build instructions,
 Eleven Rack Control, and WirePlumber routing configuration. The editor is
 packaged separately.
