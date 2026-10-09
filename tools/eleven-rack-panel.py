@@ -59,6 +59,8 @@ CSS = b'''
 .eleven-rack-panel .footer { color: #b5aaa0; font-size: 11px; }
 .eleven-rack-panel .clock-dot { color: #706a63; font-size: 19px; padding: 0 8px; }
 .eleven-rack-panel .clock-dot.locked { color: #56d681; }
+.eleven-rack-panel stack, .eleven-rack-panel notebook, .eleven-rack-panel textview text { background: #101010; color: #eee9e3; }
+.eleven-rack-panel button:link, .eleven-rack-panel button:visited { color: #ff8a28; }
 '''
 
 
@@ -209,6 +211,8 @@ class Panel(Gtk.Window):
         except OSError:
             version = 'Development version'
         dialog = Gtk.AboutDialog(transient_for=self, modal=True)
+        dialog.get_content_area().get_style_context().add_class('eleven-rack-panel')
+        dialog.get_action_area().get_style_context().add_class('eleven-rack-panel')
         dialog.set_program_name('Eleven Rack Control')
         dialog.set_version(version)
         dialog.set_logo(self.get_icon())
