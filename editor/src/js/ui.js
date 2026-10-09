@@ -3271,6 +3271,11 @@ function handleTunerCC(val) {
   // (matches this function's own "wait for hardware" contract above), same
   // shape as pauseRollerForSave.
   if (tunerOn && !wasOn && typeof pauseRollerForTuner === 'function') pauseRollerForTuner();
+  // The hardware swaps the rig for a short tuner chain while tuning.
+  // Refresh read-only state when leaving it, including startup in tuner mode.
+  if (!tunerOn && wasOn && bridgeMidiReady && typeof requestPatchStateAfterNav === 'function') {
+    requestPatchStateAfterNav();
+  }
 }
 
 const logEl = document.getElementById('monitor-log');

@@ -706,6 +706,14 @@ function handlePatchName(data) {
 function handleChainMap(data) {
   const TRIPLETS = 11;
   const base = 6;
+  // A rack bootstrapped while tuning exposes input -> tuner rather than
+  // the regular 11-block rig. Observed on firmware 0157: 02 37 hh 0B 25 hh 00.
+  if (data.length === 14 && data[6] === 0x02 && data[7] === 0x37 &&
+      data[9] === 0x0B && data[10] === 0x25 && data[12] === 0 && data[13] === 0xF7) {
+    appLog('CMD 0x21: active tuner chain — reflecting hardware tuner state');
+    handleTunerCC(127);
+    return;
+  }
   if (data.length < base + TRIPLETS * 3 + 2) {
     appLog('CMD 0x21: short chain map (' + data.length + 'b), ignored');
     return;

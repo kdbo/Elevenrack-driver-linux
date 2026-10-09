@@ -32,6 +32,20 @@ function setup() {
 }
 const reply = (note, tune) => [0xF0, 0x13, 0x0B, 0x0F, 0x12, 0x42, note, tune, 0xF7];
 
+test('recognizes hardware tuner chain at startup without treating it as a rig', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/js/sysex-handler.js'), 'utf8');
+  const start = source.indexOf('function handleChainMap(data)');
+  const end = source.indexOf('\n  const trip = [];', start);
+  let state = null;
+  const c = { appLog() {}, handleTunerCC(value) { state = value; } };
+  vm.createContext(c);
+  vm.runInContext(source.slice(start, end) + '\n}', c);
+  c.handleChainMap([240,19,11,15,18,33,2,55,112,11,37,111,0,247]);
+  assert.equal(state, 127);
+  state = null; c.handleChainMap([240,19,11,15,18,33,0,247]);
+  assert.equal(state, null);
+});
+
 test('decodes chromatic notes, center, flat, sharp and idle', () => {
   const { context: c } = setup();
   assert.equal(c.decodeTunerReply(reply(0x24, 64)).note, 'E');
