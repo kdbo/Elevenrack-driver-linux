@@ -56,7 +56,9 @@ function handleLiveTunerReply(data) {
   const inTune = reading.deviation === 0;
   tunerHasNote = true;
   document.getElementById('tuner-note').textContent = reading.note + reading.octave;
-  document.getElementById('tuner-reading').textContent = inTune ? 'In tune' : (reading.deviation < 0 ? 'Flat — tune up' : 'Sharp — tune down');
+  document.getElementById('tuner-reading').textContent = reading.deviation > 0
+    ? '+' + reading.deviation
+    : (reading.deviation < 0 ? '−' + Math.abs(reading.deviation) : '0');
   document.getElementById('tuner-panel').classList.toggle('in-tune', inTune);
   const left = document.getElementById('tuner-led-left');
   const right = document.getElementById('tuner-led-right');

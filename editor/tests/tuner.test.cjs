@@ -71,15 +71,17 @@ test('polls once per interval and stops on off or disconnect', () => {
   assert.equal(c.sends[1], 'F0 13 0B 0F 01 42 F7');
   c.handleLiveTunerReply(reply(0x12, 64));
   assert.equal(nodes.get('tuner-note').textContent, 'E2');
-  assert.equal(nodes.get('tuner-reading').textContent, 'In tune');
+  assert.equal(nodes.get('tuner-reading').textContent, '0');
   assert.equal(nodes.get('tuner-led-left').classList.contains('tuned'), true);
   assert.equal(nodes.get('tuner-led-right').classList.contains('tuned'), true);
   c.handleLiveTunerReply(reply(0x24, 60));
+  assert.equal(nodes.get('tuner-reading').textContent, '−4');
   assert.equal(nodes.get('tuner-led-left').classList.contains('flat'), true);
   assert.equal(nodes.get('tuner-led-right').classList.contains('tuned'), false);
   c.handleTunerNeedleReply([0xF0,0x13,0x0B,0x0F,0,0x41,44,1,0xF7]);
   assert.equal(nodes.get('tuner-needle').style.transform, 'rotate(-27.5deg)');
   c.handleLiveTunerReply(reply(0x24, 68));
+  assert.equal(nodes.get('tuner-reading').textContent, '+4');
   assert.equal(nodes.get('tuner-led-right').classList.contains('sharp'), true);
   c.handleLiveTunerReply(reply(0x24, 64));
   assert.equal(nodes.get('tuner-needle').style.transform, 'rotate(0deg)');
