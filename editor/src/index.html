@@ -3450,7 +3450,7 @@ document.getElementById('btn-about').addEventListener('click', async function() 
 (function setTitleBarVersion() {
   if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
     window.electronAPI.getAppVersion().then(function(v) {
-      document.title = '11 Edit  v' + v;
+      document.title = 'Eleven Rack Editor  v' + v;
     }).catch(function(){});
   }
 })();
