@@ -1,7 +1,7 @@
 # Linux editor investigation
 
 Reviewed on 2026-10-09. The editor remains separate from the audio-driver
-package; no upstream editor code has been imported into this repository yet.
+package. The first Linux port now lives in [editor/](../editor/README.md).
 
 ## Upstream comparison
 
@@ -65,7 +65,22 @@ guitar capture channel, with separate audio access and tuning-mode tests.
 The hardware tuner may change routing, so confirm that the required signal
 remains available when it is enabled.
 
-## Current validation limits
+## Initial Linux implementation
+
+The macOS UI has been imported with upstream MIT license and notices. Linux
+startup now launches a Python ALSA/RtMidi bridge, bypasses Windows process
+cleanup and Java checks, and selects the Rig MIDI ports by direction/name.
+The bridge implements the existing WebSocket contract, session ownership,
+input callbacks, port-change notifications, and graceful shutdown.
+
+The physical hardware probe returned firmware build `0157` and Rig Input
+`guitar`. The running Electron renderer reported `bridgeReady`,
+`bridgeMidiReady`, and `firmwareOk` all true, received a ten-block effect chain,
+and identified amp model `97 RB-01b Blue`. This validates read-only startup
+synchronization on the Ubuntu 26.04 host. It does not validate editing, saving,
+backup/restore, audio metering, or the requested pitch display.
+
+## Original investigation limits
 
 Both source trees and their bridge/startup code were inspected. No editor was
 launched, built for Linux, or tested against the device. Node/npm are not

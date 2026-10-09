@@ -1,0 +1,65 @@
+{
+  "name": "eleven-rack-editor-linux",
+  "version": "0.1.0",
+  "description": "Linux port of Eleven Edit",
+  "author": "Charles Wardick <charles.wardick@gmail.com>",
+  "main": "main.js",
+  "scripts": {
+    "start": "env -u ELECTRON_RUN_AS_NODE -u GSETTINGS_SCHEMA_DIR -u GTK_PATH -u GIO_EXTRA_MODULES electron .",
+    "build:linux": "electron-builder --linux deb",
+    "pack": "electron-builder --linux --dir",
+    "test": "python3 -m unittest discover -s bridge-linux/tests"
+  },
+  "build": {
+    "appId": "io.github.kdbo.elevenrack.editor",
+    "productName": "Eleven Rack Editor",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      "LICENSE",
+      "NOTICE",
+      "UserManual.txt",
+      {
+        "from": "bridge-linux",
+        "to": "bridge-linux",
+        "filter": [
+          "*.py"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "icon": "assets/icon.png",
+      "syncDesktopName": true,
+      "maintainer": "Koen de Boev\u00e9 <itsmekeuh@gmail.com>"
+    },
+    "deb": {
+      "depends": [
+        "python3",
+        "python3-rtmidi",
+        "python3-websockets",
+        "libasound2t64",
+        "libgtk-3-0t64",
+        "libnss3"
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^26.15.7"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/kdbo/Elevenrack-driver-linux",
+  "contributors": [
+    "Koen de Boev\u00e9 (Linux integration)",
+    "Damilola Olalere (macOS fork)"
+  ],
+  "desktopName": "eleven-rack-editor-linux.desktop"
+}

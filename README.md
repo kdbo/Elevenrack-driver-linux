@@ -8,8 +8,10 @@ See [the licensing overview](LICENSING.md) for the exact scope and license texts
 See [credits and references](CREDITS.md) for the projects, developers, and
 documentation used during development and investigation.
 
-For the separate Linux editor investigation and planned UI tuner, see
-[the editor comparison](docs/editor.md).
+The first separate Linux editor port is in [editor/](editor/README.md).
+Read-only startup synchronization has been tested on physical hardware;
+editing and preset writes remain unvalidated. For the comparison and planned
+UI tuner, see [the editor investigation](docs/editor.md).
 
 Experimental ALSA support for the Digidesign Eleven Rack (`0dba:b011`).
 

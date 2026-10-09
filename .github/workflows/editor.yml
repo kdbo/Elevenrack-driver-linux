@@ -1,0 +1,27 @@
+name: Editor checks
+on:
+  push:
+    branches: [main]
+    paths: ['editor/**', '.github/workflows/editor.yml']
+  pull_request:
+    branches: [main]
+    paths: ['editor/**', '.github/workflows/editor.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check Linux bridge and renderer
+        run: |
+          python3 -m unittest discover -s editor/bridge-linux/tests
+          python3 -m compileall -q editor/bridge-linux
+          node --check editor/main.js
+          node --check editor/preload.js
+          for script in editor/src/js/*.js; do node --check "$script"; done
+          python3 -m json.tool editor/package.json >/dev/null

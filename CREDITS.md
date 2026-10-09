@@ -24,8 +24,9 @@ Project development and Linux integration: **Koen de Boevé**.
 
 ## Editor projects reviewed
 
-These projects were examined as protocol references or possible starting
-points for a future Linux editor. No editor code is currently included.
+The Linux editor in `editor/` is based on the macOS Eleven Edit fork. Its
+upstream license and notices are preserved there. Other editor projects below
+remain references only.
 
 - **Charles Wardick — [Eleven-Edit](https://github.com/CharlesWardick/Eleven-Edit).**
   Original Eleven Edit rig editor/librarian, with an Electron interface and
