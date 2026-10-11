@@ -67,6 +67,11 @@ Use `--output` to keep builds for different targets separate.
 
 ## Packages
 
+For a complete Arch installation, use the separate [Arch package set workflow](arch-installation.md).
+It downloads exactly two packages: a combined driver/Control/backend package and
+an editor package. The standalone backend formats below are for backend development
+and distro packaging; the backend alone is not a complete Eleven Rack installation.
+
 Run packaging on the same distribution with its matching PipeWire installed:
 
 ```sh

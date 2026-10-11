@@ -12,6 +12,8 @@ Current tools serve these workflows:
 
 - Interface controls: `eleven-rack-settings.py`, `eleven-rack-panel.py`.
 - Kernel/package builds and checks: `build-*`, `check-*`, `test-kernel-source.py`.
+  `build-arch-package-set.sh` assembles the complete two-package Arch artifact;
+  see [Arch build/download instructions](../docs/arch-installation.md).
 - Latency backend: `build-latency-backend.py`, `build-latency-package.py`,
   `check-latency-backend.py`, `spa-eleven-alsa.c`, `activate-profile-corrections.py`.
   See [multi-distribution builds and packages](../docs/backend-building.md).

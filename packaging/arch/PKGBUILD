@@ -1,21 +1,26 @@
-# Local build recipe. Prepare the two source archives with prepare-arch-package.py.
-pkgbase=eleven-rack
-pkgname=(eleven-rack-control eleven-rack-driver-dkms)
-pkgver=0.1.2beta7
+# Generated inputs: prepare-arch-package.py. One complete driver package.
+pkgname=eleven-rack-driver
+pkgver=@VERSION@
 pkgrel=1
-pkgdesc='Eleven Rack audio driver and Control panel'
+pkgdesc='Eleven Rack DKMS driver, Control panel and calibrated PipeWire backend'
 arch=('x86_64')
 url='https://github.com/kdbo/Elevenrack-driver-linux'
 license=('MIT' 'GPL-2.0-or-later')
-makedepends=('python')
-source=('eleven-rack-source.tar.gz' 'eleven-rack-kernel.tar.gz')
-# The preparation tool replaces these with actual archive checksums.
-sha256sums=('@PROJECT_SHA256@' '@KERNEL_SHA256@')
+options=('!strip' '!debug')
+depends=('dkms' 'python' 'python-gobject' 'python-websockets' 'gtk3' 'alsa-utils'
+         'pipewire=@PIPEWIRE_VERSION@' 'pipewire-audio=@PIPEWIRE_VERSION@'
+         'pipewire-jack' 'wireplumber>=0.5' 'gcc' 'alsa-lib'
+         'linux=@LINUX_VERSION@' 'linux-headers=@LINUX_VERSION@')
+provides=("eleven-rack-control=$pkgver" "eleven-rack-driver-dkms=$pkgver" "eleven-rack-latency-backend=$pkgver")
+conflicts=('eleven-rack-control' 'eleven-rack-driver-dkms' 'eleven-rack-latency-backend')
+backup=('etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf'
+        'etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf'
+        'etc/modprobe.d/eleven-rack-latency.conf')
+source=('eleven-rack-source.tar.gz' 'eleven-rack-kernel.tar.gz' 'eleven-rack-backend.tar.gz')
+sha256sums=('@PROJECT_SHA256@' '@KERNEL_SHA256@' '@BACKEND_SHA256@')
 
-package_eleven-rack-control() {
-    depends=('python' 'python-gobject' 'python-websockets' 'gtk3' 'alsa-utils'
-             'pipewire' 'pipewire-jack' 'wireplumber' 'gcc')
-    backup=('etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf')
+package() {
+    cp -a "$srcdir/eleven-rack-backend/etc" "$srcdir/eleven-rack-backend/usr" "$pkgdir/"
     cd "$srcdir/eleven-rack-source"
     install -Dm755 tools/eleven-rack-panel.py "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-panel.py"
     install -Dm755 tools/eleven-rack-settings.py "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-settings.py"
@@ -26,15 +31,6 @@ package_eleven-rack-control() {
     install -Dm644 config/eleven-rack-driver.desktop "$pkgdir/usr/share/applications/eleven-rack-driver.desktop"
     install -Dm644 config/51-eleven-rack.conf "$pkgdir/etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf"
     install -Dm755 packaging/arch/eleven-rack-control "$pkgdir/usr/bin/eleven-rack-control"
-    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-    install -Dm644 CREDITS.md "$pkgdir/usr/share/doc/$pkgname/CREDITS.md"
-}
-
-package_eleven-rack-driver-dkms() {
-    depends=('dkms' 'python')
-    optdepends=('linux-headers: build for the stock Arch kernel'
-                'linux-lts-headers: build for the Arch LTS kernel')
-    cd "$srcdir/eleven-rack-source"
     local destination="$pkgdir/usr/src/eleven-rack-$pkgver"
     install -dm755 "$destination"
     for file in build-driver-common.sh prepare-driver.py mixer-eleven-rack.h; do
@@ -42,7 +38,12 @@ package_eleven-rack-driver-dkms() {
     done
     install -m644 packaging/arch/build-driver.sh "$destination/build-driver.sh"
     sed "s/@VERSION@/$pkgver/g" packaging/dkms.conf > "$destination/dkms.conf"
+    # Restrict DKMS to the exact prepared kernel; never build against other sources.
+    printf 'BUILD_EXCLUSIVE_KERNEL="^%s$"\n' '@KERNEL_REGEX@' >> "$destination/dkms.conf"
     cp -a "$srcdir/eleven-rack-kernel" "$destination/prepared-kernel"
+    install -Dm644 packaging/arch/95-eleven-rack-initramfs.hook "$pkgdir/usr/share/libalpm/hooks/95-eleven-rack-initramfs.hook"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     install -Dm644 LICENSES/GPL-2.0.txt "$pkgdir/usr/share/licenses/$pkgname/GPL-2.0.txt"
+    install -Dm644 CREDITS.md "$pkgdir/usr/share/doc/$pkgname/CREDITS.md"
     install -Dm644 LICENSING.md "$pkgdir/usr/share/doc/$pkgname/LICENSING.md"
 }
