@@ -1,0 +1,26 @@
+{
+  "archive": "/home/koen/eleven-rack-tools-archive/2026-10-11/workflows",
+  "active_build_repository": "https://github.com/kdbo/ElevenRack-builds",
+  "moved": [
+    {
+      "source": ".github/workflows/arch-packages.yml",
+      "sha256": "154bbbe5fea33cbefc7fc2438cf68248e52bcabddeba5d0d3b4c18f3b172f9b6"
+    },
+    {
+      "source": ".github/workflows/editor.yml",
+      "sha256": "5ddc1cffda4d1a8dddbf56410f9daacd051231989e3a9fe9645bd06a8425dc36"
+    },
+    {
+      "source": ".github/workflows/kernel-packages.yml",
+      "sha256": "f8382aeca400dafe5734e9bca275021eb85d4b504a8203975daf9603fe75f932"
+    },
+    {
+      "source": ".github/workflows/latency-backend.yml",
+      "sha256": "ec40647aa684cc0e8044d69459847b072d2300e882c42751fb976a85f2a5f39a"
+    },
+    {
+      "source": ".github/workflows/package.yml",
+      "sha256": "22e11e888fc22c00aa5cfd479b971f73f995c3d07bf30ebf0415a76ff0ffc09f"
+    }
+  ]
+}

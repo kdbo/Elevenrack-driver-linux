@@ -166,10 +166,13 @@ current packaged driver. See [the hardware investigation](docs/investigation.md)
 Simultaneous recording/playback, sustained audio, REAPER audio, Secure Boot,
 and all controls/rates still need full validation.
 
-The [CI workflow](.github/workflows/package.yml) builds and checks the `.deb`
-and compiles the Ubuntu 24.04 HWE driver, but its GitHub run has not yet been
-verified here. It does not install the driver package, load the driver, or
-provide hardware test coverage.
+Build workflows are maintained in the private
+[ElevenRack-builds repository](https://github.com/kdbo/ElevenRack-builds).
+The universal Ubuntu pipeline installs and checks the same two packages across
+Ubuntu versions, including Ubuntu 24.04 GA and HWE. Its successful run has been
+confirmed; it does not provide hardware audio or physical latency validation.
+The former public workflows are stored in the external archive, with their
+paths and checksums recorded in [the archive manifest](docs/archived-workflows.json).
 
 ## Building and temporarily testing the driver
 
