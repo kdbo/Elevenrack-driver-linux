@@ -12,6 +12,27 @@ ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('backend_package', ROOT / 'tools/build-latency-package.py')
 package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package)
+build_spec = importlib.util.spec_from_file_location('backend_build', ROOT / 'tools/build-latency-backend.py')
+builder = importlib.util.module_from_spec(build_spec)
+build_spec.loader.exec_module(builder)
+
+
+class VersionTests(unittest.TestCase):
+    def test_runtime_version_takes_precedence_over_development_headers(self):
+        with patch.object(builder, 'run', return_value=(
+                'pipewire\nCompiled with libpipewire 1.6.2\nLinked with libpipewire 1.6.9')) as command:
+            self.assertEqual('1.6.9', builder.installed_version())
+            command.assert_called_once_with('pipewire', '--version')
+
+    def test_missing_runtime_uses_development_metadata(self):
+        with patch.object(builder, 'run', side_effect=[FileNotFoundError('pipewire'), '1.6.9']) as command:
+            self.assertEqual('1.6.9', builder.installed_version())
+            self.assertEqual(('pkg-config', '--modversion', 'libpipewire-0.3'), command.call_args.args)
+
+    def test_missing_version_has_actionable_error(self):
+        with patch.object(builder, 'run', side_effect=FileNotFoundError()):
+            with self.assertRaisesRegex(RuntimeError, 'install pipewire'):
+                builder.installed_version()
 
 
 class PackageTests(unittest.TestCase):

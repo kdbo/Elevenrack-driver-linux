@@ -20,10 +20,17 @@ def run(*args):
 
 
 def installed_version():
-    match = re.search(r'(\d+\.\d+\.\d+)', run('pipewire', '--version').splitlines()[-1])
-    if not match:
-        raise RuntimeError('Cannot determine installed PipeWire version; specify --pipewire-version')
-    return match[1]
+    for command in (('pipewire', '--version'),
+                    ('pkg-config', '--modversion', 'libpipewire-0.3')):
+        try:
+            lines = run(*command).splitlines()
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        match = re.search(r'(\d+\.\d+\.\d+)', lines[-1]) if lines else None
+        if match:
+            return match[1]
+    raise RuntimeError('Cannot determine installed PipeWire version; install pipewire '
+                       'or its development metadata, or specify --pipewire-version')
 
 
 def plugin_directory():

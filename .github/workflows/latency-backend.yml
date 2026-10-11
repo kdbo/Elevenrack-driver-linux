@@ -62,7 +62,7 @@ jobs:
       - name: Install Fedora dependencies
         if: matrix.distro == 'fedora'
         run: |
-          dnf install -y ca-certificates git gcc python3 alsa-lib-devel patch pkgconf-pkg-config pipewire-devel pipewire-alsa wireplumber rpm-build
+          dnf install -y ca-certificates git gcc python3 alsa-lib-devel patch pkgconf-pkg-config pipewire pipewire-devel pipewire-alsa wireplumber rpm-build
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
