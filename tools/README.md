@@ -39,10 +39,21 @@ research inputs under `docs/` before rerunning calibration analysis tools; these
 paths are ignored by Git. The backend package does not require or ship these
 reports. Its build patch is in `packaging/pipewire-eleven-latency.patch`.
 
-## Langdurige audioregressie
+## Long-duration audio regression
 
-`test-audio-regression.py` voert sinus-, witte- en roze-ruistests uit op gekozen profielen, gedurende 1, 5, 15 of 30 minuten. Zie [instructies en beperkingen](../docs/audio-regression-tests.md). `analyze-loopback-regression.py` analyseert de bewaarde audio; `test-regression-analysis.py` controleert de detector met synthetische fouten.
+`test-audio-regression.py` runs sine wave, white noise and pink noise tests on
+selected profiles for 1, 5, 15 or 30 minutes. See
+[instructions and limitations](../docs/audio-regression-tests.md).
+`analyze-loopback-regression.py` analyzes the recorded audio;
+`test-regression-analysis.py` checks the detector using synthetic faults.
 
-## Control-kanaalmeters
+## Control channel meters
 
-`eleven-rack-meters.c` is de alleen-lezen JACK-piekmeter voor acht capturekanalen en zes playback-monitorpoorten. Control bouwt deze kleine helper eenmaal in de gebruikerscache en start hem uitsluitend zolang minstens één Channels-groep geopend is. De helper stuurt zelf geen audio uit. Waarden zijn digitale piekniveaus in dBFS; hardware-directmonitoring en analoge uitgangsversterking zijn niet in de playbackmonitor opgenomen. De nachtelijke regressierunner en tuningtool delen `/tmp/eleven-rack-regression-<uid>.lock`; Control pauzeert de meters als dat lock bezet is.
+`eleven-rack-meters.c` is the read-only JACK peak meter for eight capture channels
+and six playback monitor ports. Control builds this small helper once in the
+user cache and runs it only while at least one Channels group is open. The helper
+does not output audio. Values are digital peak levels in dBFS; hardware direct
+monitoring and analog output gain are not included in the playback monitor.
+The nightly regression runner and tuning tool share
+`/tmp/eleven-rack-regression-<uid>.lock`; Control pauses the meters while that lock
+is held.
