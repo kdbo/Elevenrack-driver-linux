@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 
-def check(package, version, with_backend=False):
+def check(package, version, with_backend=False, universal_backend=False):
     arch = subprocess.check_output(['dpkg', '--print-architecture'], text=True).strip() if with_backend else 'all'
     fields = subprocess.check_output(
         ['dpkg-deb', '-f', str(package), 'Package', 'Version', 'Architecture'], text=True)
@@ -20,6 +20,26 @@ def check(package, version, with_backend=False):
         subprocess.run(['dpkg-deb', '-x', str(package), temp], check=True)
         control = root / 'DEBIAN'
         subprocess.run(['dpkg-deb', '-e', str(package), str(control)], check=True)
+        if universal_backend:
+            bundle = root / 'usr/lib/eleven-rack/backend-source'
+            catalog = json.loads((bundle / 'packaging/pipewire-sources.json').read_text())
+            assert catalog, 'Missing source catalog'
+            for release, source in catalog.items():
+                archive = bundle / 'archives' / f'pipewire-{release}.tar.gz'
+                assert hashlib.sha256(archive.read_bytes()).hexdigest() == source['sha256']
+                assert (bundle / 'packaging' / source.get('patch', 'pipewire-eleven-latency.patch')).is_file()
+            assert not (root / 'usr/lib/eleven-rack/spa/alsa/libspa-alsa.so').exists(), 'Universal package must build natively during installation'
+            depends = subprocess.check_output(['dpkg-deb', '-f', str(package), 'Depends'], text=True)
+            assert 'pipewire (=' not in depends and 'libspa-0.2-modules (=' not in depends
+            assert 'libasound2-dev' in depends and 'patch' in depends
+            assert 'install-latency-backend.py' in (control / 'postinst').read_text()
+            assert 'triggered)' in (control / 'postinst').read_text()
+            assert 'interest-noawait /usr/bin/pipewire' in (control / 'triggers').read_text()
+            config = root / 'etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf'
+            lua = (root / 'etc/wireplumber/main.lua.d/52-eleven-rack-latency.lua').read_text()
+            defaults = dict(re.findall(r'^\s*(api\.alsa\.eleven-[\w-]+)\s*=\s*(true|-?\d+)\s*$', config.read_text(), re.M))
+            assert len(defaults) == 26
+            assert defaults == dict(re.findall(r'\["(api\.alsa\.eleven-[\w-]+)"\]\s*=\s*(true|-?\d+)', lua))
         if with_backend:
             metadata = json.loads((root / 'usr/share/doc/eleven-rack-latency-backend/backend-build.json').read_text())
             library = root / 'usr/lib/eleven-rack/spa/alsa/libspa-alsa.so'
@@ -73,5 +93,8 @@ if __name__ == '__main__':
     parser.add_argument('package', type=Path)
     parser.add_argument('--version', required=True)
     parser.add_argument('--with-backend', action='store_true')
+    parser.add_argument('--universal-backend', action='store_true')
     args = parser.parse_args()
-    check(args.package, args.version, args.with_backend)
+    if args.with_backend and args.universal_backend:
+        parser.error('Choose one backend packaging mode')
+    check(args.package, args.version, args.with_backend, args.universal_backend)

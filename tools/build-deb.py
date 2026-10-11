@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -11,7 +12,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def build(version, output, backend_build=None):
+def build(version, output, backend_build=None, backend_sources=None):
+    if backend_build is not None and backend_sources is not None:
+        raise RuntimeError('Choose either a prebuilt backend or bundled backend sources')
     arch = 'all'
     extra_dependencies = ''
     replacement_fields = ''
@@ -28,12 +31,16 @@ def build(version, output, backend_build=None):
         alsa_version = backend.read_command('dpkg-query', '-W', '-f=${Version}', alsa)
         extra_dependencies = f', pipewire (= {pw_version}), libspa-0.2-modules (= {pw_version}), libc6 (>= {libc}), {alsa} (>= {alsa_version})'
         replacement_fields = 'Conflicts: eleven-rack-latency-backend\nReplaces: eleven-rack-latency-backend\n'
+    if backend_sources is not None:
+        extra_dependencies = ', pipewire, libasound2-dev, patch, pkg-config'
+        replacement_fields = 'Conflicts: eleven-rack-latency-backend\nReplaces: eleven-rack-latency-backend\n'
     output.mkdir(parents=True, exist_ok=True)
     package = output / f'eleven-rack-driver_{version}_{arch}.deb'
     with tempfile.TemporaryDirectory(prefix='deb-stage-', dir=output) as temp:
         stage = Path(temp)
         if backend is not None:
             backend.stage_payload(stage, backend_build, metadata)
+        if backend is not None or backend_sources is not None:
             # WirePlumber 0.4 uses Lua rules; derive them from the same defaults.
             import re
             properties = re.findall(r'^\s*(api\.alsa\.eleven-[\w-]+)\s*=\s*(true|-?\d+)\s*$',
@@ -61,6 +68,30 @@ def build(version, output, backend_build=None):
             shutil.copyfile(ROOT / source, dest)
             dest.chmod(0o755 if executable else 0o644)
 
+        if backend_sources is not None:
+            bundle = 'usr/lib/eleven-rack/backend-source'
+            catalog = json.loads((ROOT / 'packaging/pipewire-sources.json').read_text())
+            for release, source in catalog.items():
+                archive = backend_sources / f'pipewire-{release}.tar.gz'
+                if hashlib.sha256(archive.read_bytes()).hexdigest() != source['sha256']:
+                    raise RuntimeError(f'Invalid bundled PipeWire {release} source')
+                copy(archive, f'{bundle}/archives/{archive.name}')
+            for name in ('build-latency-backend.py', 'check-latency-backend.py',
+                         'install-latency-backend.py', 'spa-eleven-alsa.c'):
+                copy('tools/' + name, f'{bundle}/tools/{name}')
+            copy('packaging/pipewire-sources.json', f'{bundle}/packaging/pipewire-sources.json')
+            for name in {'pipewire-eleven-latency.patch', *(source.get('patch', 'pipewire-eleven-latency.patch') for source in catalog.values())}:
+                copy('packaging/' + name, f'{bundle}/packaging/{name}')
+            copy('config/52-eleven-rack-latency.conf', f'{bundle}/config/52-eleven-rack-latency.conf')
+            copy('config/52-eleven-rack-latency.conf', 'etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf')
+            copy('LICENSES/PipeWire-MIT.txt', 'usr/share/doc/eleven-rack-driver/PipeWire-MIT.txt')
+            write('etc/modprobe.d/eleven-rack-latency.conf',
+                  'options snd_usb_audio eleven_delay_hires=1\n')
+            # PipeWire upgrades automatically rebuild for the newly installed version.
+            write('DEBIAN/triggers', 'interest-noawait /usr/bin/pipewire\n'
+                  'interest-noawait /usr/lib/x86_64-linux-gnu/spa-0.2\n'
+                  'interest-noawait /usr/lib/aarch64-linux-gnu/spa-0.2\n')
+
         write('DEBIAN/control', f'''Package: eleven-rack-driver
 Version: {version}
 Section: sound
@@ -78,6 +109,18 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
 ''')
         for name in ('postinst', 'prerm', 'postrm'):
             text = (ROOT / 'packaging' / name).read_text().replace('@VERSION@', version)
+            if backend_sources is not None:
+                installer = '/usr/lib/eleven-rack/backend-source/tools/install-latency-backend.py'
+                if name == 'postinst':
+                    text = text.replace('    configure)\n', f'    triggered)\n        python3 {installer}\n        ;;\n    configure)\n        python3 {installer}\n')
+                elif name == 'postrm':
+                    # postrm survives unpacked-file removal, so cleanup is self-contained.
+                    cleanup = '\n'.join('        rm -f /' + path for path in (
+                        'usr/lib/eleven-rack/spa/alsa/libspa-alsa.so',
+                        'usr/lib/systemd/user/pipewire.service.d/60-eleven-rack-latency.conf',
+                        'usr/lib/systemd/user/wireplumber.service.d/60-eleven-rack-latency.conf',
+                        'var/lib/eleven-rack/latency/backend-build.json'))
+                    text = text.replace('    remove)\n', '    remove|purge)\n' + cleanup + '\n')
             write(f'DEBIAN/{name}', text, True)
         source_dir = f'usr/src/eleven-rack-{version}'
         for name in ('build-driver.sh', 'build-driver-common.sh', 'prepare-driver.py', 'fetch-kernel-source.py', 'mixer-eleven-rack.h'):
@@ -100,8 +143,8 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
         write('DEBIAN/conffiles', '/etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf\n'
               '/etc/wireplumber/main.lua.d/51-eleven-rack.lua\n' +
               ('/etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf\n'
-               '/etc/modprobe.d/eleven-rack-latency.conf\n' if backend else ''))
-        if backend:
+               '/etc/modprobe.d/eleven-rack-latency.conf\n' if backend or backend_sources else ''))
+        if backend or backend_sources:
             with (stage / 'DEBIAN/conffiles').open('a') as conffiles:
                 conffiles.write('/etc/wireplumber/main.lua.d/52-eleven-rack-latency.lua\n')
         write('usr/bin/eleven-rack-control', '#!/bin/sh\n'
@@ -141,9 +184,10 @@ if __name__ == '__main__':
     parser.add_argument('--version', default=(ROOT / 'VERSION').read_text().strip())
     parser.add_argument('--output', type=Path, default=ROOT / 'build/packages')
     parser.add_argument('--backend-build', type=Path, help='Include a verified backend built for this Ubuntu environment')
+    parser.add_argument('--backend-sources', type=Path, help='Bundle verified PipeWire archives and build automatically during installation')
     args = parser.parse_args()
     # Version is embedded in paths and DKMS shell config, so constrain it.
     import re
     if not re.fullmatch(r'[0-9][0-9A-Za-z.+~]*', args.version):
         parser.error('Version must start with a digit and contain only letters, digits, . + ~')
-    print(build(args.version, args.output.resolve(), args.backend_build))
+    print(build(args.version, args.output.resolve(), args.backend_build, args.backend_sources))
