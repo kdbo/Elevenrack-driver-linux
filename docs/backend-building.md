@@ -109,19 +109,21 @@ archive argument to the shell command still selects PipeWire 1.6.2.
 
 ## Pipeline
 
-`.github/workflows/latency-backend.yml` builds and checks in Ubuntu, Arch and
-Fedora containers and uploads native packages, staged tarballs, checksums and
-build metadata. It runs for relevant pull requests, pushes to main, release
-tags and manual dispatch. It publishes build artifacts only; it does not install
-on the user's host or attach the Eleven Rack. An unknown PipeWire version fails
-with an explicit source/checksum requirement rather than guessing compatibility.
-Research measurements remain in the external archive and are not build inputs.
+Builds run manually in the private `kdbo/ElevenRack-builds` repository; Actions
+are disabled in the public source repository. Select `source_ref` to build a
+public branch, tag or commit. Every job uses the same resolved source commit.
 
-To build without a release, open the GitHub repository's **Actions** tab, select
-**Latency backend packages**, click **Run workflow**, and select the branch.
-After the run completes, open it and download the ZIP files under **Artifacts**:
-`latency-backend-ubuntu`, `latency-backend-arch`, and `latency-backend-fedora`.
-They contain the native packages, tar payloads, checksums and build metadata,
-and remain available for 30 days. Downloading artifacts requires signing in to
-GitHub. Manual runs do not create a release or a tag. The separate **Build and
-release** workflow can also run manually; its release job only runs on tag pushes.
+**Latency backend packages** builds standalone backends in Ubuntu, Arch and
+Fedora containers. Download `latency-backend-ubuntu`, `latency-backend-arch` or
+`latency-backend-fedora` under the completed run's Artifacts. These private
+artifacts contain native packages, tar payloads, checksums and build metadata
+and remain available for 30 days. Research measurements stay in the external
+archive and are not build inputs.
+
+For complete two-package installations use **Arch package set** or
+**Ubuntu package set**, described in [Arch installation](arch-installation.md)
+and [Ubuntu installation](ubuntu-installation.md). Publication is opt-in using
+`publish_release` and an existing public version tag; ordinary builds remain
+private. No pipeline installs on the user's host or attaches the Eleven Rack.
+Unknown PipeWire releases fail until a verified source hash and compatible
+patch are supplied.

@@ -6,5 +6,25 @@
   "1.6.9": {
     "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.6.9.tar.gz",
     "sha256": "dbc3624cf71215c26a22fc98f6f71f7b8599f5f6b415eab4a5c90ca96c170c7c"
+  },
+  "1.0.5": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.0.5.tar.gz",
+    "sha256": "c5a5de26d684a1a84060ad7b6131654fb2835e03fccad85059be92f8e3ffe993",
+    "patch": "pipewire-eleven-latency-1.0.5.patch"
+  },
+  "1.2.4": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.2.4.tar.gz",
+    "sha256": "b88b9c94548128f0078dc6d376389c2447c6c324ee6dda20d9037bc77a9dd4ee",
+    "patch": "pipewire-eleven-latency-1.2.4.patch"
+  },
+  "1.2.7": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.2.7.tar.gz",
+    "sha256": "e75568ed18bcbe75e9779af57cb9cc256fd7ebfaadc12bb347a0717055d1d3a9",
+    "patch": "pipewire-eleven-latency-1.2.7.patch"
+  },
+  "1.4.7": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.4.7.tar.gz",
+    "sha256": "9d54f025e1e7ae73b980a6c8be2e8e6387e24d554d58478d6495734ce1ee5a93",
+    "patch": "pipewire-eleven-latency-1.4.7.patch"
   }
 }

@@ -13,8 +13,12 @@
 extern const struct spa_handle_factory spa_alsa_source_factory;
 extern const struct spa_handle_factory spa_alsa_sink_factory;
 extern const struct spa_handle_factory spa_alsa_pcm_device_factory;
+#ifdef SPA_LOG_TOPIC_DEFINE
 SPA_LOG_TOPIC_DEFINE(alsa_log_topic, "spa.alsa");
 SPA_LOG_TOPIC_ENUM_DEFINE_REGISTERED;
+#else
+struct spa_log_topic alsa_log_topic = SPA_LOG_TOPIC(0, "spa.alsa");
+#endif
 SPA_EXPORT int spa_handle_factory_enum(const struct spa_handle_factory **factory, uint32_t *index)
 {
     if (!factory || !index) return -EINVAL;

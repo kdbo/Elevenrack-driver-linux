@@ -2,6 +2,7 @@
 """Build the combined GUI + experimental DKMS .deb without root."""
 import argparse
 import hashlib
+import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,11 +11,43 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def build(version, output):
+def build(version, output, backend_build=None):
+    arch = 'all'
+    extra_dependencies = ''
+    replacement_fields = ''
+    backend = metadata = None
+    if backend_build is not None:
+        spec = importlib.util.spec_from_file_location('latency_packager', ROOT / 'tools/build-latency-package.py')
+        backend = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(backend)
+        metadata = backend.check_build(backend_build)
+        pw_version = backend.dependency_version('deb', metadata)
+        arch = backend.read_command('dpkg', '--print-architecture')
+        alsa = 'libasound2t64' if backend.read_command('dpkg-query', '-W', '-f=${db:Status-Status}', 'libasound2t64') == 'installed' else 'libasound2'
+        libc = backend.read_command('dpkg-query', '-W', '-f=${Version}', 'libc6')
+        alsa_version = backend.read_command('dpkg-query', '-W', '-f=${Version}', alsa)
+        extra_dependencies = f', pipewire (= {pw_version}), libspa-0.2-modules (= {pw_version}), libc6 (>= {libc}), {alsa} (>= {alsa_version})'
+        replacement_fields = 'Conflicts: eleven-rack-latency-backend\nReplaces: eleven-rack-latency-backend\n'
     output.mkdir(parents=True, exist_ok=True)
-    package = output / f'eleven-rack-driver_{version}_all.deb'
+    package = output / f'eleven-rack-driver_{version}_{arch}.deb'
     with tempfile.TemporaryDirectory(prefix='deb-stage-', dir=output) as temp:
         stage = Path(temp)
+        if backend is not None:
+            backend.stage_payload(stage, backend_build, metadata)
+            # WirePlumber 0.4 uses Lua rules; derive them from the same defaults.
+            import re
+            properties = re.findall(r'^\s*(api\.alsa\.eleven-[\w-]+)\s*=\s*(true|-?\d+)\s*$',
+                                    (ROOT / 'config/52-eleven-rack-latency.conf').read_text(), re.M)
+            assert len(properties) == 26, 'Incomplete latency defaults'
+            lua = 'local rule = {\n  matches = {\n'
+            for direction in ('input', 'output'):
+                lua += '    { { "node.name", "matches", "alsa_' + direction + '.usb-Digidesign_Eleven_Rack.*" }, { "api.alsa.card.id", "equals", "Rack" } },\n'
+            lua += '  },\n  apply_properties = {\n'
+            lua += ''.join(f'    ["{key}"] = {value},\n' for key, value in properties)
+            lua += '  },\n}\ntable.insert(alsa_monitor.rules, rule)\n'
+            target = stage / 'etc/wireplumber/main.lua.d/52-eleven-rack-latency.lua'
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(lua)
 
         def write(path, content, executable=False):
             target = stage / path
@@ -32,10 +65,10 @@ def build(version, output):
 Version: {version}
 Section: sound
 Priority: optional
-Architecture: all
+Architecture: {arch}
 Maintainer: Eleven Rack Linux contributors <noreply@localhost>
-Depends: python3 (>= 3.12), python3-gi, python3-websockets, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, pipewire-jack, libjack-jackd2-0 | libjack0, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, apt, dpkg-dev, ca-certificates, bzip2, xz-utils, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04
-Recommends: mokutil
+Depends: python3 (>= 3.12), python3-gi, python3-websockets, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, pipewire-jack, libjack-jackd2-0 | libjack0, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, apt, dpkg-dev, ca-certificates, bzip2, xz-utils, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04{extra_dependencies}
+{replacement_fields}Recommends: mokutil
 Description: Eleven Rack Linux audio driver and control panel (experimental)
  Patched snd-usb-audio built for the host kernel using DKMS, with a native
  GTK control panel, ALSA controls, and WirePlumber routing configuration.
@@ -65,7 +98,12 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
         copy('config/51-eleven-rack.lua',
              'etc/wireplumber/main.lua.d/51-eleven-rack.lua')
         write('DEBIAN/conffiles', '/etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf\n'
-              '/etc/wireplumber/main.lua.d/51-eleven-rack.lua\n')
+              '/etc/wireplumber/main.lua.d/51-eleven-rack.lua\n' +
+              ('/etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf\n'
+               '/etc/modprobe.d/eleven-rack-latency.conf\n' if backend else ''))
+        if backend:
+            with (stage / 'DEBIAN/conffiles').open('a') as conffiles:
+                conffiles.write('/etc/wireplumber/main.lua.d/52-eleven-rack-latency.lua\n')
         write('usr/bin/eleven-rack-control', '#!/bin/sh\n'
               'exec /usr/bin/python3 /usr/lib/eleven-rack/tools/eleven-rack-settings.py "$@"\n', True)
         copy('docs/packaging.md', 'usr/share/doc/eleven-rack-driver/README.md')
@@ -90,8 +128,8 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
             f'{p.relative_to(stage)}\n' for p in installed_files))
         installed_size = sum((p.stat().st_size + 1023) // 1024 for p in installed_files)
         control = stage / 'DEBIAN/control'
-        control.write_text(control.read_text().replace('Architecture: all\n',
-                           f'Architecture: all\nInstalled-Size: {installed_size}\n'))
+        control.write_text(control.read_text().replace(f'Architecture: {arch}\n',
+                           f'Architecture: {arch}\nInstalled-Size: {installed_size}\n'))
         # Root ownership without requiring fakeroot/sudo.
         subprocess.run(['dpkg-deb', '--root-owner-group', '--build', str(stage), str(package)],
                        check=True)
@@ -102,9 +140,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', default=(ROOT / 'VERSION').read_text().strip())
     parser.add_argument('--output', type=Path, default=ROOT / 'build/packages')
+    parser.add_argument('--backend-build', type=Path, help='Include a verified backend built for this Ubuntu environment')
     args = parser.parse_args()
     # Version is embedded in paths and DKMS shell config, so constrain it.
     import re
     if not re.fullmatch(r'[0-9][0-9A-Za-z.+~]*', args.version):
         parser.error('Version must start with a digit and contain only letters, digits, . + ~')
-    print(build(args.version, args.output.resolve()))
+    print(build(args.version, args.output.resolve(), args.backend_build))

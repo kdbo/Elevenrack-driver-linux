@@ -14,6 +14,9 @@ Current tools serve these workflows:
 - Kernel/package builds and checks: `build-*`, `check-*`, `test-kernel-source.py`.
   `build-arch-package-set.sh` assembles the complete two-package Arch artifact;
   see [Arch build/download instructions](../docs/arch-installation.md).
+  `build-deb.py --backend-build build/latency` assembles the complete Ubuntu
+  driver; the private workflow adds the Editor as the second package.
+  See [Ubuntu build/download instructions](../docs/ubuntu-installation.md).
 - Latency backend: `build-latency-backend.py`, `build-latency-package.py`,
   `check-latency-backend.py`, `spa-eleven-alsa.c`, `activate-profile-corrections.py`.
   See [multi-distribution builds and packages](../docs/backend-building.md).

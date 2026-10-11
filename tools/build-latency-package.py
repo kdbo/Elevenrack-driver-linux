@@ -25,7 +25,7 @@ def check_build(build):
     if hashlib.sha256(library.read_bytes()).hexdigest() != metadata['library_sha256']:
         raise RuntimeError('Backend does not match build metadata; rebuild first')
     for field, path in (
-            ('patch_sha256', ROOT / 'packaging/pipewire-eleven-latency.patch'),
+            ('patch_sha256', backend_patch(metadata)),
             ('correction_config_sha256', ROOT / 'config/52-eleven-rack-latency.conf')):
         if hashlib.sha256(path.read_bytes()).hexdigest() != metadata.get(field):
             raise RuntimeError('Patch or correction defaults changed after the build; rebuild first')
@@ -54,6 +54,11 @@ def copy(stage, source, name):
     path.chmod(0o644)
 
 
+def backend_patch(metadata):
+    sources = json.loads((ROOT / 'packaging/pipewire-sources.json').read_text())
+    return ROOT / 'packaging' / sources.get(metadata['pipewire_version'], {}).get('patch', 'pipewire-eleven-latency.patch')
+
+
 def stage_payload(stage, build, metadata):
     copy(stage, build / 'libspa-eleven-latency.so', 'usr/lib/eleven-rack/spa/alsa/libspa-alsa.so')
     copy(stage, ROOT / 'config/52-eleven-rack-latency.conf',
@@ -66,7 +71,7 @@ def stage_payload(stage, build, metadata):
     doc = f'usr/share/doc/{NAME}'
     copy(stage, build / 'backend-build.json', f'{doc}/backend-build.json')
     copy(stage, ROOT / 'LICENSES/PipeWire-MIT.txt', f'usr/share/licenses/{NAME}/PipeWire-MIT.txt')
-    copy(stage, ROOT / 'packaging/pipewire-eleven-latency.patch', f'{doc}/pipewire-eleven-latency.patch')
+    copy(stage, backend_patch(metadata), f'{doc}/pipewire-eleven-latency.patch')
     copy(stage, ROOT / 'docs/backend-building.md', f'{doc}/README.md')
 
 

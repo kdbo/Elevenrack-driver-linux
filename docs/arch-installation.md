@@ -9,7 +9,8 @@ packages, without publishing a release:
 
 ## Manual GitHub build
 
-1. Open **Actions → Arch package set → Run workflow** and select `main`.
+1. In the private `kdbo/ElevenRack-builds` repository, open
+   **Actions → Arch package set → Run workflow** and set `source_ref` to `main`.
 2. To match the VM with kernel `7.2.9-arch1-1`, enter **`7.2.9.arch1-1`** in
    `kernel_package_version`. This field takes the `pacman -Q linux` package
    version, not the `uname -r` release string. Leave it empty for current stable

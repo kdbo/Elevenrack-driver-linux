@@ -94,7 +94,7 @@ def main():
         tree = work / f'pipewire-{version}'
         if not (tree / 'spa/plugins/alsa/alsa-pcm.c').is_file():
             raise RuntimeError('Archive does not contain the requested PipeWire source tree')
-        patch = ROOT / 'packaging/pipewire-eleven-latency.patch'
+        patch = ROOT / 'packaging' / source.get('patch', 'pipewire-eleven-latency.patch')
         subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', '-p1', '-i', str(patch)],
                        cwd=tree, check=True)
         library = work / 'libspa-eleven-latency.so'

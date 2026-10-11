@@ -1,0 +1,257 @@
+--- a/spa/plugins/alsa/alsa-pcm.c
++++ b/spa/plugins/alsa/alsa-pcm.c
+@@ -17,6 +17,8 @@
+ #include <spa/monitor/device.h>
+ 
+ #include "alsa-pcm.h"
++#include <sys/eventfd.h>
++#include <stdatomic.h>
+ 
+ static struct spa_list cards = SPA_LIST_INIT(&cards);
+ static struct spa_list states = SPA_LIST_INIT(&states);
+@@ -91,10 +93,39 @@
+ 	free(c);
+ }
+ 
++/* Exact rate/quantum overrides; missing profiles retain the base model. */
++static int eleven_profile_index(uint32_t value, bool rate)
++{
++	static const uint32_t rates[] = { 44100, 48000, 88200, 96000 };
++	static const uint32_t quanta[] = { 64, 128, 256, 512, 1024, 2048 };
++	const uint32_t *values = rate ? rates : quanta;
++	unsigned int count = rate ? SPA_N_ELEMENTS(rates) : SPA_N_ELEMENTS(quanta);
++	for (unsigned int i = 0; i < count; i++)
++		if (values[i] == value)
++			return i;
++	return -1;
++}
++
+ static int alsa_set_param(struct state *state, const char *k, const char *s)
+ {
+ 	int fmt_change = 0;
+-	if (spa_streq(k, SPA_KEY_AUDIO_CHANNELS)) {
++	if (spa_streq(k, "api.alsa.eleven-latency")) {
++		state->phase_lock = spa_atob(s);
++	} else if (spa_streq(k, "api.alsa.eleven-analog-delay")) {
++		state->phase_analog_delay = SPA_CLAMP(atoi(s), 0, 8192);
++	} else if (strncmp(k, "api.alsa.eleven-correction-", 26) == 0) {
++		unsigned int rate, quantum;
++		int length = 0;
++		if (sscanf(k, "api.alsa.eleven-correction-%u-%u%n", &rate, &quantum, &length) == 2 &&
++		    k[length] == '\0') {
++			int r = eleven_profile_index(rate, true);
++			int q = eleven_profile_index(quantum, false);
++			int32_t correction;
++			if (r >= 0 && q >= 0 && spa_atoi32(s, &correction, 10))
++				state->phase_profile_correction[r][q] = SPA_CLAMP(correction, -8192, 8192);
++		}
++	} else if (spa_streq(k, SPA_KEY_AUDIO_CHANNELS)) {
++
+ 		state->default_channels = atoi(s);
+ 		fmt_change++;
+ 	} else if (spa_streq(k, SPA_KEY_AUDIO_RATE)) {
+@@ -877,12 +908,21 @@
+ 	fetch_bind_ctls(state);
+ }
+ 
++static bool eleven_latency_rate(uint32_t rate)
++{
++	return rate == 44100 || rate == 48000 || rate == 88200 || rate == 96000;
++}
++
++static void phase_publish_latency(struct spa_source *source);
++
+ int spa_alsa_init(struct state *state, const struct spa_dict *info)
+ {
++
+ 	uint32_t i;
+ 	int err;
+ 	const char *str;
+ 
++	state->phase_source.fd = -1;
+ 	spa_list_init(&state->followers);
+ 	spa_list_init(&state->rt.followers);
+ 
+@@ -960,6 +1000,19 @@
+ 	state->rate_limit.burst = 1;
+ 
+ 	bind_ctls_for_params(state);
++	if (state->phase_lock) {
++		state->phase_source = (struct spa_source) {
++			.fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK),
++			.func = phase_publish_latency, .data = state, .mask = SPA_IO_IN,
++		};
++		if (state->phase_source.fd < 0 ||
++		    spa_loop_add_source(state->main_loop, &state->phase_source) < 0) {
++			if (state->phase_source.fd >= 0) close(state->phase_source.fd);
++			state->phase_source.fd = -1;
++			state->phase_lock = false;
++			spa_log_error(state->log, "Eleven Rack latency event setup failed");
++		}
++	}
+ 
+ 	return 0;
+ }
+@@ -968,6 +1021,11 @@
+ {
+ 	int err;
+ 
++	if (state->phase_source.fd >= 0) {
++		spa_loop_remove_source(state->main_loop, &state->phase_source);
++		close(state->phase_source.fd);
++		state->phase_source.fd = -1;
++	}
+ 	spa_list_remove(&state->link);
+ 	release_card(state->card);
+ 
+@@ -1945,6 +2003,7 @@
+ 
+ 	state->latency[state->port_direction].min_rate =
+ 		state->latency[state->port_direction].max_rate = latency;
++	state->phase_base_latency = latency;
+ }
+ 
+ int spa_alsa_set_format(struct state *state, struct spa_audio_info *fmt, uint32_t flags)
+@@ -2441,6 +2500,12 @@
+ 	int err;
+ 
+ 	state->last_threshold = state->threshold;
++	state->phase_checked = false;
++	state->phase_count = 0;
++	state->phase_error = 0;
++	state->phase_transport = 0;
++	state->phase_trim = 0;
++
+ 
+ 	spa_log_debug(state->log, "%p: start threshold:%d duration:%d rate:%d follower:%d match:%d resample:%d",
+ 			state, state->threshold, state->driver_duration, state->driver_rate.denom,
+@@ -2684,6 +2749,26 @@
+ 	return 0;
+ }
+ 
++/* Publish on the main loop through an owned event source. Removing the source
++ * during clear cancels pending updates before the node memory is released. */
++static void phase_publish_latency(struct spa_source *source)
++{
++	struct state *state = source->data;
++	uint64_t events, update;
++	if (read(source->fd, &events, sizeof(events)) != sizeof(events)) return;
++	update = atomic_load_explicit(&state->phase_pending, memory_order_acquire);
++	int32_t frames = (uint32_t)update;
++	uint32_t quantum = (update >> 32) & 0x3fff;
++	uint32_t rate = update >> 46;
++	if (!state->started || !eleven_latency_rate(state->rate) || (uint32_t)state->rate != rate || state->threshold != quantum) return;
++	if ((int64_t)state->latency[state->port_direction].min_rate == (int64_t)frames) return;
++	state->latency[state->port_direction].min_rate = frames;
++	state->latency[state->port_direction].max_rate = frames;
++	state->port_info.change_mask |= SPA_PORT_CHANGE_MASK_PARAMS;
++	state->port_params[PORT_Latency].user++;
++	spa_alsa_emit_port_info(state, false);
++}
++
+ static int update_time(struct state *state, uint64_t current_time, snd_pcm_sframes_t delay,
+ 		snd_pcm_sframes_t target, bool follower)
+ {
+@@ -2708,12 +2793,48 @@
+ 	diff = (int32_t) (state->last_threshold - state->threshold);
+ 
+ 	if (SPA_UNLIKELY(diff != 0)) {
++		state->phase_count = 0;
++		state->phase_error = 0;
++		state->phase_transport = 0;
+ 		err -= diff;
+ 		spa_log_trace(state->log, "%p: follower:%d quantum change %d -> %d (%d) %f",
+ 				state, follower, state->last_threshold, state->threshold, diff, err);
+ 		state->last_threshold = state->threshold;
+ 		state->alsa_sync = true;
+ 		state->alsa_sync_warning = false;
++	}
++	/* Runtime queue and USB transport delay, averaged to avoid packet pointer
++	 * jitter. Enabled at 48, 88.2 and 96 kHz; high-rate analog calibration
++	 * is time-scaled from the measured 48 kHz profile and requires validation.
++	 * Scheduling and PCM pointers keep their upstream behavior. */
++	if (state->phase_lock && state->alsa_started && eleven_latency_rate(state->rate) &&
++	    (state->threshold == 64 || state->threshold == 128 || state->threshold == 256 ||
++	     state->threshold == 512 || state->threshold == 1024 || state->threshold == 2048) && !state->resample) {
++		double averaging_cycles = 64.0 * SPA_MIN(state->threshold, 256u) / state->threshold * state->rate / 48000.0;
++		uint32_t publish_cycles = (uint32_t)round(128.0 * SPA_MIN(state->threshold, 256u) / state->threshold * state->rate / 48000.0);
++		snd_pcm_sframes_t physical_delay = 0;
++		int result = snd_pcm_delay(state->hndl, &physical_delay);
++		state->phase_error += ((double)delay - target - state->phase_error) / averaging_cycles;
++		if (result >= 0)
++			state->phase_transport += ((double)physical_delay - delay - state->phase_transport) / averaging_cycles;
++		if (++state->phase_count % publish_cycles == 0) {
++			int32_t estimate = (int32_t)state->phase_base_latency +
++				(int32_t)round(state->phase_error + state->phase_transport);
++			if (state->stream == SND_PCM_STREAM_CAPTURE) {
++				estimate += (state->phase_analog_delay * state->rate + 24000u) / 48000u;
++				int r = eleven_profile_index(state->rate, true);
++				int q = eleven_profile_index(state->threshold, false);
++				if (r >= 0 && q >= 0)
++					estimate += state->phase_profile_correction[r][q];
++			}
++			int32_t frames = SPA_MAX(estimate, 0);
++			uint64_t update = ((uint64_t)((state->rate << 14) | state->threshold) << 32) | (uint32_t)frames;
++			uint64_t one = 1;
++			atomic_store_explicit(&state->phase_pending, update, memory_order_release);
++			/* Nonblocking eventfd coalesces successive updates. */
++			ssize_t notified = write(state->phase_source.fd, &one, sizeof(one));
++			(void)notified;
++		}
+ 	}
+ 	if (err > state->max_resync) {
+ 		state->alsa_sync = true;
+@@ -3478,6 +3599,7 @@
+ 	struct rt_state *rt = &state->rt;
+ 
+ 	if (state->started) {
++
+ 		state->next_time = get_time_ns(state);
+ 
+ 		if (rt->driver != state->driver) {
+@@ -3709,7 +3831,7 @@
+ 	if (full)
+ 		state->info.change_mask = state->info_all;
+ 	if (state->info.change_mask) {
+-		struct spa_dict_item items[7];
++		struct spa_dict_item items[9];
+ 		uint32_t i, n_items = 0;
+ 		char latency[64] = "", period[64] = "", nperiods[64] = "", headroom[64] = "";
+ 
+@@ -3717,6 +3839,8 @@
+ 		items[n_items++] = SPA_DICT_ITEM_INIT(SPA_KEY_MEDIA_CLASS,
+ 				state->stream == SND_PCM_STREAM_PLAYBACK ? "Audio/Sink" : "Audio/Source");
+ 		items[n_items++] = SPA_DICT_ITEM_INIT(SPA_KEY_NODE_DRIVER, "true");
++		items[n_items++] = SPA_DICT_ITEM_INIT("api.alsa.eleven-backend", "latency-report-v11-2048");
++		items[n_items++] = SPA_DICT_ITEM_INIT("api.alsa.eleven-phase-enabled", state->phase_lock ? "true" : "false");
+ 
+ 		if (state->have_format)
+ 			snprintf(latency, sizeof(latency), "%lu/%d",
+--- a/spa/plugins/alsa/alsa-pcm.h
++++ b/spa/plugins/alsa/alsa-pcm.h
+@@ -10,6 +10,7 @@
+ #endif
+ 
+ #include <stddef.h>
++#include <stdatomic.h>
+ #include <math.h>
+ 
+ #include <alsa/asoundlib.h>
+@@ -150,6 +151,17 @@
+ 	struct channel_map default_pos;
+ 	unsigned int disable_mmap:1;
+ 	unsigned int disable_batch:1;
++	unsigned int phase_lock:1;
++	unsigned int phase_checked:1;
++	unsigned int phase_count;
++	double phase_error;
++	double phase_transport;
++	uint32_t phase_base_latency;
++	uint32_t phase_analog_delay;
++	int32_t phase_profile_correction[4][6];
++	struct spa_source phase_source;
++	_Atomic uint64_t phase_pending;
++	int phase_trim;
+ 	unsigned int disable_tsched:1;
+ 	char clock_name[64];
+ 	uint32_t quantum_limit;
