@@ -5,3 +5,9 @@ __pycache__/
 /.agents/
 node_modules/
 /editor/dist/
+
+# Local latency research belongs in the external archive.
+/docs/latency*
+/docs/high-rate-latency-decision.md
+/docs/recording-session.md
+/docs/pipewire-*-experiment.patch

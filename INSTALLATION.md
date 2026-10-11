@@ -6,6 +6,9 @@ target Ubuntu 24.04 LTS and newer; actual test coverage is listed in the
 [README distribution matrix](README.md#distribution-test-matrix).
 These are experimental beta packages.
 
+For optional Ubuntu Studio audio tools, PipeWire setup, and low-latency
+configuration, see [Ubuntu Studio setup](docs/ubuntu-studio-setup.md).
+
 ## 1. Download the packages
 
 Open [GitHub Releases](https://github.com/kdbo/Elevenrack-driver-linux/releases)

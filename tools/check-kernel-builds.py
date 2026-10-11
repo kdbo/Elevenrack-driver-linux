@@ -42,6 +42,7 @@ def check(release, entry, cache, work, output):
     build = work / release / 'build'
     build.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / 'packaging/prepare-driver.py', build / 'prepare-driver.py')
+    shutil.copyfile(ROOT / 'packaging/mixer-eleven-rack.h', build / 'mixer-eleven-rack.h')
     headers = sdk / 'usr/src' / ('linux-headers-' + kernel)
     archive = sdk / 'usr/src' / f"linux-source-{entry['series']}.0.tar.bz2"
     env = dict(os.environ, ELEVEN_SOURCE_ARCHIVE=str(archive))

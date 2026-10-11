@@ -1,0 +1,145 @@
+{
+  "archive": "/home/koen/eleven-rack-tools-archive/2026-10-11",
+  "moved": [
+    {
+      "source": "tools/activate-hires-usb-experiment.py",
+      "sha256": "4d771b277c5d4ff6f0226744e19e9ee59e8c429b03844428ef63a1622e06698b"
+    },
+    {
+      "source": "tools/build-latency-trace-backend.py",
+      "sha256": "bbc52bcadbbe7a66ac0ee27cd77f720a72933bfb83f2239d5fe04177c3d9e06c"
+    },
+    {
+      "source": "tools/build-transport-delay-backend.sh",
+      "sha256": "2ef52801e68b88bc5e4c736499c398ed98ad3db8fa2126f483ce1909140e5583"
+    },
+    {
+      "source": "tools/build-usb-schedule-trace.py",
+      "sha256": "f78c9fc60a0681f98d7f8aba980292db7b43ba1fbcd58b1a8f6a561f61d7be5e"
+    },
+    {
+      "source": "tools/calculate-latency-corrections.py",
+      "sha256": "06c1dcfeaaaf10e41850923cda02a5bfd75b6199338b1539235f8f8278534f18"
+    },
+    {
+      "source": "tools/compare-latency-usb-status.py",
+      "sha256": "e51d6bdcacaf2a439d031ed94b6a5d41ce9c2f1d04129f8e9a9a4e81e95a10a5"
+    },
+    {
+      "source": "tools/analyze-latency-status.py",
+      "sha256": "a675fa504b116b9c24173f2e72f116f65f724354295a1ab69d2dc56a052f3117"
+    },
+    {
+      "source": "tools/analyze-usb-loopback.py",
+      "sha256": "3fb36674025d5a14edb7035bf9322063c368110825d5b588d09c1bfd23fd0e98"
+    },
+    {
+      "source": "tools/run-alsa-recovery-audit.py",
+      "sha256": "2bfcc82a9364711bb00911a1ba5dc13cae27d9b5281c10b8935a13f70febc953"
+    },
+    {
+      "source": "tools/trace-alsa-recovery.c",
+      "sha256": "c917dd1447194b8fa0c35ba1a6a23db3acedbadadcdbb43469340ee693276404"
+    },
+    {
+      "source": "tools/start-queue-root.py",
+      "sha256": "eadeb63e48ff46b34f8e12e25f54705a0f8c91a6ec9306f3a37fabe90283235e"
+    },
+    {
+      "source": "tools/test-driver-clock-fix.py",
+      "sha256": "4e8ff0453f8f39354bfc2e1911b3d820aaa2335afd7075c5d2c37da9475cf1df"
+    },
+    {
+      "source": "tools/test-installed-latency-rates.py",
+      "sha256": "a9a848dc27e5f7b1dd92e0fdb47af0bc89561d5e805a97d75d0c810760201ea6"
+    },
+    {
+      "source": "tools/test-latency-callback-trace.py",
+      "sha256": "d5f21c8d6c945230c9bb0c865d7fd074ce7011ac9bc3b740244878bf29c9d13e"
+    },
+    {
+      "source": "tools/test-latency-candidates.py",
+      "sha256": "e51f8451afa9e7736717cd4c1d0a0988db4619976db56430cc7df604f64ce193"
+    },
+    {
+      "source": "tools/test-native-buffer-matrix.py",
+      "sha256": "0e127cb23cac0f7d08bb55bdefedeabef265badcb7b012ddd96e959c0ff5d02a"
+    },
+    {
+      "source": "tools/test-phase-lock-backend.py",
+      "sha256": "5b467a639aa33c02298e1c48d8f38c95ae5a21a10f11e95fa03185b4d8aab3f6"
+    },
+    {
+      "source": "tools/test-phase-lock-bound-backend.py",
+      "sha256": "ff8aea29b7966c834dad3d7ea491fa65d44e4389be20d50afccb1ecbd6d29f0f"
+    },
+    {
+      "source": "tools/test-phase-lock-dual-backend.py",
+      "sha256": "68ac84e51efcc29ae345b42d993f99b43e2472711ebe7d8dbe5d6d4def34bcc2"
+    },
+    {
+      "source": "tools/test-phase-lock-full-backend.py",
+      "sha256": "da3f22a40fa793fffe391ff21bbb1ed56d30c7a14c8394ae9a280632dbae7af0"
+    },
+    {
+      "source": "tools/test-phase-lock-reassign-backend.py",
+      "sha256": "28b322fdb3c93be3aae7490ce82f3c9afcf8424a5e29ef94a9389709a686824d"
+    },
+    {
+      "source": "tools/test-start-queue.py",
+      "sha256": "501c4f0ceb3e9440b65eeed3afa5ea6b3351ef2c9cb537eb8e609e4d24238175"
+    },
+    {
+      "source": "tools/test-transport-delay-backend.py",
+      "sha256": "c2fb89e9426fd8a632ead210c345fe43d28a52c01dc70b596bf050bb5964404c"
+    },
+    {
+      "source": "tools/test-usb-bus-clock.py",
+      "sha256": "20c88094fbf9674a7a37f42849acf02ad8e2f52b8f8aed190868760b95f081d4"
+    },
+    {
+      "source": "tools/test-usb-queue-reference.py",
+      "sha256": "e0eef8571edd3fa1cb97c881777b295760409dedf9a1691d3f776a276a7c8420"
+    },
+    {
+      "source": "tools/test-usb-schedule-hardware.py",
+      "sha256": "b9e8db5ac45f8a6f424a3cce3c83f918bf0b2f44356b231e1df4ae5221e1a9e7"
+    },
+    {
+      "source": "tools/usb-bus-clock-root.py",
+      "sha256": "9f20fadfb4d192193cbc1981cb036dde878c730dd236d175addd96b8e584d5d5"
+    },
+    {
+      "source": "tools/usb-queue-reference-root.py",
+      "sha256": "394f5ec9e1494196a646f2a07494879aabaaba17bdae0a08be76a87620198158"
+    },
+    {
+      "source": "tools/usb-schedule-trace-root.py",
+      "sha256": "91c1f09367e403573f5ab6696b14bf33769654d945840ff7ad00d4b0981d8450"
+    },
+    {
+      "source": "tools/trace-reaper-latency.py",
+      "sha256": "50c30b1fe3f6000987c0eb34ed29c02e929218676a73e380f17241f33fa80189"
+    },
+    {
+      "source": "tools/open-reaper-driver-test.py",
+      "sha256": "477bd66baf4d4ad6be99d440fbb3c72bf19b85252fe1a8ed9996cf8d8368557c"
+    },
+    {
+      "source": "tools/eleven-rack-recording-session.py",
+      "sha256": "50376836278376638359d2d5dc96a933033a2082fb4e6f3a7b1feb39ca947c10"
+    },
+    {
+      "source": "tools/jack-calibrated-capture.c",
+      "sha256": "e84223680c4fa2a086c04c1033a017ca88e6e75fdd87f608d60df7fc5a7df29d"
+    },
+    {
+      "source": "tools/route-calibrated-reaper.py",
+      "sha256": "424df0a07e1fa048c7cb6daf573b5bf0a4b5b30aaea548129900313b782756f2"
+    },
+    {
+      "source": "tools/test-native-jack-latency.py",
+      "sha256": "b05df3c2133fa556858d018dde205cc533d4b5ba22d9a758da4425088755a591"
+    }
+  ]
+}

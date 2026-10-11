@@ -1,0 +1,32 @@
+{
+  "package": "0.1.2~beta3",
+  "previous_settings": {
+    "log.level": "2",
+    "clock.rate": "48000",
+    "clock.allowed-rates": "[ 48000 ]",
+    "clock.quantum": "1024",
+    "clock.min-quantum": "32",
+    "clock.max-quantum": "2048",
+    "clock.force-quantum": "128",
+    "clock.force-rate": "48000"
+  },
+  "previous_active_units": [
+    "wireplumber.service",
+    "pipewire-pulse.service",
+    "pipewire-pulse.socket",
+    "pipewire.service",
+    "pipewire.socket"
+  ],
+  "initial": "Monitoring mode: unknown\nDriver command state; hardware readback is unavailable.\n",
+  "daw_only": "Monitoring mode: daw-only\nDriver command state; hardware readback is unavailable.\n",
+  "hardware": "Monitoring mode: hardware\nDriver command state; hardware readback is unavailable.\n",
+  "usb_commands_accepted": true,
+  "audible_effect_verified": true,
+  "audible_validation": {
+    "date": "2026-10-10",
+    "method": "User played guitar with REAPER closed and switched both panel modes",
+    "daw_only_mutes_direct_monitoring": true,
+    "hardware_restores_direct_monitoring": true,
+    "usb_capture_and_daw_playback_verified": false
+  }
+}

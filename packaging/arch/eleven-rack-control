@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python /usr/lib/eleven-rack/tools/eleven-rack-settings.py "$@"

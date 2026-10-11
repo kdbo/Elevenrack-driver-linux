@@ -3306,7 +3306,7 @@ document.getElementById('btn-monitor-clear').addEventListener('click', () => { l
 // ════════════════════════════════════════════════════════════════════
 // ABOUT
 // ════════════════════════════════════════════════════════════════════
-document.getElementById('btn-about').addEventListener('click', () => { document.getElementById('about-overlay').classList.add('open'); });
+document.getElementById('btn-about')?.addEventListener('click', () => { document.getElementById('about-overlay').classList.add('open'); });
 document.getElementById('btn-manual').addEventListener('click', async () => {
   if (window.electronAPI && window.electronAPI.openUserManual) {
     const result = await window.electronAPI.openUserManual();

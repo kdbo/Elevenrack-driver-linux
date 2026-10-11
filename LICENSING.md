@@ -8,7 +8,7 @@ This repository contains components with different licenses:
 | --- | --- |
 | Original Python control panel, settings tools, tests, and other original project files, except the kernel patch helper below | MIT; see [LICENSE](LICENSE) |
 | Original kernel changes in `patches/*.patch` | GPL-2.0-or-later; see [GPL version 2](LICENSES/GPL-2.0.txt) |
-| `packaging/prepare-driver.py`, including its embedded kernel changes | GPL-2.0-or-later; see [GPL version 2](LICENSES/GPL-2.0.txt) |
+| `packaging/prepare-driver.py`, `packaging/mixer-eleven-rack.h`, and the temporary `tools/monitor-read-probe.c` kernel probe, including kernel changes | GPL-2.0-or-later; see [GPL version 2](LICENSES/GPL-2.0.txt) |
 | Existing Linux/ALSA code, including patch context and downloaded kernel sources | Existing upstream licenses and copyright notices |
 | Third-party dependencies and any future imported editor code | Their respective upstream licenses |
 | Imported Eleven Edit UI under `editor/` | MIT, with upstream notices in `editor/LICENSE` and `editor/NOTICE` |
@@ -32,3 +32,5 @@ copyright notices when redistributing source or packages. Already published
 release artifacts are not replaced by this documentation update.
 
 See [CREDITS.md](CREDITS.md) for the upstream projects and protocol references.
+
+PipeWire ALSA PCM backend source is derived from PipeWire 1.6.2 by Wim Taymans and contributors. The PCM factory/source/sink files carry MIT SPDX identifiers; the distribution plugin providing ACP and enumeration remains separate. See [PipeWire MIT notice](LICENSES/PipeWire-MIT.txt).

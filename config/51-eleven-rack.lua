@@ -1,5 +1,15 @@
 -- WirePlumber 0.4 (Ubuntu 24.04). WirePlumber 0.5 uses the .conf fragment.
 local rules = {
+  -- Share the hardware clock only within the unique ALSA card id Rack.
+  {
+    matches = {
+      { { "node.name", "matches", "alsa_input.usb-Digidesign_Eleven_Rack.*" },
+        { "api.alsa.card.id", "equals", "Rack" } },
+      { { "node.name", "matches", "alsa_output.usb-Digidesign_Eleven_Rack.*" },
+        { "api.alsa.card.id", "equals", "Rack" } },
+    },
+    apply_properties = { ["clock.name"] = "api.alsa.Rack" },
+  },
   {
     matches = { { { "device.name", "matches", "alsa_card.usb-Digidesign_Eleven_Rack.*" } } },
     apply_properties = {

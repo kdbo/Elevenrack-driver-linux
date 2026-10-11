@@ -321,6 +321,17 @@
     const brand = top.querySelector('.app-title').parentElement;
     brand.classList.add('brand');
     const logo = mk('img', { class: 'editor-logo', src: '../assets/eleven-rack-editor-logo.png', alt: 'Eleven Rack Editor logo' });
+    logo.setAttribute('role', 'button');
+    logo.setAttribute('tabindex', '0');
+    logo.setAttribute('aria-label', 'About Eleven Rack Editor');
+    logo.title = 'About Eleven Rack Editor';
+    logo.addEventListener('click', () => window.openEditorAbout());
+    logo.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        window.openEditorAbout();
+      }
+    });
     brand.prepend(logo);
     const box = $('patch-name-box');
     const hint = box.querySelector('.hint');

@@ -19,8 +19,20 @@ Project development and Linux integration: **Koen de Boevé**.
   compatibility checks, including the Ubuntu 24.04 HWE source packages.
 - **Paul Bender — [R11 Audio](https://r11audio.com/).**
   Paul explained the monitor-extension gate and crosspoint muting used by
-  his macOS driver's Hardware/DAW Only modes. This is a reference for future
-  investigation; the monitoring toggle is not implemented in this project.
+  his macOS driver's Hardware/DAW Only modes and supplied the exact USB
+  requests used by this project’s ALSA monitoring control.
+  He also provided extensive help investigating latency issues, shared his
+  hardware latency measurements, and advised on buffering, stability, and
+  long-running regression tests. His broader insights into the Eleven Rack's
+  hardware and driver behavior have been invaluable throughout development.
+  I consider Paul a mentor in bringing this Linux driver to life, and I am
+  grateful for his time, patience, and willingness to share his experience.
+
+## Icons and artwork
+
+- **Paul Bender — [R11 Audio](https://r11audio.com/).**
+  Paul gave permission to use his icons as the basis for this project's icons.
+  Thank you for sharing your artwork and supporting the project.
 
 ## Editor projects reviewed
 
@@ -57,3 +69,5 @@ See [LICENSING.md](LICENSING.md) for the exact scope. Credits do not relicense
 upstream kernel code or dependencies. Their respective licenses and copyright
 notices remain applicable. Any future editor import
 must preserve the licensing and attribution of the exact upstream revision.
+
+PipeWire ALSA PCM backend source is derived from PipeWire 1.6.2 by Wim Taymans and contributors. The PCM factory/source/sink files carry MIT SPDX identifiers; the distribution plugin providing ACP and enumeration remains separate. See [PipeWire MIT notice](LICENSES/PipeWire-MIT.txt).

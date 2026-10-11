@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Native GTK control panel for the Eleven Rack Linux driver."""
 import importlib.util
+import hashlib
+import json
+import math
+import fcntl
 import os
 import re
 from pathlib import Path
 import subprocess
 import sys
 import threading
+import time
 
 # VS Code's Snap environment can point system GTK at incompatible schemas.
 for key in ('GSETTINGS_SCHEMA_DIR', 'GTK_PATH', 'GIO_EXTRA_MODULES'):
@@ -18,7 +23,7 @@ if '/snap/code/' in os.environ.get('XDG_DATA_DIRS', ''):
 
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk, GdkPixbuf, GLib
+from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, Pango
 
 ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / 'eleven-rack-settings.py'
@@ -29,12 +34,43 @@ spec = importlib.util.spec_from_file_location('settings', BACKEND)
 settings = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(settings)
 
+
+def control_preferences():
+    try:
+        value = json.loads(settings.firmware_cache_path().with_name('control.json').read_text())
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_channels_state(expander, *_):
+    path = settings.firmware_cache_path().with_name('control.json')
+    preferences = control_preferences()
+    preferences['channels_expanded'] = expander.get_expanded()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix('.%d.tmp' % os.getpid())
+        temporary.write_text(json.dumps(preferences, indent=2) + '\n')
+        temporary.replace(path)
+    except OSError:
+        pass
+
 CSS = b'''
 .eleven-rack-panel { font-size: 12px; background: #101010; color: #eee9e3; }
+.eleven-rack-panel scrolledwindow, .eleven-rack-panel viewport { background: #101010; }
+.eleven-rack-surface { background-color: #101010; background-image: none; }
+.eleven-rack-panel .live-status { background: #211b15; border-top: 1px solid #38312a; padding: 8px 16px; }
 .eleven-rack-panel label { color: #eee9e3; }
 .eleven-rack-panel .eyebrow { color: #ff8a28; font-size: 11px; font-weight: bold; letter-spacing: 2px; }
 .eleven-rack-panel .title { font-size: 24px; font-weight: bold; }
 .eleven-rack-panel .subtitle { color: #a39c93; font-size: 12px; }
+.eleven-rack-panel label.driver-connected { color: #56d681; }
+.eleven-rack-panel levelbar trough { background: #101010; border: none; box-shadow: none; padding: 0; }
+.eleven-rack-panel levelbar block { border: none; box-shadow: none; }
+.eleven-rack-panel levelbar block.empty { background: #101010; }
+.eleven-rack-panel levelbar block.filled { background: #56d681; border-color: #56d681; }
+.eleven-rack-panel levelbar block.high { background: #56d681; border-color: #56d681; }
+.eleven-rack-panel levelbar block.full { background: #56d681; border-color: #56d681; }
 .eleven-rack-panel .card { background: #1c1b19; border: 1px solid #38312a; border-radius: 9px; padding: 8px; }
 .eleven-rack-panel .section { font-size: 15px; font-weight: bold; }
 .eleven-rack-panel .channel { padding: 4px 0; border-bottom: 1px solid #302b26; font-size: 12px; }
@@ -98,19 +134,35 @@ class Panel(Gtk.Window):
         self.events_pending = False
         self.connect('destroy', self.stop_control_events)
         self.updating = False
-        self.confirmed = {'clock': None, 'rate': None, 'rig-input': None, 'buffer': None}
+        self.confirmed = {'clock': None, 'rate': None, 'rig-input': None, 'buffer': None, 'monitor': None}
+        self.polling_monitor = False
+        self.monitor_available = None
+        self.monitor_epoch = 0
         self.polling_buffer = False
         self.buttons = []
         provider = Gtk.CssProvider()
         provider.load_from_data(CSS)
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), provider,
                                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self.get_style_context().add_class('eleven-rack-surface')
         scroll = Gtk.ScrolledWindow()
-        self.add(scroll)
+        scroll.get_style_context().add_class('eleven-rack-surface')
+        layout = box(spacing=0)
+        layout.get_style_context().add_class('eleven-rack-panel')
+        self.add(layout)
+        layout.pack_start(scroll, True, True, 0)
         body = box(spacing=12)
+        self.content_body = body
+        self.content_resize_pending = False
+        self.last_content_height = None
         body.get_style_context().add_class('eleven-rack-panel')
-        body.set_border_width(16)
-        scroll.add(body)
+        for edge in ('top', 'bottom', 'start', 'end'):
+            getattr(body, 'set_margin_' + edge)(16)
+        viewport = Gtk.Viewport()
+        viewport.set_shadow_type(Gtk.ShadowType.NONE)
+        viewport.get_style_context().add_class('eleven-rack-surface')
+        viewport.add(body)
+        scroll.add(viewport)
         header = box(False, 12)
         self.driver_logo = Gtk.Image.new_from_pixbuf(logo)
         self.driver_logo.set_valign(Gtk.Align.CENTER)
@@ -118,12 +170,34 @@ class Panel(Gtk.Window):
         header.pack_start(self.driver_logo, False, False, 0)
         identity = box(spacing=3)
         identity.pack_start(label('ELEVEN RACK  /  LINUX', 'eyebrow'), False, False, 0)
-        identity.pack_start(label('Eleven Rack Control', 'title'), False, False, 0)
-        identity.pack_start(label('Audio routing and hardware settings', 'subtitle'), False, False, 0)
+        title_row = box(False, 10)
+        title_row.pack_start(label('Eleven Rack Control', 'title'), False, False, 0)
+        try:
+            version = (ROOT.parent / 'VERSION').read_text().strip()
+        except OSError:
+            version = 'Development version'
+        version_label = label(version, 'subtitle')
+        version_label.set_valign(Gtk.Align.CENTER)
+        title_row.pack_start(version_label, False, False, 0)
+        identity.pack_start(title_row, False, False, 0)
+        saved_firmware = settings.cached_firmware_version()
+        self.firmware_label = label('Firmware: ' + saved_firmware + ' (saved)' if saved_firmware
+                                    else 'Firmware · reading…', 'subtitle')
+        identity.pack_start(self.firmware_label, False, False, 0)
         header.pack_start(identity, True, True, 0)
-        self.connection = label('Checking device…', 'badge')
+        self.connection = label('Checking driver…', 'subtitle')
         self.connection.set_valign(Gtk.Align.CENTER)
-        header.pack_end(self.connection, False, False, 0)
+        refresh = Gtk.Button.new_from_icon_name('view-refresh-symbolic', Gtk.IconSize.BUTTON)
+        refresh.set_tooltip_text('Refresh all settings')
+        refresh.get_accessible().set_name('Refresh all settings')
+        refresh.set_valign(Gtk.Align.CENTER)
+        refresh.connect('clicked', lambda _: self.refresh_all())
+        self.buttons.append(refresh)
+        header.pack_end(refresh, False, False, 0)
+        about = Gtk.Button(label='About')
+        about.set_valign(Gtk.Align.CENTER)
+        about.connect('clicked', self.show_about)
+        header.pack_end(about, False, False, 0)
         body.pack_start(header, False, False, 0)
 
         control_row = box(False, 12)
@@ -136,21 +210,16 @@ class Panel(Gtk.Window):
         clock_selector.pack_start(self.clock_dot, False, False, 0)
         clock_card.pack_start(clock_selector, False, False, 0)
         self.set_clock_lock(None)
-        self.rate = self.choice(clock_card, 'Internal sample rate', [(str(r), f'{r / 1000:g} kHz') for r in settings.RATES])
+        self.rate = self.choice(clock_card, 'Sample rate', [(str(r), f'{r / 1000:g} kHz') for r in settings.RATES])
         self.rate.set_active_id('48000')
-        self.rate_status = label('Device stream idle', 'subtitle')
-        clock_card.pack_start(self.rate_status, False, False, 0)
-        self.buffer = self.choice(clock_card, 'Buffer size · PipeWire',
+        self.buffer = self.choice(clock_card, 'Buffer size',
                                   [(str(n), 'Automatic' if n == 0 else f'{n} samples') for n in settings.BUFFERS])
         self.buffer.set_active(-1)
-        self.buffer_status = label('Reading buffer size…', 'subtitle')
-        clock_card.pack_start(self.buffer_status, False, False, 0)
-        clock_card.pack_start(label('Applies to the shared PipeWire audio graph for this session.', 'subtitle'), False, False, 0)
+        self.buffer_options = settings.BUFFERS
+        self.buffer_policy = label('', 'subtitle')
+        clock_card.pack_start(self.buffer_policy, False, False, 0)
+        self.buffer_status = label('Roundtrip latency · reading…', 'subtitle')
         self.clock_status = label('Hardware status has not been read', 'subtitle')
-        clock_card.pack_start(self.clock_status, False, False, 0)
-        note = label('Stop audio apps before changing clock or rate.\nYour DAW chooses its streaming sample rate.', 'subtitle')
-        note.set_line_wrap(True)
-        clock_card.pack_start(note, False, False, 0)
         control_row.pack_start(clock_card, True, True, 0)
 
         rig_card = self.card('Rig & monitoring')
@@ -158,58 +227,230 @@ class Panel(Gtk.Window):
         self.rig = self.choice(rig_card, 'Rig Input', list(zip(settings.RIG_INPUTS, names)))
         self.rig.set_active(-1)
         self.rig.set_tooltip_text('Read the current Rig Input, or select one to apply.')
-        rig_actions = box(False, 8)
-        self.button(rig_actions, 'Read Rig Input', lambda _: self.run(['rig-input']))
-        rig_card.pack_start(rig_actions, False, False, 0)
-        rig_card.pack_start(label('Hardware monitoring', 'section'), False, False, 0)
-        unavailable = Gtk.Button(label='Unavailable — control not identified')
-        unavailable.set_sensitive(False)
-        rig_card.pack_start(unavailable, False, False, 0)
-        note = label('Direct rig monitoring remains controlled by the Rack.\nA monitoring toggle needs protocol verification.', 'subtitle')
+        self.monitor = self.choice(rig_card, 'DAW-only monitoring',
+                                   [('hardware', 'Off · Hardware monitoring'), ('daw-only', 'On · DAW only')])
+        self.monitor.set_active(-1)
+        self.monitor_status = label('Monitoring state unknown', 'subtitle')
+        rig_card.pack_start(self.monitor_status, False, False, 0)
+        note = label('On: listen through your DAW.\nOff: return monitoring control to the Rack.', 'subtitle')
         note.set_line_wrap(True)
         rig_card.pack_start(note, False, False, 0)
         control_row.pack_start(rig_card, True, True, 0)
         body.pack_start(control_row, False, False, 0)
 
+        self.meter_widgets = []
+        self.meter_display_db = [-60.0] * 16
+        self.meter_expanders = []
+        self.meter_process = None
+        self.meter_starting = False
+        self.meter_epoch = 0
+        self.meter_process_lock = threading.Lock()
+        self.meters_suspended = False
+        self.connect('destroy', self.stop_meters)
+        GLib.timeout_add_seconds(1, self.refresh_meters)
+        channels_expander = Gtk.Expander(label='Channels · Inputs & Outputs')
+        channels_expander.set_expanded(control_preferences().get('channels_expanded') is True)
+        channels_expander.connect('notify::expanded', save_channels_state)
+        channels_expander.connect('notify::expanded', self.queue_content_resize)
+        channels_expander.connect('notify::expanded', self.refresh_meters)
+        self.meter_expanders.append(channels_expander)
         channels = box(False, 12)
+        channels.set_margin_top(10)
         for heading, entries in [('Inputs · 8 channels', settings.INPUTS), ('Outputs · 6 channels', settings.OUTPUTS)]:
             card = box(spacing=4)
             card.get_style_context().add_class('card')
             card.get_style_context().add_class('channel-card')
-            expander = Gtk.Expander(label=heading)
-            expander.set_expanded(False)
+            card.pack_start(label(heading, 'section'), False, False, 0)
             rows = box(spacing=2)
             for number, name in enumerate(entries, 1):
                 row = box(False, 14)
                 row.get_style_context().add_class('channel')
                 row.pack_start(label(f'{number:02}', 'number'), False, False, 0)
                 row.pack_start(label(name), True, True, 0)
+                meter = Gtk.LevelBar.new_for_interval(0, 1)
+                meter.set_size_request(90, 8)
+                meter.set_valign(Gtk.Align.CENTER)
+                meter.add_offset_value('high', .9)
+                meter.add_offset_value('full', 1.0)
+                readout = label('—', 'subtitle')
+                readout.set_width_chars(8)
+                readout.set_xalign(1)
+                row.pack_start(meter, False, False, 0)
+                row.pack_start(readout, False, False, 0)
+                self.meter_widgets.append((meter, readout))
                 rows.pack_start(row, False, False, 0)
-            expander.add(rows)
-            card.pack_start(expander, False, False, 0)
+            if entries == settings.OUTPUTS:
+                rig_heading = label('Hardware rig · before output volume', 'subtitle')
+                rows.pack_start(rig_heading, False, False, 0)
+                for name in ('Rig Output L', 'Rig Output R'):
+                    row = box(False, 14)
+                    row.pack_start(label(name), True, True, 0)
+                    meter = Gtk.LevelBar.new_for_interval(0, 1)
+                    meter.set_size_request(90, 8)
+                    meter.set_valign(Gtk.Align.CENTER)
+                    meter.add_offset_value('high', .9)
+                    meter.add_offset_value('full', 1.0)
+                    readout = label('—', 'subtitle')
+                    readout.set_width_chars(8)
+                    readout.set_xalign(1)
+                    row.pack_start(meter, False, False, 0)
+                    row.pack_start(readout, False, False, 0)
+                    self.meter_widgets.append((meter, readout))
+                    rows.pack_start(row, False, False, 0)
+            card.pack_start(rows, False, False, 0)
             channels.pack_start(card, True, True, 0)
-        body.pack_start(channels, False, False, 0)
-        self.message = label('Ready. Choose a setting to apply it.', 'notice')
-        self.message.set_line_wrap(True)
+        channels_expander.add(channels)
+        body.pack_start(channels_expander, False, False, 0)
+        self.message = label('', 'subtitle')
+        self.message.set_ellipsize(Pango.EllipsizeMode.END)
         self.message.set_selectable(True)
-        body.pack_start(self.message, False, False, 0)
-        footer = box(False, 12)
-        footer.pack_start(label('Experimental driver · 48 kHz recording and playback verified · Settings use ALSA', 'footer'), True, True, 0)
-        about = Gtk.Button(label='About')
-        about.connect('clicked', self.show_about)
-        footer.pack_end(about, False, False, 0)
-        body.pack_start(footer, False, False, 0)
-        self.choices = {'clock': self.clock, 'rate': self.rate, 'rig-input': self.rig, 'buffer': self.buffer}
+        self.message.set_no_show_all(True)
+        self.message_timer = None
+        status = box(False, 20)
+        status.get_style_context().add_class('live-status')
+        self.status_hardware_rate = '…'
+        self.status_stream_rate = '…'
+        self.live_sample_rate = label('Sample Rate: … (hardware) / … (ALSA)', 'subtitle')
+        self.live_sample_rate.set_tooltip_text('Hardware / active audio stream, in kHz')
+        self.live_buffer = label('Buffer · reading…', 'subtitle')
+        self.status_values = box(False, 20)
+        status.pack_start(self.status_values, True, True, 0)
+        status.pack_start(self.message, True, True, 0)
+        for field in (self.live_sample_rate, self.live_buffer, self.buffer_status):
+            field.set_selectable(True)
+            self.status_values.pack_start(field, True, True, 0)
+        self.connection.set_xalign(1.0)
+        status.pack_end(self.connection, False, False, 0)
+        layout.pack_end(status, False, False, 0)
+        self.status_bar = status
+        self.connect('map', self.queue_content_resize)
+        GLib.timeout_add_seconds(1, self.refresh_status_stream)
+        self.choices = {'clock': self.clock, 'rate': self.rate, 'rig-input': self.rig, 'buffer': self.buffer, 'monitor': self.monitor}
         for command, choice in self.choices.items():
             choice.connect('changed', self.selection_changed, command)
             choice.set_tooltip_text('Selecting a value applies it immediately.')
         self.refresh_connection()
         GLib.timeout_add_seconds(3, self.refresh_connection)
-        GLib.timeout_add(250, self.refresh_stream_rate)
+        GLib.timeout_add(2000, self.poll_clock_lock)
         GLib.timeout_add_seconds(2, self.poll_buffer)
+        GLib.timeout_add_seconds(5, self.refresh_monitor)
         GLib.idle_add(lambda: (self.poll_buffer(), False)[1])
         # Establish a real rollback value before the first clock selection.
-        GLib.idle_add(self.run, ['status'])
+        GLib.idle_add(self.refresh_all)
+
+    def stop_meters(self, *_):
+        self.meter_epoch += 1
+        with self.meter_process_lock:
+            process = self.meter_process
+            self.meter_process = None
+            if process is not None and process.poll() is None:
+                process.terminate()
+
+    def refresh_meters(self, *_):
+        expanded = any(e.get_expanded() for e in self.meter_expanders)
+        regression = False
+        lock_path = Path('/tmp/eleven-rack-regression-%d.lock' % os.getuid())
+        if lock_path.exists():
+            try:
+                with lock_path.open('r') as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                regression = True
+            except OSError:
+                pass
+        if not expanded or regression or self.busy or self.meters_suspended:
+            self.stop_meters()
+            self.meter_display_db = [-60.0] * 16
+            for meter, readout in self.meter_widgets:
+                meter.set_value(0)
+                readout.set_text('paused' if regression else '—')
+            return True
+        if self.meter_process is not None and self.meter_process.poll() is None or self.meter_starting:
+            return True
+        self.meter_starting = True
+        epoch = self.meter_epoch
+        def worker():
+            process = None
+            try:
+                source = ROOT / 'eleven-rack-meters.c'
+                cache = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache'))) / 'eleven-rack'
+                cache.mkdir(parents=True, exist_ok=True)
+                binary = cache / ('meters-' + hashlib.sha256(source.read_bytes()).hexdigest()[:16])
+                if not binary.exists():
+                    subprocess.run(['cc', '-std=c11', '-D_DEFAULT_SOURCE', '-O2', str(source), '-o', str(binary), '-l:libjack.so.0', '-lm'], check=True, capture_output=True, timeout=30)
+                env = os.environ.copy()
+                for key in ('PIPEWIRE_QUANTUM', 'PIPEWIRE_LATENCY', 'PIPEWIRE_RATE'):
+                    env.pop(key, None)
+                with self.meter_process_lock:
+                    if epoch != self.meter_epoch or self.busy or self.meters_suspended:
+                        return
+                    process = subprocess.Popen(['pw-jack', str(binary)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, env=env)
+                    self.meter_process = process
+                for line in process.stdout:
+                    values = [float(v) for v in line.split()]
+                    if len(values) == 14:
+                        GLib.idle_add(self.meters_updated, values, epoch)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                GLib.idle_add(self.meters_updated, [-1] * 14, epoch)
+            finally:
+                if process is not None:
+                    if process.poll() is None:
+                        process.terminate()
+                    process.wait()
+                self.meter_starting = False
+        threading.Thread(target=worker, daemon=True).start()
+        return True
+
+    def meters_updated(self, values, epoch):
+        if epoch != self.meter_epoch:
+            return False
+        values = values + values[2:4]
+        for index, ((meter, readout), peak) in enumerate(zip(self.meter_widgets, values)):
+            db = 20 * math.log10(peak) if peak > 0 else -60
+            db = max(-60.0, db, self.meter_display_db[index] - 3.0) if peak >= 0 else -60.0
+            self.meter_display_db[index] = db
+            meter.set_value(max(0, min(1, (db + 60) / 60)))
+            readout.set_text('—' if peak < 0 else 'CLIP' if peak >= 1 else '−∞ dB' if db <= -60 else '%.1f dB' % db)
+            meter.set_tooltip_text('Digital stream peak (dBFS)' if peak >= 0 else 'Audio port unavailable')
+        return False
+
+    def show_status_message(self, text, seconds=3):
+        if self.message_timer is not None:
+            GLib.source_remove(self.message_timer)
+            self.message_timer = None
+        self.message.set_text(text.replace('\n', ' · '))
+        self.message.set_tooltip_text(text)
+        self.status_values.hide()
+        self.message.show()
+        if seconds:
+            self.message_timer = GLib.timeout_add_seconds(seconds, self.clear_status_message)
+
+    def clear_status_message(self):
+        self.message_timer = None
+        self.message.hide()
+        self.status_values.show()
+        return False
+
+    def queue_content_resize(self, *_):
+        if not self.content_resize_pending:
+            self.content_resize_pending = True
+            GLib.idle_add(self.resize_to_content)
+
+    def resize_to_content(self):
+        self.content_resize_pending = False
+        if not self.get_mapped() or self.is_maximized():
+            return False
+        width, _ = self.get_size()
+        _, body_height = self.content_body.get_preferred_height_for_width(width)
+        _, status_height = self.status_bar.get_preferred_height_for_width(width)
+        height = body_height + status_height
+        monitor = self.get_display().get_monitor_at_window(self.get_window())
+        if monitor is not None:
+            height = min(height, max(200, monitor.get_workarea().height - 80))
+        if height != self.last_content_height:
+            self.last_content_height = height
+            self.resize(width, height)
+        return False
 
     def show_about(self, _button):
         try:
@@ -239,6 +480,36 @@ class Panel(Gtk.Window):
             'Paul Bender — R11 Audio; hardware-monitoring protocol guidance'])
         dialog.add_credit_section('Audio infrastructure', [
             'PipeWire and WirePlumber contributors', 'DKMS contributors'])
+        def find_stack(widget):
+            if isinstance(widget, Gtk.Stack):
+                return widget
+            if isinstance(widget, Gtk.Container):
+                for child in widget.get_children():
+                    stack = find_stack(child)
+                    if stack is not None:
+                        return stack
+            return None
+        thanks = box(spacing=16)
+        thanks.set_border_width(20)
+        thanks.pack_start(label('A big thank you to Paul Bender', 'section'), False, False, 0)
+        acknowledgement = label(
+            'Paul, thank you for all your help, patience and generosity in sharing your '
+            'experience with the Eleven Rack. Your guidance on the hardware, latency '
+            'and driver testing has been invaluable.\n\n'
+            'I consider you a mentor in bringing this driver to life. Your advice '
+            'has helped me understand the challenges and keep moving forward.\n\n'
+            'Thank you for helping make this possible.\n\n'
+            '— Koen')
+        acknowledgement.set_line_wrap(True)
+        acknowledgement.set_max_width_chars(60)
+        acknowledgement.set_selectable(True)
+        thanks.pack_start(acknowledgement, False, False, 0)
+        stack = find_stack(dialog.get_content_area())
+        if stack is not None:
+            stack.add_titled(thanks, 'thanks-to', 'Thanks to')
+            thanks.show_all()
+        else:
+            dialog.add_credit_section('Thanks to', [acknowledgement.get_text()])
         dialog.connect('response', lambda widget, _response: widget.destroy())
         dialog.show()
 
@@ -271,17 +542,29 @@ class Panel(Gtk.Window):
             number = settings.card()
             connected = True
             audio = Path(f'/proc/asound/card{number}/stream0').exists()
-            self.connection.set_text('Connected · USB audio' if audio else 'Connected · MIDI only')
+            self.connection.set_text('● Driver connected' if audio else 'Driver connected · MIDI only')
+            self.connection.get_style_context().add_class('driver-connected')
+            if self.event_card != number or self.event_process is None:
+                self.poll_monitor()
             self.start_control_events(number)
         except RuntimeError:
             connected = False
-            self.connection.set_text('Disconnected')
+            self.connection.set_text('Driver disconnected')
+            self.connection.get_style_context().remove_class('driver-connected')
             self.set_clock_lock(None)
             self.stop_control_events()
+            self.monitor_status.set_text('Monitoring state unknown')
+            self.confirmed['monitor'] = None
+            self.monitor_available = None
+            self.monitor_epoch += 1
+            self.updating = True
+            self.monitor.set_active(-1)
+            self.updating = False
         for button in self.buttons:
             button.set_sensitive(connected and not self.busy)
         for choice in self.choices.values():
             choice.set_sensitive(connected and not self.busy)
+        self.monitor.set_sensitive(connected and not self.busy and self.monitor_available is not False)
         return True
 
     def start_control_events(self, number):
@@ -328,7 +611,49 @@ class Panel(Gtk.Window):
                 self.events_pending = True
             else:
                 self.poll_clock_lock()
+        if b'Monitoring Mode' in line:
+            self.poll_monitor()
         return True
+
+    def poll_monitor(self):
+        if self.polling_monitor or self.busy:
+            return
+        self.polling_monitor = True
+        epoch = self.monitor_epoch
+        def worker():
+            try:
+                result = subprocess.run([sys.executable, str(BACKEND), 'monitor'],
+                                        capture_output=True, text=True, timeout=6)
+                text = result.stdout if result.returncode == 0 else ''
+            except (OSError, subprocess.TimeoutExpired):
+                text = ''
+            GLib.idle_add(self.monitor_polled, text, epoch)
+        threading.Thread(target=worker, daemon=True).start()
+
+    def refresh_monitor(self):
+        if self.connection.get_text() != 'Disconnected':
+            self.poll_monitor()
+        return True
+
+    def monitor_polled(self, text, epoch):
+        self.polling_monitor = False
+        if epoch != self.monitor_epoch:
+            return False
+        if not self.busy:
+            match = re.search(r'^Monitoring mode: (hardware|daw-only|software-mix|unknown)$', text, re.MULTILINE)
+            value = match[1] if match else None
+            self.monitor_available = bool(match)
+            self.updating = True
+            try:
+                self.confirmed['monitor'] = value if value in ('hardware', 'daw-only') else None
+                self.monitor.set_active_id(value) if self.confirmed['monitor'] else self.monitor.set_active(-1)
+                names = {'hardware': 'Hardware monitoring', 'daw-only': 'DAW only',
+                         'software-mix': 'Custom software monitoring', 'unknown': 'Monitoring state unknown'}
+                self.monitor_status.set_text(names.get(value, 'Monitoring status unavailable'))
+                self.monitor.set_sensitive(bool(match))
+            finally:
+                self.updating = False
+        return False
 
     def set_clock_lock(self, locked):
         style = self.clock_dot.get_style_context()
@@ -341,31 +666,52 @@ class Panel(Gtk.Window):
         self.clock_dot.set_tooltip_text(description)
         self.clock_dot.get_accessible().set_name(description)
 
-    def refresh_stream_rate(self):
+    def refresh_all(self):
         if self.busy:
-            return True
+            return False
+        self.busy = True
+        self.monitor_epoch += 1
+        self.refresh_connection()
+        self.show_status_message('Refreshing settings…', 0)
+        def worker():
+            results = {}
+            for command in ('status', 'monitor', 'buffer', 'rig-input', 'firmware'):
+                try:
+                    result = subprocess.run([sys.executable, str(BACKEND), command],
+                                            capture_output=True, text=True, timeout=8)
+                    results[command] = (result.stdout.strip() if result.returncode == 0
+                                        else result.stderr.strip(), result.returncode == 0)
+                except (OSError, subprocess.TimeoutExpired) as error:
+                    results[command] = (str(error), False)
+            GLib.idle_add(self.all_refreshed, results)
+        threading.Thread(target=worker, daemon=True).start()
+        return False
+
+    def all_refreshed(self, results):
+        self.busy = False
+        firmware, firmware_ok = results['firmware']
+        self.firmware_label.set_text(firmware if firmware_ok else 'Firmware · unavailable')
+        self.firmware_label.set_tooltip_text(firmware)
+        status, status_ok = results['status']
+        self.lock_polled(status if status_ok else '')
+        self.clock_status.set_text(status.splitlines()[-1] if status_ok and status else 'Clock status unavailable')
+        monitor, monitor_ok = results['monitor']
+        self.monitor_polled(monitor if monitor_ok else '', self.monitor_epoch)
+        buffer, buffer_ok = results['buffer']
+        self.buffer_polled(buffer if buffer_ok else '')
+        rig, rig_ok = results['rig-input']
+        match = re.search(r'^Rig Input: (\S+)$', rig, re.MULTILINE) if rig_ok else None
+        self.updating = True
         try:
-            directory = Path('/proc/asound/card%d' % settings.card())
-            rates = set()
-            for params in directory.glob('pcm*/sub*/hw_params'):
-                match = re.search(r'^rate:\s+(\d+)', params.read_text(), re.MULTILINE)
-                if match:
-                    rates.add(match.group(1))
-            if len(rates) == 1:
-                value = rates.pop()
-                self.rate_status.set_text('Device stream · %s kHz' % (int(value) / 1000))
-                if value in tuple(map(str, settings.RATES)):
-                    self.updating = True
-                    try:
-                        self.confirmed['rate'] = value
-                        self.rate.set_active_id(value)
-                    finally:
-                        self.updating = False
-            else:
-                self.rate_status.set_text('Device stream idle' if not rates else 'Multiple stream rates')
-        except (RuntimeError, OSError):
-            self.rate_status.set_text('Device stream unavailable')
-        return True
+            value = match[1] if match and match[1] in settings.RIG_INPUTS else None
+            self.confirmed['rig-input'] = value
+            self.rig.set_active_id(value) if value else self.rig.set_active(-1)
+        finally:
+            self.updating = False
+        self.refresh_connection()
+        errors = [command + ': ' + text for command, (text, ok) in results.items() if not ok and command != 'firmware']
+        self.show_status_message('Settings refreshed.' if not errors else 'Refresh incomplete: ' + '\n'.join(errors), 0 if errors else 3)
+        return False
 
     def update_clock_lock(self, text):
         for line in text.splitlines():
@@ -389,12 +735,40 @@ class Panel(Gtk.Window):
         threading.Thread(target=worker, daemon=True).start()
         return True
 
+    def update_status_sample_rate(self):
+        self.live_sample_rate.set_text('Sample Rate: %s (hardware) / %s (ALSA)' % (self.status_hardware_rate, self.status_stream_rate))
+
+    def refresh_status_stream(self):
+        try:
+            rates = set()
+            for params in Path('/proc/asound/card%d' % settings.card()).glob('pcm*/sub*/hw_params'):
+                match = re.search(r'^rate:\s+(\d+)', params.read_text(), re.MULTILINE)
+                if match:
+                    rates.add(int(match[1]))
+            text = ('%.3g kHz' % (next(iter(rates)) / 1000)) if len(rates) == 1 else ('idle' if not rates else 'changing')
+        except (RuntimeError, OSError):
+            text = 'unavailable'
+        self.status_stream_rate = text
+        self.update_status_sample_rate()
+        return True
+
     def lock_polled(self, text):
         self.polling_lock = False
         if not self.busy:
             self.update_clock_lock(text)
             self.updating = True
             try:
+                match = re.search(r'Hardware sample rate: (\d+) Hz', text)
+                if match:
+                    value = match.group(1)
+                    self.status_hardware_rate = '%g kHz' % (int(value) / 1000)
+                    self.update_status_sample_rate()
+                    self.confirmed['rate'] = value
+                    self.rate.set_active_id(value)
+                    self.update_buffer_options()
+                else:
+                    self.status_hardware_rate = 'unavailable'
+                    self.update_status_sample_rate()
                 for line in text.splitlines():
                     if line.startswith('Clock: '):
                         value = line.split(': ', 1)[1]
@@ -404,6 +778,29 @@ class Panel(Gtk.Window):
             finally:
                 self.updating = False
         return False
+
+    def update_buffer_options(self):
+        rate = int(self.confirmed['rate'] or 0)
+        options = settings.available_buffers(rate)
+        updating = self.updating
+        self.updating = True
+        try:
+            if options != self.buffer_options:
+                self.buffer.remove_all()
+                for n in options:
+                    self.buffer.append(str(n), 'Automatic' if n == 0 else f'{n} samples')
+                self.buffer_options = options
+            value = self.confirmed['buffer']
+            if value is not None and int(value) in options:
+                self.buffer.set_active_id(value)
+            else:
+                self.buffer.set_active(-1)
+            note = ''
+            if value is not None and int(value) not in options:
+                note = 'Current buffer is unsupported; select an available size.'
+            self.buffer_policy.set_text(note)
+        finally:
+            self.updating = updating
 
     def selection_changed(self, choice, command):
         value = choice.get_active_id()
@@ -433,12 +830,16 @@ class Panel(Gtk.Window):
                 for line in text.splitlines():
                     if line.startswith('Buffer size: '):
                         value = line.split(': ', 1)[1]
+                        self.live_buffer.set_text('Buffer · ' + ('automatic' if value == '0' else value + ' samples'))
                         self.confirmed['buffer'] = value
                         self.buffer.set_active_id(value)
-                    elif line.startswith('Buffer duration: '):
+                    elif line.startswith('Roundtrip latency: '):
                         self.buffer_status.set_text(line.split(': ', 1)[1])
+                        self.buffer_status.set_tooltip_text('Current roundtrip latency reported by the audio backend, including configured corrections. No loopback measurement is performed.')
+                self.update_buffer_options()
                 if not text:
                     self.buffer_status.set_text('PipeWire buffer status unavailable')
+                    self.live_buffer.set_text('Buffer · unavailable')
             finally:
                 self.updating = False
         return False
@@ -447,24 +848,46 @@ class Panel(Gtk.Window):
         if self.busy or any(part is None for part in command):
             return
         self.busy = True
+        meter_to_stop = self.meter_process if command[0] in ('clock', 'rate') else None
+        if command[0] in ('clock', 'rate'):
+            self.meters_suspended = True
+            self.stop_meters()
+        if command[0] == 'monitor':
+            self.monitor_epoch += 1
         if command[0] == 'clock':
             self.set_clock_lock(None)
         self.refresh_connection()
-        self.message.set_text('Reading hardware…' if len(command) == 1 else 'Applying setting…')
+        self.show_status_message('Reading hardware…' if len(command) == 1 else 'Applying setting…', 0)
         def worker():
             try:
+                if command[0] in ('clock', 'rate'):
+                    if meter_to_stop is not None:
+                        meter_to_stop.wait(timeout=3)
+                    waiting = time.monotonic() + 5
+                    while self.meter_starting and time.monotonic() < waiting:
+                        time.sleep(.05)
+                    if self.meter_starting:
+                        raise RuntimeError('Meters are still stopping; retry the setting change.')
+                    # Let PipeWire suspend after our meter client disconnects.
+                    # Other audio clients still cause the backend idle check to reject.
+                    deadline = time.monotonic() + 10
+                    while time.monotonic() < deadline:
+                        stream = Path('/proc/asound/card%d/stream0' % settings.card())
+                        if not stream.exists() or 'Status: Running' not in stream.read_text():
+                            break
+                        time.sleep(.1)
                 invocation = [sys.executable, str(BACKEND), *command]
                 result = subprocess.run(invocation, capture_output=True, text=True, timeout=120)
                 text = result.stdout.strip() if result.returncode == 0 else result.stderr.strip() or 'Authentication cancelled or setting not applied.'
                 success = result.returncode == 0
-            except (OSError, subprocess.TimeoutExpired) as error:
+            except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
                 text, success = str(error), False
             GLib.idle_add(self.finished, command, text, success)
         threading.Thread(target=worker, daemon=True).start()
 
     def finished(self, command, text, success):
         self.busy = False
-        self.message.set_text(text)
+        self.show_status_message('Buffer setting applied.' if success and command[0] == 'buffer' and len(command) > 1 else text, 3 if success else 0)
         if command[0] in ('status', 'clock'):
             self.update_clock_lock(text if success else '')
         self.updating = True
@@ -480,8 +903,11 @@ class Panel(Gtk.Window):
                         key, value = 'rate', line.split()[3]
                     elif line.startswith('Buffer size: '):
                         key, value = 'buffer', line.split(': ', 1)[1]
-                    elif line.startswith('Buffer duration: '):
+                    elif line.startswith('Monitoring mode: '):
+                        key, value = 'monitor', line.split(': ', 1)[1]
+                    elif line.startswith('Roundtrip latency: '):
                         self.buffer_status.set_text(line.split(': ', 1)[1])
+                        self.buffer_status.set_tooltip_text('Current roundtrip latency reported by the audio backend, including configured corrections. No loopback measurement is performed.')
                     if key is not None:
                         self.confirmed[key] = value
                         self.choices[key].set_active_id(value)
@@ -496,7 +922,11 @@ class Panel(Gtk.Window):
                     choice.set_active_id(value)
         finally:
             self.updating = False
+        self.update_buffer_options()
         self.refresh_connection()
+        if command[0] == 'monitor':
+            self.poll_monitor()
+        self.meters_suspended = False
         if len(command) > 1 or self.events_pending:
             self.events_pending = False
             self.poll_clock_lock()

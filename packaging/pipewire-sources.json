@@ -1,0 +1,10 @@
+{
+  "1.6.2": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.6.2.tar.gz",
+    "sha256": "2014c187fccdd6d245585be4eda7dabd781dcddd921604c40ab015bba6cb042d"
+  },
+  "1.6.9": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.6.9.tar.gz",
+    "sha256": "dbc3624cf71215c26a22fc98f6f71f7b8599f5f6b415eab4a5c90ca96c170c7c"
+  }
+}

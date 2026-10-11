@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-10",
+  "change": "Control-panel rate setter synchronizes hardware, PipeWire default and forced graph rate",
+  "deployment": "Hotfix of installed control scripts; USB driver and PCM backend unchanged",
+  "installed_scripts": {
+    "eleven-rack-settings.py": "69a922ddcc864afb401a066cad4a6e0df5ad44aafc62bf899254251003e9ddc3",
+    "eleven-rack-panel.py": "8eda51fe6e9cf2e729f03466291c90b8064ca9257badcc7e2971a9674c4e12ca"
+  },
+  "verification": {
+    "reaper_open": true,
+    "project": "build/latency/reaper-driver-final-test/driver-latency-test.RPP",
+    "hardware_rate_hz": 96000,
+    "alsa_playback_rate_hz": 96000,
+    "alsa_capture_rate_hz": 96000,
+    "pipewire_clock_rate_hz": 96000,
+    "pipewire_forced_rate_hz": 96000,
+    "forced_quantum_before_and_after": 256
+  },
+  "limitations": [
+    "Rate selection survives REAPER startup, but PipeWire restart clears runtime metadata.",
+    "96 kHz recording latency and physical audio loopback are not validated by this rate-switch check."
+  ]
+}

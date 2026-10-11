@@ -9,6 +9,7 @@ import signal
 import sys
 
 
+
 def parse_hex(text):
     if not isinstance(text, str):
         raise ValueError('send requires a hex string')

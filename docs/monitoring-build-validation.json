@@ -1,0 +1,22 @@
+{
+  "package_version": "0.1.2~beta3",
+  "build_kernel": "7.0.0-38-generic",
+  "source_sha256": {
+    "packaging/mixer-eleven-rack.h": "667b4fd60273797ee661e5b216d6e5a889315f002d15761715bf49547d209e2d",
+    "packaging/prepare-driver.py": "df727588354c91991d5da8052bdecb6900e6219c4f4f894597f5b32ce8029a30",
+    "tools/eleven-rack-settings.py": "58a1612604711e0347dde0ed2666dd55e97cafa6163636f83b8be17da110ee91",
+    "tools/eleven-rack-panel.py": "bf78d530305aebea116cf66faef33dbf299423cabffc4e6780386fbd6850d293"
+  },
+  "fault_injection_tests_passed": true,
+  "kernel_build_passed": true,
+  "package_checks_passed": true,
+  "usb_commands_accepted": true,
+  "audible_effect_verified": true,
+  "audible_validation": {
+    "date": "2026-10-10",
+    "method": "User played guitar with REAPER closed and switched both panel modes",
+    "daw_only_mutes_direct_monitoring": true,
+    "hardware_restores_direct_monitoring": true,
+    "usb_capture_and_daw_playback_verified": false
+  }
+}

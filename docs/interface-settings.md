@@ -27,7 +27,7 @@ For the orange-and-black desktop panel, run
 channel table, connection status, clock status/source, internal rate, and Rig
 Input. Controls use ALSA with normal user permissions. The panel requires
 python3-gi and gir1.2-gtk-3.0.
-Hardware monitoring is visibly unavailable until its command is identified.
+DAW-only monitoring is controlled through the driver’s ALSA mixer control.
 Controls execute in a background thread so hardware reads
 do not freeze the panel. Dropdown selections apply immediately. Hardware
 readback updates do not trigger writes. Controls are disabled during requests;
@@ -42,16 +42,12 @@ The dot beside Clock source is green when the selected hardware clock is
 locked, gray when unlocked or unknown. Its tooltip explains the state.
 Status is read on opening and after setting changes. The panel subscribes to
 ALSA control events through `amixer events`, refreshing on clock events.
-There is no periodic clock polling or Read Status button. Hardware lock
-transitions can only trigger refresh if the device/driver emits an ALSA event;
-the Rack's clock notifications have not yet been verified. USB reconnects are
-still checked every three seconds and re-establish the subscription.
-The actual ALSA PCM rate is checked from hw_params every 250 ms while the
-panel is idle. A rate change made by Reaper updates the dropdown without
-triggering a write. This reflects the device stream rate; a DAW project rate
-resampled by PipeWire can differ. No PCM rate control events are emitted by
-the current driver, so these rate updates use a lightweight read rather than
-an ALSA event subscription.
+The selected hardware clock frequency is read every two seconds through the
+read-only ALSA `Eleven Rack Sample Rate` control, including when PCM is idle.
+It uses USB CUR reads of selector 0x80 and selected clock 0x81, 0x82 or 0x83;
+no stream is opened and no clock settings are written. USB reconnects are
+checked every three seconds and re-establish the subscription.
+PCM hw_params are read every 250 ms solely for the stream activity label.
 Input and output channel lists are compact, independently collapsible sections,
 collapsed initially to keep the interface settings visible.
 
@@ -107,31 +103,95 @@ Sources: [Eleven Rack reference driver](https://github.com/Matt-Housley/eleven-r
 [PipeWire channel names](https://pipewire.pages.freedesktop.org/pipewire/group__pw__keys.html),
 [WirePlumber ALSA rules](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/alsa.html).
 
-## Required: hardware monitoring toggle
+## DAW-only monitoring
 
-The monitoring selector should expose two modes: **Hardware** and **DAW Only**.
-Hardware enables the direct rig monitoring path. DAW Only disables that path
-while preserving USB recording and DAW playback; hearing the live input then
-requires monitoring in the DAW. The device command and readback for these modes
-still need verification before enabling the selector in the GUI.
-The user identified these mode labels in the R11 macOS driver
-(https://r11audio.com/), rather than the Rack's front-panel settings. The public
-R11 landing page does not provide the monitoring request or driver source.
-An R11 USB capture of both transitions would provide a reference to investigate.
+The panel exposes **Off · Hardware monitoring** and **On · DAW only**.
+Hardware mode returns monitoring control to the box; it does not mute the
+Main output. DAW-only mode takes software control and silences all eight
+input crosspoints. Hearing live input then requires DAW input monitoring.
 
-The user needs a switch to mute the local rig-to-output monitor path while
-retaining the rig signal sent to USB inputs 3/4 and DAW playback on outputs 1/2.
-This is a separate control from DAW input monitoring, Rig Input selection,
-rig volume, or muting the entire Main output.
+Paul Bender (R11 Audio) supplied the protocol directly on 2026-10-10:
+all writes use bmRequestType 0x21, bRequest 0x03, interface 1.
+Hardware mode writes byte 2 with wValue 0, wIndex 0x2001.
+DAW-only writes byte 1 to that gate, then eight four-byte payloads
+`00 80 00 80` (two signed 0x8000 silence gains) to wIndex 0x4001,
+wValue `0x27 + 6 * input`, with input numbered 0 through 7.
 
-The downloaded macOS reference driver, JxEngel's community editor, and
-ElevenHack do not provide an identified command for this toggle. The Rack's
-control descriptors include mixer/extension units, but their presence does
-not identify which setting controls direct monitoring. No guessed control
-writes were sent and no nonfunctional toggle was added to the GUI.
+The kernel exposes `Eleven Rack Monitoring Mode` through ALSA. Interface 1
+remains owned by ALSA; no USB detach, userspace root access or libusb is needed.
+Clock, rate, USB PCM routing and MIDI Rig Input are not changed by this control.
 
-Next: identify the existing driver/editor toggle and capture its USB control
-traffic (and MIDI if applicable) across on/off transitions. Verify the exact
-request and state readback, then implement it in the utility. Validate that
-monitor-off still records signal on USB 3/4 and still plays DAW audio through
-Main Out L/R. Confirm monitor-on restores the direct rig path.
+```bash
+python3 tools/eleven-rack-settings.py monitor
+python3 tools/eleven-rack-settings.py monitor daw-only
+python3 tools/eleven-rack-settings.py monitor hardware
+```
+
+The driver reads the actual hardware state with bmRequestType 0xA1,
+bRequest 0x03, using the same wValue/wIndex and lengths as the writes.
+A read-only probe confirmed all nine addresses return full-length data;
+request 0x01 instead stalls and is not used. A second test confirmed gate 1
+in DAW-only mode and gate 2 in Hardware mode. See
+[readback validation](monitoring-readback-validation.json).
+
+Gate 2 means Hardware, irrespective of crosspoint gains. Gate 1 means DAW
+Only only if all eight L/R crosspoints equal silence. Otherwise it is a custom
+Software Mix. Unknown gate values remain Unknown. Failed or short reads are
+reported as errors, never replaced by a cached setting. Writes include actual
+readback verification; failed writes or verification attempt gate 2 to recover
+hardware monitoring and preserve the original error.
+
+The panel reads on connection, after writes, on ALSA notifications, and every
+five seconds. A small **Refresh all settings** icon in the header refreshes
+monitoring, Rig Input, clock status/source, hardware sample rate, and buffer size
+together. Individual read buttons have been removed. The refresh sends no
+setting changes and continues reading other fields if one read fails. The sample
+rate remains visible while idle because it comes from the device clock. Opening or
+refreshing the panel sends no monitoring writes. A custom software mix is
+shown separately rather than mislabelled Hardware or DAW-only. Old asynchronous
+reads cannot override a newer selection or a disconnected device's status.
+
+Package 0.1.2~beta4 was installed and activated on 7.0.0-38-generic. Its first
+read after driver reload returned Hardware before any monitoring write, and
+both Hardware and DAW-only were subsequently verified through the new ALSA
+readback. The test restored Hardware and force-quantum 128/rate 48000. See
+[active driver verification](monitoring-readback-activation.json).
+
+The protocol and each failure position were tested against the actual kernel
+callbacks using injected USB responses; the module builds for 7.0.0-38-generic. Package 0.1.2~beta3 was installed and
+the driver reloaded on that kernel. Both modes were accepted by the connected
+Rack without USB errors, and the test returned to Hardware. The fixed graph
+quantum 128 and rate 48000 were restored. See
+[USB validation](monitoring-usb-validation.json). The user additionally confirmed, with REAPER closed and guitar input, that
+DAW-only silences direct monitoring and Hardware restores it. USB rig capture
+and DAW playback while DAW-only is enabled still require a separate check.
+Direct monitoring suppression and restoration are physically confirmed.
+USB rig capture on inputs 3/4 and DAW playback while DAW-only is enabled have
+not yet been separately verified.
+
+Package 0.1.2~beta5 adds the read-only hardware frequency control. On the
+connected Rack it returned 96000 Hz before any audio stream was opened;
+PipeWire retained its independent forced rate of 48000 and buffer of 128.
+Validation: `sample-rate-readback-validation.json`.
+
+Selecting Sample rate now applies the hardware clock and the PipeWire session
+rate together. After the hardware accepts the rate, the control sets
+clock.rate and clock.force-rate, leaving clock.force-quantum unchanged.
+This prevents a new JACK/REAPER session from reopening the Rack at the old
+PipeWire default. A failed PipeWire change restores previous metadata and
+hardware rate; restoration failures are reported. This affects the shared
+PipeWire graph. The selected session rate lasts until changed or PipeWire
+is restarted; startup persistence is not added by this hotfix.
+
+The installed hotfix was checked by selecting 96 kHz and opening ordinary
+REAPER with the existing test project: hardware, ALSA playback/capture and
+PipeWire remained at 96 kHz. The pre-existing forced quantum of 256 was
+unchanged. See [rate synchronization validation](sample-rate-session-sync-validation.json).
+
+At 88.2/96 kHz the control offers fixed buffers 512, 1024 and 2048 only.
+256 was reported audibly scrambled at both rates; 64/128 and Automatic are
+conservatively excluded until shown usable. This is a minimum-buffer safety
+policy, not validation of every offered buffer. Selecting a high rate with
+a smaller/automatic buffer raises it to 512. CLI writes enforce the same
+policy; hardware reads remain unchanged and external unsupported settings
+are shown as unsupported rather than silently rewritten by polling.

@@ -80,3 +80,25 @@ arrives, enter a desired value explicitly; the editor does not assume A=440.
 The user confirmed on 2026-10-09 that reference changes from the Linux editor
 are applied by the Rack. See
 [capture analysis](../docs/tuner-reference-capture.md).
+
+## Rig upload transport
+
+Editor package 0.1.2~beta4 restores the original Linux transport: the bridge
+validates a complete MIDI message and sends its entire bytes through
+RtMidi's ALSA output. The experimental fixed 1692-byte requirement and
+native segmented sender are no longer used. The diagnostic span helper and
+its virtual-port probe remain available as experimental test artifacts.
+
+The real Rack returned different SysEx lengths for E1 (1352 bytes), E2
+(1124 bytes), and the current rig (1242 bytes). On the original route, an
+unmodified E2 rig was uploaded to the user-authorized test slot E1 and
+read back twice byte-for-byte; no Bad Patch Data dialog was received during
+the three-second observation window. The original E1 rig was then restored
+and read back twice byte-for-byte. E2 was only read, never written. This
+validates this controlled hardware test, not every possible rig import.
+
+A separate artificial name-byte mutation was rejected with Bad Patch Data;
+the rig's content signature/checksum is undocumented, so that experiment
+cannot isolate a transport failure. The original rig remained intact.
+
+Hardware evidence: `../docs/editor-original-route-validation.json`.

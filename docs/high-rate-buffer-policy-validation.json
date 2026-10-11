@@ -1,0 +1,30 @@
+{
+  "high_rates_hz": [
+    88200,
+    96000
+  ],
+  "offered_buffers": [
+    512,
+    1024,
+    2048
+  ],
+  "hidden_buffers": [
+    0,
+    64,
+    128,
+    256
+  ],
+  "rate_change_minimum_buffer": 512,
+  "basis": "User reported scrambled audio at 256 on 88200 and 96000; smaller buffers and Automatic conservatively excluded.",
+  "tests": [
+    "CLI high-rate filtering",
+    "Rate change from 256 and Automatic raises buffer to 512",
+    "1024 preserved",
+    "Low-rate buffer options preserved",
+    "UI readback updates selection without triggering writes"
+  ],
+  "installed_scripts": {
+    "eleven-rack-settings.py": "d516f7e647c6a32adafb30f54cb07a05a1db83d6d8227eb4004ada5a20762afa",
+    "eleven-rack-panel.py": "342844c4239c06e74f43e772486215f1752c4cc417340154fa4a3d86d22d946b"
+  }
+}

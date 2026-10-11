@@ -2,6 +2,8 @@ import asyncio
 import importlib.util
 from pathlib import Path
 import unittest
+import sys
+sys.path.insert(0, str(Path(__file__).parents[1]))
 
 spec = importlib.util.spec_from_file_location('bridge', Path(__file__).parents[1] / 'bridge.py')
 module = importlib.util.module_from_spec(spec)
@@ -82,6 +84,14 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         self.bridge.rig_reply.set_result(0)
         with self.assertRaises(ValueError): await task
         self.assertIsNone(self.bridge.rig_reply)
+
+    async def test_original_bulk_route_accepts_variable_lengths(self):
+        self.bridge.connect(self.owner, 0, 2)
+        for size in (1242, 1352, 1692):
+            data = bytes([240, 19, 11, 15, 0, 0, 16] + [0] * (size - 8) + [247])
+            await self.bridge.command(self.owner, {'cmd': 'send', 'hex': data.hex()})
+            self.assertEqual(list(data), self.output.sent[-1])
+        self.assertEqual(3, len(self.output.sent))
 
     def test_hex_validation(self):
         for text in ('', 'F0 01', 'F0 FF F7', 'C0 01 02', 'B0 01', 'AA ZZ', '01 02 03'):

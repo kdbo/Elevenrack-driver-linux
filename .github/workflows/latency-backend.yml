@@ -1,0 +1,96 @@
+name: Latency backend packages
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'tools/*latency*'
+      - 'tools/spa-eleven-alsa.c'
+      - 'packaging/pipewire*'
+      - 'config/52-eleven-rack-latency.conf'
+      - 'docs/backend-building.md'
+      - 'LICENSES/PipeWire-MIT.txt'
+      - 'VERSION'
+      - '.github/workflows/latency-backend.yml'
+  pull_request:
+    paths:
+      - 'tools/*latency*'
+      - 'tools/spa-eleven-alsa.c'
+      - 'packaging/pipewire*'
+      - 'config/52-eleven-rack-latency.conf'
+      - 'docs/backend-building.md'
+      - 'LICENSES/PipeWire-MIT.txt'
+      - 'VERSION'
+      - '.github/workflows/latency-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.distro }} backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu
+            image: ubuntu:26.04
+            format: deb
+          - distro: arch
+            image: archlinux:base-devel
+            format: arch
+          - distro: fedora
+            image: fedora:44
+            format: rpm
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install Ubuntu dependencies
+        if: matrix.distro == 'ubuntu'
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git gcc libc6-dev python3 libasound2-dev patch pkg-config libspa-0.2-dev pipewire wireplumber
+      - name: Install Arch dependencies
+        if: matrix.distro == 'arch'
+        run: |
+          pacman -Syu --noconfirm --needed ca-certificates git python alsa-lib pipewire pipewire-audio wireplumber
+          useradd --create-home builder
+      - name: Install Fedora dependencies
+        if: matrix.distro == 'fedora'
+        run: |
+          dnf install -y ca-certificates git gcc python3 alsa-lib-devel patch pkgconf-pkg-config pipewire-devel pipewire-alsa wireplumber rpm-build
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check scripts and build backend for installed PipeWire
+        run: |
+          python3 -m py_compile tools/build-latency-backend.py tools/build-latency-package.py tools/check-latency-backend.py
+          sh -n tools/build-latency-backend.sh
+          python3 tools/test-latency-packaging.py
+          python3 tools/build-latency-backend.py
+          python3 tools/check-latency-backend.py
+      - name: Package backend
+        env:
+          PACKAGE_FORMAT: ${{ matrix.format }}
+        run: |
+          if [ "$PACKAGE_FORMAT" = arch ]; then
+            chown -R builder:builder "$GITHUB_WORKSPACE/build"
+            runuser -u builder -- python3 tools/build-latency-package.py --format arch
+          else
+            python3 tools/build-latency-package.py --format "$PACKAGE_FORMAT"
+          fi
+          python3 tools/build-latency-package.py --format tar
+          cd build/packages
+          sha256sum --check ./*.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: latency-backend-${{ matrix.distro }}
+          path: |
+            build/packages/*
+            build/latency/backend-build.json
+          if-no-files-found: error
+          retention-days: 30

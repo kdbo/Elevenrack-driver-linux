@@ -1,0 +1,28 @@
+{
+  "slot": "E1",
+  "slot_index": 16,
+  "backup_directory": "/home/koen/git/Eleven-Rack-Linux/build/editor-rig-tests/E1-20261010-142306",
+  "sysex_bytes": 1352,
+  "encoded_payload_bytes": 1344,
+  "backup_sha256": "82f3e43472fb2f058f7f54a4266b4026ca6731b6abfd81aabc82f2162141e253",
+  "two_reads_match": true,
+  "hardware_writes": 2,
+  "matches_required_1692_sysex_bytes": false,
+  "ports": [
+    "Eleven Rack:Eleven Rack Rig 20:0",
+    "Eleven Rack:Eleven Rack Rig 20:0"
+  ],
+  "temporary_source": "Unmodified E2 rig; destination changed to E1",
+  "temporary_upload_bytes": 1124,
+  "route": "Original Bridge.command -> RtMidi.send_message, entire SysEx",
+  "dialogs": [],
+  "bad_patch_data": false,
+  "temporary_change_persisted": true,
+  "readback_identical_to_backup": true,
+  "test_passed": true,
+  "test_scope": "Unmodified E2 rig written to E1, exact readback, original E1 restored",
+  "installed_package_version": "0.1.2~beta4",
+  "installed_bridge_matches_source": true,
+  "regression_tests_passed": 9,
+  "original_source": "E1 was restored to its original bytes and E2 was never written"
+}

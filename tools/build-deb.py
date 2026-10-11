@@ -34,7 +34,7 @@ Section: sound
 Priority: optional
 Architecture: all
 Maintainer: Eleven Rack Linux contributors <noreply@localhost>
-Depends: python3 (>= 3.12), python3-gi, python3-websockets, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, apt, dpkg-dev, ca-certificates, bzip2, xz-utils, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04
+Depends: python3 (>= 3.12), python3-gi, python3-websockets, gir1.2-gtk-3.0, gir1.2-gdkpixbuf-2.0, alsa-utils, pipewire-bin, pipewire-jack, libjack-jackd2-0 | libjack0, wireplumber (>= 0.4), dkms (>= 2.8.7), build-essential, apt, dpkg-dev, ca-certificates, bzip2, xz-utils, linux-source (>= 6.8), linux-headers-generic | linux-headers-generic-hwe-24.04
 Recommends: mokutil
 Description: Eleven Rack Linux audio driver and control panel (experimental)
  Patched snd-usb-audio built for the host kernel using DKMS, with a native
@@ -47,13 +47,14 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
             text = (ROOT / 'packaging' / name).read_text().replace('@VERSION@', version)
             write(f'DEBIAN/{name}', text, True)
         source_dir = f'usr/src/eleven-rack-{version}'
-        for name in ('build-driver.sh', 'prepare-driver.py', 'fetch-kernel-source.py'):
+        for name in ('build-driver.sh', 'build-driver-common.sh', 'prepare-driver.py', 'fetch-kernel-source.py', 'mixer-eleven-rack.h'):
             copy('packaging/' + name, source_dir + '/' + name, True)
         text = (ROOT / 'packaging/dkms.conf').read_text().replace('@VERSION@', version)
         write(source_dir + '/dkms.conf', text)
         for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py'):
             copy('tools/' + name, 'usr/lib/eleven-rack/tools/' + name, True)
         write('usr/lib/eleven-rack/VERSION', version + '\n')
+        copy('tools/eleven-rack-meters.c', 'usr/lib/eleven-rack/tools/eleven-rack-meters.c')
         copy('assets/eleven-rack-control-logo-v2.png',
              'usr/lib/eleven-rack/assets/eleven-rack-control-logo-v2.png')
         copy('assets/eleven-rack-control-logo-v2.png', 'usr/share/pixmaps/eleven-rack-driver.png')

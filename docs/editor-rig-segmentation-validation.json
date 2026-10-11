@@ -1,0 +1,37 @@
+{
+  "editor_version": "0.1.2-beta3",
+  "source": "Paul message supplied by user; user confirmed lengths refer to SysEx data",
+  "sysex_segments": [
+    512,
+    512,
+    512,
+    156
+  ],
+  "virtual_alsa_probe": "PASS: actual native events, bytes preserved",
+  "bridge_tests": 11,
+  "bridge_tests_result": "PASS",
+  "native_event_abi": {
+    "size": 28,
+    "data_offset": 16,
+    "external_size": 12
+  },
+  "hardware_writes": 0,
+  "hardware_acceptance_verified": false,
+  "restriction": "Bulk commands 00/01 with different total lengths are refused before transmission",
+  "inter_span_gap_ms": 10,
+  "gap_hardware_verified": false,
+  "installed_package_version": "0.1.2~beta3",
+  "installed_bridge_matches_source": true,
+  "hardware_readback": {
+    "slot": "E1",
+    "slot_index": 16,
+    "backup_directory": "build/editor-rig-tests/E1-20261010-141707",
+    "e1_sysex_bytes": 1352,
+    "current_rig_sysex_bytes": 1242,
+    "two_e1_reads_match": true,
+    "hardware_writes": 0,
+    "result": "Upload not attempted: real hardware messages contradict fixed 1692-byte SysEx assumption"
+  },
+  "status": "Experimental fixed-length route reverted at user request; see editor-original-route-validation.json",
+  "active": false
+}

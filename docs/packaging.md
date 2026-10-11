@@ -84,7 +84,7 @@ Save work and close audio applications. Install the local package through APT
 so dependencies are resolved:
 
 ```sh
-sudo apt install ./build/packages/eleven-rack-driver_0.1.2~beta2_all.deb
+sudo apt install ./build/packages/eleven-rack-driver_0.1.2~beta4_all.deb
 ```
 
 For an HWE kernel, ensure its exact headers are installed:
@@ -122,8 +122,8 @@ instead of `remove` if you also want package-owned routing configuration deleted
 
 ## Release status
 
-This is a local beta artifact, not a published release. Monitoring switching
-still awaits verified protocol details; clock selection has known limitations
+This is a local beta artifact, not a published release. Monitoring switching uses Paul Bender’s supplied USB protocol; its direct
+monitoring suppression and restoration were confirmed on the connected Rack. Clock selection has known limitations
 documented in `interface-settings.md`. Full hardware testing on Ubuntu 24.04
 is required before advertising production support. Original tools and the panel
 are MIT-licensed; original kernel patches and the patch helper use GPL-2.0-or-later.

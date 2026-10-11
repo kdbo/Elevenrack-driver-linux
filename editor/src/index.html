@@ -2122,7 +2122,6 @@
   <div class="bt-sep"></div>
   <div style="margin-left:auto;"></div>
   <button class="bt-btn" id="btn-patches" title="Open the patch list (also: click the patch name display)">Patches…</button>
-  <button class="bt-btn" id="btn-about">About</button>
   <button class="bt-btn" id="btn-manual" title="Open the User Manual">Manual</button>
   <button class="bt-btn" id="btn-settings" title="Settings">Settings</button>
   <div id="capture-path-label" style="display:none;">Folder: —</div>
@@ -2348,10 +2347,20 @@
 </div>
 
 <!-- ══ ABOUT ══ -->
-<div id="about-overlay">
+<div id="about-overlay" role="dialog" aria-modal="true" aria-label="About Eleven Rack Editor">
   <div id="about-box">
     <div class="about-brand"><img src="../assets/eleven-rack-editor-logo.png" alt="Eleven Rack Editor logo"><h2>Eleven Rack Editor</h2></div>
     <div class="about-version" id="about-version">Version —</div>
+    <div class="about-tabs" role="tablist" aria-label="About sections">
+      <button type="button" role="tab" id="about-tab-info" aria-controls="about-info" aria-selected="true">About</button>
+      <button type="button" role="tab" id="about-tab-credits" aria-controls="about-credits" aria-selected="false">Credits</button>
+      <button type="button" role="tab" id="about-tab-thanks" aria-controls="about-thanks" aria-selected="false">Thanks to</button>
+      <button type="button" role="tab" id="about-tab-license" aria-controls="about-license" aria-selected="false">License</button>
+    </div>
+    <div id="about-info" role="tabpanel" aria-labelledby="about-tab-info">
+      <div class="about-section"><p>Editor and librarian for the Avid Eleven Rack.<br>Linux integration by Koen de Boevé, based on Eleven Edit by Charles Wardick and the macOS fork by Damilola Olalere (MrDees).</p></div>
+    </div>
+    <div id="about-credits" role="tabpanel" aria-labelledby="about-tab-credits" hidden>
     <p style="margin:0;color:#c9d0da;font-size:13px;">The Linux editor and librarian for the Avid Eleven Rack.</p>
     <div class="about-section">
       <h3>Linux application</h3>
@@ -2415,6 +2424,16 @@
       Rack community with no warranty, express or implied — use at your own
       risk. Always back up your unit before loading new banks. If you build on
       Eleven Rack Editor, please retain the credits for Koen de Boevé, Damilola Olalere, Charles Wardick, Guillaume Schmid, Matt Housley and Paul Bender.</p>
+    </div>
+    </div>
+    <div id="about-thanks" role="tabpanel" aria-labelledby="about-tab-thanks" hidden>
+      <div class="about-section"><h3>A big thank you to Paul Bender</h3>
+      <p>Paul, thank you for sharing your knowledge of the Eleven Rack, for your help with hardware monitoring, latency and testing, and for allowing me to use your icons as the basis for ours.</p>
+      <p>I consider you a mentor in bringing the Linux driver project to life. Your experience and encouragement have also supported the Linux editor's integration with the hardware.<br><br>— Koen</p></div>
+    </div>
+    <div id="about-license" role="tabpanel" aria-labelledby="about-tab-license" hidden>
+      <div class="about-section"><h3>MIT License</h3><p>Eleven Edit: Copyright © 2026 Charles Wardick. The upstream MIT license and NOTICE are retained in this application. Linux integration by Koen de Boevé.</p>
+      <p>Manrope and JetBrains Mono retain their SIL Open Font License notices. Refer to the bundled LICENSE, NOTICE and font license files for the full terms.</p></div>
     </div>
     <button id="btn-about-close">CLOSE</button>
   </div>
@@ -3441,8 +3460,10 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
 // ════════════════════════════════════════════════════════════════════
 // ABOUT
 // ════════════════════════════════════════════════════════════════════
-document.getElementById('btn-about').addEventListener('click', async function() {
+window.openEditorAbout = async function() {
   document.getElementById('about-overlay').classList.add('open');
+  document.getElementById('about-tab-info').click();
+  document.getElementById('about-tab-info').focus();
   // Read live from package.json (main.js's app.getVersion(), same source as
   // the session-log banner, Bug Report #2) rather than a hand-maintained
   // "Phase N" string that goes stale the moment nobody remembers to bump it.
@@ -3450,7 +3471,7 @@ document.getElementById('btn-about').addEventListener('click', async function() 
     const v = await window.electronAPI.getAppVersion();
     document.getElementById('about-version').textContent = 'Version ' + v;
   }
-});
+};
 // Put the version in the window title bar at STARTUP (not only when About is
 // opened). Display text only — the app's real name in package.json is
 // untouched — so a running build is identifiable at a glance.
@@ -3588,8 +3609,23 @@ function win11GateSyncSettingsRow(disabled) {
     win11GateSyncSettingsRow(turningOff);
   });
 })();
+document.querySelectorAll('.about-tabs [role="tab"]').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.about-tabs [role="tab"]').forEach(function(other) {
+      const selected = other === tab;
+      other.setAttribute('aria-selected', String(selected));
+      document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
+    });
+  });
+});
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape' && document.getElementById('about-overlay').classList.contains('open')) {
+    document.getElementById('btn-about-close').click();
+  }
+});
 document.getElementById('btn-about-close').addEventListener('click', function() {
   document.getElementById('about-overlay').classList.remove('open');
+  document.querySelector('.editor-logo')?.focus();
 });
 document.getElementById('about-overlay').addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('open');

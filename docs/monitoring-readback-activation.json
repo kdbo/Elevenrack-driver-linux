@@ -1,0 +1,36 @@
+{
+  "package": "0.1.2~beta4",
+  "previous_settings": {
+    "log.level": "2",
+    "clock.rate": "48000",
+    "clock.allowed-rates": "[ 48000 ]",
+    "clock.quantum": "1024",
+    "clock.min-quantum": "32",
+    "clock.max-quantum": "2048",
+    "clock.force-quantum": "128",
+    "clock.force-rate": "48000"
+  },
+  "previous_active_units": [
+    "wireplumber.service",
+    "pipewire-pulse.service",
+    "pipewire-pulse.socket",
+    "pipewire.service",
+    "pipewire.socket"
+  ],
+  "settings_panels_closed_for_reload": 0,
+  "initial": "Monitoring mode: hardware\nHardware monitoring state read from the Rack.\n",
+  "daw_only": "Monitoring mode: daw-only\nHardware monitoring state read from the Rack.\n",
+  "hardware": "Monitoring mode: hardware\nHardware monitoring state read from the Rack.\n",
+  "usb_commands_accepted": true,
+  "audible_effect_verified": false,
+  "initial_read_before_monitor_write_verified": true,
+  "fault_injection_tests_passed": true,
+  "kernel_build_passed": true,
+  "package_checks_passed": true,
+  "readback_from_hardware": true,
+  "source_sha256": {
+    "packaging/mixer-eleven-rack.h": "69626a4fe819d23d7753844091f0c66713a88bda6e09bbc823ea39715cbe4b1e",
+    "tools/eleven-rack-settings.py": "7135f613e71b9b5d4441e5ab21dacda4e765b21a70b68ccd95ade0814abde26b",
+    "tools/eleven-rack-panel.py": "76744c9745c57d2ec6c608b783f6ac3c966f22f9919fb9fd3cad70c6d6ed575b"
+  }
+}

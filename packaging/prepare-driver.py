@@ -20,7 +20,7 @@ def replace_once(text, old, new):
 def prepare(root):
     original = {name: (root / name).read_text() for name in
                 ('quirks-table.h', 'implicit.c', 'format.c', 'quirks.c',
-                 'mixer_maps.c', 'mixer.c', 'Makefile')}
+                 'mixer_maps.c', 'mixer.c', 'mixer_quirks.c', 'Makefile', 'pcm.c', 'card.h')}
     if 'Eleven Rack Linux package' in original['quirks-table.h']:
         raise RuntimeError('Source already patched; extract a clean source tree first.')
     if re.search(r'0x0dba,\s*0xb011', original['quirks-table.h']):
@@ -119,11 +119,55 @@ static const struct usbmix_selector_map eleven_rack_selectors[] = {
         callback = replace_once(callback, new_error_handling,
                                 rack_setter + '\n\t\tif (err < 0)\n\t\t\treturn filter_error(cval, err);')
     result['mixer.c'] = text[:start] + callback + text[end:]
+    text = replace_once(original['mixer_quirks.c'], '#include "helper.h"',
+                        '#include "helper.h"\n#include "mixer-eleven-rack.h"')
+    marker = 'int snd_usb_mixer_apply_create_quirk(struct usb_mixer_interface *mixer)'
+    start = text.index(marker)
+    switch = text.index('\tswitch (mixer->chip->usb_id) {', start)
+    end = switch + len('\tswitch (mixer->chip->usb_id) {')
+    result['mixer_quirks.c'] = text[:end] + '''
+\tcase USB_ID(0x0dba, 0xb011):
+\t\terr = snd_eleven_monitor_create(mixer);
+\t\tbreak;''' + text[end:]
+    result['mixer-eleven-rack.h'] = Path(__file__).with_name('mixer-eleven-rack.h').read_text()
     text = original['Makefile']
     marker = '# Toplevel Module Dependency'
     if marker not in text:
         raise RuntimeError('Unrecognized kernel Makefile.')
     result['Makefile'] = text[:text.index(marker)] + 'obj-m := snd-usb-audio.o\n'
+    # Opt-in high-resolution delay for this USB id. The upstream frame-counter
+    # path remains the default and remains unchanged for every other interface.
+    result['card.h'] = replace_once(original['card.h'],
+        'unsigned int last_frame_number;\t/* stored frame number */',
+        'unsigned int last_frame_number;\t/* stored frame number */\n\tu64 eleven_delay_ns;')
+    text = replace_once(original['pcm.c'], '#include <linux/init.h>',
+                        '#include <linux/init.h>\n#include <linux/ktime.h>')
+    text = replace_once(text, '/* return the estimated delay based on USB frame counters */',
+        'static bool eleven_delay_hires;\n'
+        'module_param(eleven_delay_hires, bool, 0644);\n'
+        'MODULE_PARM_DESC(eleven_delay_hires, "Eleven Rack high-resolution USB delay accounting");\n\n'
+        '/* return the estimated delay based on USB frame counters */')
+    text = replace_once(text, 'est_delay = frame_diff * runtime->rate / 1000;',
+        'est_delay = frame_diff * runtime->rate / 1000;\n'
+        '\tif (eleven_delay_hires && subs->stream->chip->usb_id == USB_ID(0x0dba, 0xb011) &&\n'
+        '\t    subs->eleven_delay_ns) {\n'
+        '\t\tu64 elapsed = ktime_get_ns() - subs->eleven_delay_ns;\n'
+        '\t\telapsed = min_t(u64, elapsed, 256 * NSEC_PER_MSEC);\n'
+        '\t\test_delay = div_u64(elapsed * runtime->rate, NSEC_PER_SEC);\n'
+        '\t}')
+    text = text.replace('subs->last_frame_number = 0;',
+                        'subs->last_frame_number = 0;\n\tsubs->eleven_delay_ns = 0;')
+    text = replace_once(text, 'subs->last_frame_number = current_frame_number;',
+        'subs->last_frame_number = current_frame_number;\n'
+        '\t\t\tif (subs->stream->chip->usb_id == USB_ID(0x0dba, 0xb011))\n'
+        '\t\t\t\tsubs->eleven_delay_ns = ktime_get_ns();')
+    timestamp = 'subs->last_frame_number = usb_get_current_frame_number(subs->dev);'
+    if not text.count(timestamp):
+        raise RuntimeError('Unsupported USB playback timestamp layout')
+    text = text.replace(timestamp, timestamp + '\n'
+        '\t\tif (subs->stream->chip->usb_id == USB_ID(0x0dba, 0xb011))\n'
+        '\t\t\tsubs->eleven_delay_ns = ktime_get_ns();')
+    result['pcm.c'] = text
     # Validate every transformation before modifying any source file.
     for name, text in result.items():
         (root / name).write_text(text)

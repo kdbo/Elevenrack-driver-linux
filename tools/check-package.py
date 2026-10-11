@@ -28,8 +28,9 @@ def check(package, version):
         source = root / f'usr/src/eleven-rack-{version}'
         assert f'PACKAGE_VERSION="{version}"' in (source / 'dkms.conf').read_text()
         assert '@VERSION@' not in (source / 'dkms.conf').read_text()
-        for name in ('build-driver.sh', 'prepare-driver.py', 'fetch-kernel-source.py'):
+        for name in ('build-driver.sh', 'build-driver-common.sh', 'prepare-driver.py', 'fetch-kernel-source.py'):
             assert (source / name).stat().st_mode & 0o111, name
+        assert (source / 'mixer-eleven-rack.h').is_file()
         for path in root.rglob('*.py'):
             ast.parse(path.read_text(), filename=str(path))
         launcher = root / 'usr/share/applications/eleven-rack-driver.desktop'

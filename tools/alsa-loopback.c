@@ -28,12 +28,44 @@ static void configure(snd_pcm_t *pcm, unsigned channels, unsigned period) {
     check(snd_pcm_hw_params_set_buffer_size_near(pcm, hw, &buffer), "buffer");
     check(snd_pcm_hw_params(pcm, hw), "apply hw params");
     check(snd_pcm_sw_params_current(pcm, sw), "sw params");
+    check(snd_pcm_sw_params_set_tstamp_mode(pcm, sw, SND_PCM_TSTAMP_ENABLE), "timestamp mode");
+    check(snd_pcm_sw_params_set_tstamp_type(pcm, sw, SND_PCM_TSTAMP_TYPE_MONOTONIC_RAW), "timestamp clock");
     check(snd_pcm_sw_params_set_start_threshold(pcm, sw, buffer), "start threshold");
     check(snd_pcm_sw_params_set_avail_min(pcm, sw, per), "avail min");
     check(snd_pcm_sw_params(pcm, sw), "apply sw params");
     printf("%s channels=%u rate=%u period=%lu buffer=%lu\n",
            snd_pcm_stream(pcm) == SND_PCM_STREAM_PLAYBACK ? "playback" : "capture",
            channels, rate, (unsigned long)per, (unsigned long)buffer);
+}
+/* Status observations are sequential, not simultaneous endpoint measurements.
+ * Request link timestamps, but record fallback type and accuracy explicitly.
+ */
+static void log_status(snd_pcm_t *pcm, unsigned written, unsigned captured) {
+    snd_pcm_status_t *status;
+    snd_pcm_status_alloca(&status);
+    snd_pcm_audio_tstamp_config_t config = {
+        .type_requested = SND_PCM_AUDIO_TSTAMP_TYPE_LINK,
+        .report_delay = 0
+    };
+    snd_pcm_audio_tstamp_report_t report = {0};
+    snd_htimestamp_t system, trigger, audio;
+    snd_pcm_status_set_audio_htstamp_config(status, &config);
+    check(snd_pcm_status(pcm, status), "timestamp status");
+    snd_pcm_status_get_htstamp(status, &system);
+    snd_pcm_status_get_trigger_htstamp(status, &trigger);
+    snd_pcm_status_get_audio_htstamp(status, &audio);
+    snd_pcm_status_get_audio_htstamp_report(status, &report);
+    printf("status stream=%s written=%u captured=%u state=%s delay=%ld avail=%lu "
+           "system=%lld.%09ld trigger=%lld.%09ld audio=%lld.%09ld "
+           "requested=2 valid=%u actual=%u accuracy_valid=%u accuracy_ns=%u\n",
+           snd_pcm_stream(pcm) == SND_PCM_STREAM_PLAYBACK ? "playback" : "capture",
+           written, captured, snd_pcm_state_name(snd_pcm_status_get_state(status)),
+           (long)snd_pcm_status_get_delay(status),
+           (unsigned long)snd_pcm_status_get_avail(status),
+           (long long)system.tv_sec, system.tv_nsec,
+           (long long)trigger.tv_sec, trigger.tv_nsec,
+           (long long)audio.tv_sec, audio.tv_nsec,
+           report.valid, report.actual_type, report.accuracy_report, report.accuracy);
 }
 int main(int argc, char **argv) {
     if (argc != 4) { fprintf(stderr, "Usage: %s hw:CARD,0 period output.raw\n", argv[0]); return 2; }
@@ -60,6 +92,8 @@ int main(int argc, char **argv) {
     check((int)primed,"prime playback");
     check(snd_pcm_start(p), "start linked streams");
     unsigned written = primed, captured = 0;
+    log_status(p, written, captured);
+    log_status(c, written, captured);
     struct timespec begin,now;
     clock_gettime(CLOCK_MONOTONIC,&begin);
     unsigned count = 0;
@@ -77,6 +111,8 @@ int main(int argc, char **argv) {
             check(snd_pcm_delay(p,&pd),"playback delay");
             check(snd_pcm_delay(c,&cd),"capture delay");
             printf("delay written=%u captured=%u playback=%ld capture=%ld\n",written,captured,(long)pd,(long)cd);
+            log_status(p, written, captured);
+            log_status(c, written, captured);
         }
         clock_gettime(CLOCK_MONOTONIC,&now);
         if (now.tv_sec-begin.tv_sec > 10) { fprintf(stderr,"Test timeout\n"); return 1; }

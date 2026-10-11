@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -10,6 +11,10 @@ import sys
 
 RATES = (44100, 48000, 88200, 96000)
 BUFFERS = (0, 64, 128, 256, 512, 1024, 2048)
+def available_buffers(rate):
+    return BUFFERS
+
+
 CLOCKS = {"internal": 1, "aes": 2, "spdif": 3}
 RIG_INPUTS = ("guitar", "reamp", "mic", "line-l", "line-r", "line-lr",
               "digital-l", "digital-r", "digital-lr")
@@ -27,6 +32,65 @@ def card():
 
 
 CLOCK_CONTROL = 'Eleven Rack Clock Source'
+MONITOR_CONTROL = 'Eleven Rack Monitoring Mode'
+RATE_CONTROL = 'Eleven Rack Sample Rate'
+
+
+def reported_roundtrip(objects, rate, quantum):
+    totals = [0.0, 0.0]
+    for prefix, direction in (('alsa_input.', 'Output'), ('alsa_output.', 'Input')):
+        nodes=[o for o in objects if o.get('type')=='PipeWire:Interface:Node'
+               and o.get('info',{}).get('props',{}).get('api.alsa.card.id')=='Rack'
+               and o['info']['props'].get('node.name','').startswith(prefix)]
+        if len(nodes)!=1 or nodes[0]['info'].get('state')!='running':
+            raise ValueError('Audio stream idle')
+        entries=[e for e in nodes[0]['info'].get('params',{}).get('Latency',[]) if e.get('direction')==direction]
+        if len(entries)!=1: raise ValueError('Latency unavailable')
+        e=entries[0]
+        for i,bound in enumerate(('min','max')):
+            totals[i]+=(float(e[bound+'Quantum'])*quantum+float(e[bound+'Rate']))*1000/rate+float(e[bound+'Ns'])/1e6
+    return totals
+
+
+def roundtrip_status(values):
+    try:
+        quantum=int(values.get('clock.force-quantum','0'))
+        rates=set()
+        for direction in ('c','p'):
+            params=Path('/proc/asound/card%d/pcm0%s/sub0/hw_params' % (card(),direction)).read_text()
+            match=re.search(r'^rate:\s+(\d+)',params,re.M)
+            if not match: raise ValueError('Audio stream idle')
+            rates.add(int(match[1]))
+        if len(rates)!=1 or quantum<=0: raise ValueError('Active graph timing unavailable')
+        rate=rates.pop()
+        result=subprocess.run(['pw-dump'],capture_output=True,text=True,timeout=3)
+        if result.returncode: raise ValueError('PipeWire unavailable')
+        low,high=reported_roundtrip(json.loads(result.stdout),rate,quantum)
+        if abs(low-high)<.005: return 'Roundtrip latency · %.2f ms' % high
+        return 'Roundtrip latency · %.2f–%.2f ms' % (low,high)
+    except (OSError,RuntimeError,ValueError,KeyError,subprocess.TimeoutExpired):
+        return 'Roundtrip latency unavailable'
+
+
+def hardware_sample_rate():
+    hz = int(mixer_value(RATE_CONTROL))
+    if hz <= 0:
+        raise RuntimeError('Hardware clock frequency is unavailable.')
+    return hz
+
+
+def monitoring(mode=None):
+    modes = {'unknown': 0, 'hardware': 1, 'daw-only': 2, 'software-mix': 3}
+    if mode is not None:
+        mixer_value(MONITOR_CONTROL, modes[mode])
+    value = int(mixer_value(MONITOR_CONTROL))
+    actual = next((name for name, index in modes.items() if index == value), None)
+    if actual is None:
+        raise RuntimeError('Unknown monitoring control value %d.' % value)
+    if mode is not None and actual != mode:
+        raise RuntimeError('Monitoring command was not accepted; driver reports ' + actual)
+    print('Monitoring mode:', actual)
+    print('Hardware monitoring state read from the Rack.')
 
 
 def mixer_value(name, value=None, interface='MIXER'):
@@ -37,7 +101,7 @@ def mixer_value(name, value=None, interface='MIXER'):
     result = subprocess.run(args, capture_output=True, text=True, timeout=4)
     if result.returncode:
         raise RuntimeError((result.stderr.strip() or 'ALSA mixer control is unavailable.') +
-                           '\nIf the clock control is missing, reload the updated module.')
+                           '\nIf this control is missing, reload the updated module.')
     match = re.search(r': values=([^\n]+)', result.stdout)
     if not match:
         raise RuntimeError('ALSA did not return the mixer value.')
@@ -100,6 +164,56 @@ async def editor_rig_input(name):
         await socket.close()
 
 
+def firmware_cache_path():
+    return Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'eleven-rack' / 'firmware.json'
+
+
+def cached_firmware_version():
+    try:
+        value = json.loads(firmware_cache_path().read_text()).get('firmware')
+        return value if isinstance(value, str) and 0 < len(value) < 100 else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def firmware_version():
+    try:
+        version = read_firmware_version()
+    except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired):
+        cached = cached_firmware_version()
+        if cached:
+            return cached + ' (saved)'
+        raise
+    try:
+        path = firmware_cache_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix('.%d.tmp' % os.getpid())
+        temporary.write_text(json.dumps({'firmware': version}) + '\n')
+        temporary.replace(path)
+    except OSError:
+        pass  # A preferences write failure must not hide the live version.
+    return version
+
+
+def read_firmware_version():
+    result = subprocess.run(
+        ['amidi', '-p', 'hw:%d,0,0' % card(), '-S', 'F0 7E 7F 06 01 F7', '-d', '-t', '1'],
+        capture_output=True, text=True, timeout=4)
+    if result.returncode:
+        raise RuntimeError('Firmware unavailable (device disconnected or MIDI port busy).')
+    data = bytes.fromhex(result.stdout)
+    for message in data.split(b'\xf0')[1:]:
+        message = message.split(b'\xf7', 1)[0]
+        if len(message) >= 12 and message[0] == 0x7e and message[2:4] == b'\x06\x02':
+            build = message[-4:].decode('ascii', errors='replace')
+            if not re.fullmatch(r'[0-9]{4}', build):
+                continue
+            version = {'0157': '2.0.1', '0153': '2.0'}.get(build)
+            return ('%s · Build %s' % (version, '.'.join(build)) if version
+                    else 'Build ' + '.'.join(build))
+    raise RuntimeError('Firmware unavailable (no identity reply).')
+
+
 def rig_input(name=None):
     try:
         shared = asyncio.run(editor_rig_input(name))
@@ -131,8 +245,7 @@ def rig_input(name=None):
     return RIG_INPUTS[value]
 
 
-def set_sample_rate(hz):
-    require_idle()
+def set_hardware_sample_rate(hz):
     # ALSA owns the USB interfaces and performs the clock SET_CUR itself.
     # Use hw (no resampling) and discard a short capture to configure the rate.
     result = subprocess.run(
@@ -143,8 +256,62 @@ def set_sample_rate(hz):
         raise RuntimeError(result.stderr.strip() or 'ALSA could not configure the sample rate.')
     if 'rate is not accurate' in result.stderr.lower():
         raise RuntimeError(result.stderr.strip())
+    actual = hardware_sample_rate()
+    if actual != hz:
+        raise RuntimeError('Hardware clock reports %d Hz after requesting %d Hz.' % (actual, hz))
+
+
+def pipewire_settings():
+    result = subprocess.run(['pw-metadata', '-n', 'settings'],
+                            capture_output=True, text=True, timeout=4)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or 'PipeWire settings unavailable.')
+    return dict(re.findall(r"key:'([^']+)' value:'([^']+)'", result.stdout))
+
+
+def set_pipewire_setting(key, value):
+    result = subprocess.run(['pw-metadata', '-n', 'settings', '0', key, str(value)],
+                            capture_output=True, text=True, timeout=4)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or 'PipeWire sample rate change failed.')
+
+
+def set_sample_rate(hz):
+    require_idle()
+    previous = pipewire_settings()
+    keys = ('clock.allowed-rates', 'clock.rate', 'clock.force-rate', 'clock.force-quantum')
+    if any(key not in previous for key in keys):
+        raise RuntimeError('PipeWire sample rate settings unavailable.')
+    previous_hardware = hardware_sample_rate()
+    set_hardware_sample_rate(hz)
+    try:
+        set_pipewire_setting('clock.allowed-rates', '[ 44100 48000 88200 96000 ]')
+        set_pipewire_setting('clock.rate', hz)
+        set_pipewire_setting('clock.force-rate', hz)
+        quantum = int(previous['clock.force-quantum'])
+        actual = pipewire_settings()
+        expected_quantum = quantum
+        if actual.get('clock.force-quantum') != str(expected_quantum):
+            raise RuntimeError('PipeWire buffer change was not confirmed.')
+        if actual.get('clock.rate') != str(hz) or actual.get('clock.force-rate') != str(hz):
+            raise RuntimeError('PipeWire sample rate change was not confirmed.')
+    except Exception as error:
+        rollback_errors = []
+        for key in keys:
+            try:
+                set_pipewire_setting(key, previous[key])
+            except Exception as rollback:
+                rollback_errors.append(str(rollback))
+        try:
+            set_hardware_sample_rate(previous_hardware)
+        except Exception as rollback:
+            rollback_errors.append(str(rollback))
+        if rollback_errors:
+            raise RuntimeError(str(error) + '\nRestore failed: ' + '; '.join(rollback_errors)) from error
+        raise
     print('Internal clock rate:', hz, 'Hz')
-    print('Audio apps select their own rate when opening the device.')
+    print('PipeWire session rate:', hz, 'Hz')
+    print('Buffer size:', actual['clock.force-quantum'])
 
 
 def main():
@@ -152,27 +319,40 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('channels')
     commands.add_parser('status')
+    commands.add_parser('firmware')
     commands.add_parser('gui')
     buffer = commands.add_parser('buffer'); buffer.add_argument('samples', nargs='?', type=int, choices=BUFFERS)
     clock = commands.add_parser('clock'); clock.add_argument('source', choices=CLOCKS)
-    rate = commands.add_parser('rate'); rate.add_argument('hz', type=int, choices=RATES)
+    rate = commands.add_parser('rate'); rate.add_argument('hz', nargs='?', type=int, choices=RATES)
     rig = commands.add_parser('rig-input'); rig.add_argument('source', nargs='?', choices=RIG_INPUTS)
+    monitor = commands.add_parser('monitor'); monitor.add_argument('mode', nargs='?', choices=('hardware', 'daw-only'))
     args = parser.parse_args()
     if args.command == 'gui':
         subprocess.run([sys.executable, str(Path(__file__).with_name('eleven-rack-panel.py'))], check=True)
+    elif args.command == 'firmware':
+        print('Firmware:', firmware_version())
     elif args.command == 'channels':
         for i, name in enumerate(INPUTS):
             print('%d  %-16s %s' % (i + 1, name, OUTPUTS[i] if i < len(OUTPUTS) else ''))
     elif args.command == 'rig-input':
         print('Rig Input:', rig_input(args.source))
+    elif args.command == 'monitor':
+        monitoring(args.mode)
     elif args.command == 'rate':
-        set_sample_rate(args.hz)
+        if args.hz is None:
+            print('Hardware sample rate:', hardware_sample_rate(), 'Hz')
+        else:
+            set_sample_rate(args.hz)
     elif args.command == 'clock':
         clock_source(args.source)
     elif args.command == 'status':
         clock_source()
+        print('Hardware sample rate:', hardware_sample_rate(), 'Hz')
     elif args.command == 'buffer':
         if args.samples is not None:
+            rate_hz = hardware_sample_rate()
+            if args.samples not in available_buffers(rate_hz):
+                raise RuntimeError('Unsupported buffer size.')
             result = subprocess.run(['pw-metadata', '-n', 'settings', '0', 'clock.force-quantum', str(args.samples)],
                                     capture_output=True, text=True, timeout=4)
             if result.returncode:
@@ -189,8 +369,7 @@ def main():
         effective = forced or int(values.get('clock.quantum', '0'))
         rate = int(values.get('clock.rate', '48000'))
         print('Buffer size:', forced)
-        print('Buffer duration: %g ms per buffer at %g kHz%s' %
-              (effective * 1000 / rate, rate / 1000, ' (automatic)' if not forced else ''))
+        print('Roundtrip latency:', roundtrip_status(values))
 
 
 if __name__ == '__main__':

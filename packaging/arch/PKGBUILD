@@ -1,0 +1,48 @@
+# Local build recipe. Prepare the two source archives with prepare-arch-package.py.
+pkgbase=eleven-rack
+pkgname=(eleven-rack-control eleven-rack-driver-dkms)
+pkgver=0.1.2beta7
+pkgrel=1
+pkgdesc='Eleven Rack audio driver and Control panel'
+arch=('x86_64')
+url='https://github.com/kdbo/Elevenrack-driver-linux'
+license=('MIT' 'GPL-2.0-or-later')
+makedepends=('python')
+source=('eleven-rack-source.tar.gz' 'eleven-rack-kernel.tar.gz')
+# The preparation tool replaces these with actual archive checksums.
+sha256sums=('@PROJECT_SHA256@' '@KERNEL_SHA256@')
+
+package_eleven-rack-control() {
+    depends=('python' 'python-gobject' 'python-websockets' 'gtk3' 'alsa-utils'
+             'pipewire' 'pipewire-jack' 'wireplumber' 'gcc')
+    backup=('etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf')
+    cd "$srcdir/eleven-rack-source"
+    install -Dm755 tools/eleven-rack-panel.py "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-panel.py"
+    install -Dm755 tools/eleven-rack-settings.py "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-settings.py"
+    install -Dm644 tools/eleven-rack-meters.c "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-meters.c"
+    install -Dm644 VERSION "$pkgdir/usr/lib/eleven-rack/VERSION"
+    install -Dm644 assets/eleven-rack-control-logo-v2.png "$pkgdir/usr/lib/eleven-rack/assets/eleven-rack-control-logo-v2.png"
+    install -Dm644 assets/eleven-rack-control-logo-v2.png "$pkgdir/usr/share/pixmaps/eleven-rack-driver.png"
+    install -Dm644 config/eleven-rack-driver.desktop "$pkgdir/usr/share/applications/eleven-rack-driver.desktop"
+    install -Dm644 config/51-eleven-rack.conf "$pkgdir/etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf"
+    install -Dm755 packaging/arch/eleven-rack-control "$pkgdir/usr/bin/eleven-rack-control"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 CREDITS.md "$pkgdir/usr/share/doc/$pkgname/CREDITS.md"
+}
+
+package_eleven-rack-driver-dkms() {
+    depends=('dkms' 'python')
+    optdepends=('linux-headers: build for the stock Arch kernel'
+                'linux-lts-headers: build for the Arch LTS kernel')
+    cd "$srcdir/eleven-rack-source"
+    local destination="$pkgdir/usr/src/eleven-rack-$pkgver"
+    install -dm755 "$destination"
+    for file in build-driver-common.sh prepare-driver.py mixer-eleven-rack.h; do
+        install -m644 "packaging/$file" "$destination/$file"
+    done
+    install -m644 packaging/arch/build-driver.sh "$destination/build-driver.sh"
+    sed "s/@VERSION@/$pkgver/g" packaging/dkms.conf > "$destination/dkms.conf"
+    cp -a "$srcdir/eleven-rack-kernel" "$destination/prepared-kernel"
+    install -Dm644 LICENSES/GPL-2.0.txt "$pkgdir/usr/share/licenses/$pkgname/GPL-2.0.txt"
+    install -Dm644 LICENSING.md "$pkgdir/usr/share/doc/$pkgname/LICENSING.md"
+}

@@ -57,6 +57,8 @@ Start with the [installation guide](INSTALLATION.md) for downloading
 release packages, installing the driver and editor, first-use checks, and
 troubleshooting.
 
+Optional audio setup is covered in the [Ubuntu Studio configuration guide](docs/ubuntu-studio-setup.md).
+
 The Ubuntu `.deb` package includes the driver patches, DKMS build instructions,
 Eleven Rack Control, and WirePlumber routing configuration. The editor is
 packaged separately.
@@ -77,7 +79,7 @@ python3 tools/build-deb.py
 Install it through APT so package dependencies are resolved:
 
 ```sh
-sudo apt install ./build/packages/eleven-rack-driver_0.1.2~beta2_all.deb
+sudo apt install ./build/packages/eleven-rack-driver_0.1.2~beta5_all.deb
 ```
 
 Matching headers for the target kernel must be available. Close audio
@@ -94,13 +96,13 @@ eleven-rack-control gui
 ```
 
 The panel provides clock source and status, internal sample-rate selection,
-Rig Input, input/output channel information, and PipeWire buffer-size settings.
+Rig Input, DAW-only monitoring, input/output channel information, and PipeWire buffer-size settings.
 The buffer setting applies to the shared PipeWire session. Stop audio
 applications before changing the hardware clock or sample rate; applications
 choose their streaming rate when opening the device.
 
-The hardware-monitoring switch remains unavailable pending protocol
-verification. See [interface settings](docs/interface-settings.md) for control
+The monitoring selector applies Hardware or DAW Only through ALSA. Its state
+is read from the Rack and refreshed every five seconds. See [interface settings](docs/interface-settings.md) for control
 behavior and limitations, and [REAPER setup](docs/reaper.md) for DAW routing.
 
 ### DAWs and system audio
