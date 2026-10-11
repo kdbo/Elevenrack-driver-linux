@@ -26,5 +26,9 @@
     "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.4.7.tar.gz",
     "sha256": "9d54f025e1e7ae73b980a6c8be2e8e6387e24d554d58478d6495734ce1ee5a93",
     "patch": "pipewire-eleven-latency-1.4.7.patch"
+  },
+  "1.6.8": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.6.8.tar.gz",
+    "sha256": "8181172a1d95131f6af8bbc0b98f90b2a33349b042b84c3ce57dd5d11348cc58"
   }
 }

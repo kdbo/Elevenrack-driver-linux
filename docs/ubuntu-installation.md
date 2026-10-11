@@ -11,7 +11,7 @@ Open **Actions → Ubuntu package set → Run workflow**:
   enable this option.
 
 There is no Ubuntu version input. The workflow builds one set and automatically
-checks those same packages in Ubuntu 24.04, 24.10, 25.04, 25.10, 26.04 and
+checks those same packages (including 24.04 GA and HWE) in Ubuntu 24.04, 24.10, 25.04, 25.10, 26.04 and
 preliminary 26.10 containers. Publication requires those checks to pass.
 
 Download `ubuntu-package-set`, containing exactly two Debian packages:
@@ -43,7 +43,7 @@ library and service overrides. An incompatible update or failed build disables
 the previous backend instead of leaving an incompatible library active.
 
 The bundled catalog currently covers PipeWire 1.0.5, 1.2.4, 1.2.7, 1.4.7, 1.6.2
-and 1.6.9. A future or custom PipeWire version outside this catalog requires an
+1.6.8 and 1.6.9. A future or custom PipeWire version outside this catalog requires an
 updated driver package; the installer reports this explicitly and does not ask
 which Ubuntu version to use. The package does not pin PipeWire to one distro's
 version.
