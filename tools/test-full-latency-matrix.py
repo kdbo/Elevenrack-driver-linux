@@ -2,6 +2,7 @@
 """Measure 18 profiles on two fresh audio starts, restoring user settings."""
 import importlib.util
 import argparse
+import csv
 import json
 import os
 from pathlib import Path
@@ -22,17 +23,39 @@ def stop():
     call('systemctl','--user','stop','pipewire-pulse.socket','pipewire.socket')
     call('systemctl','--user','stop','wireplumber.service','pipewire-pulse.service','pipewire.service')
 
-def pcm_restarted(snapshots):
-    """Ignore unset startup timestamps; detect changes to an actual start time."""
+def recording_bounds(raw, rate):
+    """Use recorded callbacks, including the final block's duration."""
+    with Path(str(raw)+'.timestamps.csv').open() as stream:
+        stamps = csv.DictReader(stream)
+        first = next(stamps, None)
+        if first is None or int(first['frame']) != 0:
+            raise ValueError('Missing recording start timestamp')
+        last = first
+        for last in stamps:
+            pass
+    sample_count = raw.stat().st_size // 4
+    final_frames = min(int(last['frames']), sample_count-int(last['frame']))
+    if final_frames <= 0:
+        raise ValueError('Invalid recording end timestamp')
+    return (int(first['realtime_ns']),
+            int(last['realtime_ns']) + final_frames*1_000_000_000//rate)
+
+
+def pcm_restarted(snapshots, bounds=None):
+    """Keep a warmup baseline, but reject only changes within recording."""
     for direction in ('p', 'c'):
-        triggers = {
-            value.strip()
-            for snapshot in snapshots
-            for value in re.findall(r'^trigger_time\s*:\s*(.+)', snapshot[direction+'_status'], re.M)
-            if not re.fullmatch(r'0+(?:\.0+)?', value.strip())
-        }
-        if len(triggers) > 1:
-            return True
+        previous = None
+        for snapshot in snapshots:
+            if bounds is not None and snapshot['realtime_ns'] >= bounds[1]:
+                break
+            for value in re.findall(r'^trigger_time\s*:\s*(.+)', snapshot[direction+'_status'], re.M):
+                value = value.strip()
+                if re.fullmatch(r'0+(?:\.0+)?', value):
+                    continue
+                in_recording = bounds is None or snapshot['realtime_ns'] >= bounds[0]
+                if previous is not None and value != previous and in_recording:
+                    return True
+                previous = value
     return False
 
 def main():
@@ -102,7 +125,9 @@ def main():
                         actual = {int(v) for x in snapshots for v in re.findall(r'^rate: (\d+)',x[d+'_hw_params'],re.M)}
                         if actual != {rate}: raise ValueError('ALSA rate mismatch')
                     if args.regression:
-                        if pcm_restarted(snapshots):
+                        bounds = recording_bounds(raw, rate)
+                        row['recording_start_realtime_ns'], row['recording_end_realtime_ns'] = bounds
+                        if pcm_restarted(snapshots, bounds):
                             raise ValueError('PCM restarted during regression')
                     if any(result.get('alsa_transport', {}).values()): raise ValueError('PCM restarted during recording')
                     row.update(result)

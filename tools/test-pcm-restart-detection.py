@@ -3,6 +3,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import tempfile
 
 spec = importlib.util.spec_from_file_location(
     'matrix', Path(__file__).with_name('test-full-latency-matrix.py'))
@@ -18,6 +19,31 @@ def snapshot(playback, capture):
 
 
 class RestartDetection(unittest.TestCase):
+    def test_only_recording_changes_count(self):
+        def timed(t, trigger):
+            return dict(snapshot(trigger, trigger), realtime_ns=t)
+        warmup = [timed(1, '10.0'), timed(2, '11.0')]
+        self.assertFalse(matrix.pcm_restarted(
+            warmup + [timed(3, '11.0'), timed(5, '12.0')], (3, 5)))
+        # Preserve the pre-recording baseline to catch an immediate restart.
+        self.assertTrue(matrix.pcm_restarted(
+            warmup + [timed(3, '12.0')], (3, 5)))
+        self.assertTrue(matrix.pcm_restarted(
+            warmup + [timed(3, '11.0'), timed(4, '12.0')], (3, 5)))
+
+    def test_bounds_follow_actual_callbacks_and_partial_final_block(self):
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory)/'recording.raw'
+            raw.write_bytes(bytes(6*4))
+            Path(str(raw)+'.timestamps.csv').write_text(
+                'frame,frames,realtime_ns,monotonic_raw_ns\n'
+                '0,4,1000000000,1\n4,4,2000000000,2\n')
+            self.assertEqual(matrix.recording_bounds(raw, 4),
+                             (1000000000, 2500000000))
+            Path(str(raw)+'.timestamps.csv').write_text('frame,frames,realtime_ns\n')
+            with self.assertRaisesRegex(ValueError, 'Missing recording start'):
+                matrix.recording_bounds(raw, 4)
+
     def test_initial_start_is_not_restart(self):
         self.assertFalse(matrix.pcm_restarted([
             snapshot(None, None), snapshot('0.000000000', '0'),
