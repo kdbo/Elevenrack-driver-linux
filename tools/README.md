@@ -19,6 +19,10 @@ Current tools serve these workflows:
   Ubuntu driver. `install-latency-backend.py` detects PipeWire and builds its
   backend automatically. The private workflow adds the Editor as the second package.
   See [Ubuntu build/download instructions](../docs/ubuntu-installation.md).
+  `prepare-fedora-kernel.py` prepares Fedora's matching signed source RPM;
+  `build-fedora-package-set.py` creates the complete driver and Editor RPMs.
+  `check-fedora-package-set.py` verifies their payloads and version dependencies.
+  See [Fedora build/download instructions](../docs/fedora-installation.md).
 - Latency backend: `build-latency-backend.py`, `build-latency-package.py`,
   `check-latency-backend.py`, `spa-eleven-alsa.c`, `activate-profile-corrections.py`.
   See [multi-distribution builds and packages](../docs/backend-building.md).
