@@ -31,6 +31,7 @@ def check(directory):
     driver = names['eleven-rack-driver']
     dependencies = query(driver, '--requires').splitlines()
     for dependency in ('kernel-devel = '+target['kernel_devel_version'],
+                       'kernel-devel-matched = '+target['kernel_devel_version'],
                        'pipewire = '+target['pipewire_package_version'],
                        'pipewire-libs = '+target['pipewire_package_version']):
         if dependency not in dependencies:

@@ -194,7 +194,8 @@ def main():
         pw = backend.dependency_version('rpm', metadata)
         dependencies = ['dkms', 'gcc', 'make', 'python3', 'python3-gobject', 'python3-websockets',
                         'gtk3', 'alsa-utils', 'alsa-lib', 'wireplumber >= 0.5', 'kmod', 'dracut',
-                        'kernel-devel = '+args.kernel_devel_version, 'pipewire = '+pw,
+                        'kernel-devel = '+args.kernel_devel_version,
+                        'kernel-devel-matched = '+args.kernel_devel_version, 'pipewire = '+pw,
                         'pipewire-libs = '+pw, 'pipewire-jack-audio-connection-kit = '+pw]
         recipe = spec('eleven-rack-driver', version, stage, dependencies, driver_scripts(version, args.kernel_release))
         build_rpm(stage, output, recipe, backend)
