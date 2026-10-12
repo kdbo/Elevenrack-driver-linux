@@ -26,8 +26,16 @@ def deadline(now):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan',action='store_true')
-    parser.add_argument('--start-now',action='store_true',help='Manually open a five-hour window using the same queue')
+    window=parser.add_mutually_exclusive_group()
+    window.add_argument('--start-now',action='store_true',help='Manually open a five-hour window using the same queue')
+    window.add_argument('--until', help='Run today until HH:MM Europe/Brussels, reserving five minutes for restoration')
     args=parser.parse_args()
+    until=None
+    if args.until:
+        try:
+            until=datetime.strptime(args.until, '%H:%M').time()
+        except ValueError:
+            parser.error('--until must be HH:MM')
     if args.plan:
         print('288 tasks: all 24 profiles × sine/white/pink × 1/5/15/30 minutes. Persistent queue, 23:00–03:55; reserve until 04:00 for restoration.');return
     def cancelled(signum,frame): raise KeyboardInterrupt
@@ -37,6 +45,8 @@ def main():
     try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError: print('Another nightly run is active');return
     now=datetime.now(ZONE);end=now+timedelta(hours=4,minutes=55) if args.start_now else deadline(now)
+    if until is not None:
+        end=now.replace(hour=until.hour,minute=until.minute,second=0,microsecond=0)-timedelta(minutes=5)
     if end is None or now>=end: print('Outside testing window');return
     os.environ.setdefault('XDG_RUNTIME_DIR',f'/run/user/{os.getuid()}')
     os.environ.setdefault('DBUS_SESSION_BUS_ADDRESS',f'unix:path={os.environ["XDG_RUNTIME_DIR"]}/bus')
