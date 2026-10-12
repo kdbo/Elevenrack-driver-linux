@@ -31,7 +31,7 @@ class FedoraPackaging(unittest.TestCase):
         text = fedora.driver_scripts('0.1.2~beta8', '7.0.1-1.fc44.x86_64')
         self.assertNotIn('uname', text)
         for action in ('build', 'install'):
-            self.assertIn(f'dkms {action} -m eleven-rack -v 0.1.2~beta8 -k 7.0.1-1.fc44.x86_64', text)
+            self.assertIn(f'dkms {action} -m eleven-rack -v 0.1.2~beta8 -k 7.0.1-1.fc44.x86_64 --kernelsourcedir /usr/src/kernels/7.0.1-1.fc44.x86_64', text)
         for section in text.split('%')[1:]:
             body = section.split('\n', 1)[1]
             subprocess.run(['sh', '-n'], input=body, text=True, check=True)

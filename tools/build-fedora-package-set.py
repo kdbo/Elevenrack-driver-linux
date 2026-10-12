@@ -108,9 +108,10 @@ def driver_payload(stage, version, kernel, source, backend_build, backend):
 def driver_scripts(version, kernel):
     return f'''%post
 set -e
+test -f /usr/src/kernels/{kernel}/Makefile || {{ echo 'Missing Fedora kernel-devel files for {kernel}' >&2; exit 1; }}
 dkms add -m eleven-rack -v {version} || test -d /var/lib/dkms/eleven-rack/{version}
-dkms build -m eleven-rack -v {version} -k {kernel}
-dkms install -m eleven-rack -v {version} -k {kernel}
+dkms build -m eleven-rack -v {version} -k {kernel} --kernelsourcedir /usr/src/kernels/{kernel}
+dkms install -m eleven-rack -v {version} -k {kernel} --kernelsourcedir /usr/src/kernels/{kernel}
 depmod -a {kernel}
 if [ -f /boot/vmlinuz-{kernel} ]; then dracut --force --kver {kernel}; fi
 echo 'Eleven Rack installed. Reboot to activate the driver and audio configuration.'
