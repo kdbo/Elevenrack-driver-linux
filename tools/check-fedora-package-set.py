@@ -51,9 +51,14 @@ def check(directory):
                  '/usr/share/applications/eleven-rack-editor-linux.desktop',
                  '/opt/eleven-rack-editor/eleven-rack-editor-linux',
                  '/opt/eleven-rack-editor/resources/app.asar',
-                 '/opt/eleven-rack-editor/resources/bridge-linux/bridge.py'):
+                 '/opt/eleven-rack-editor/resources/bridge-linux/bridge.py',
+                 '/opt/eleven-rack-editor/resources/bridge-linux/rtmidi/__init__.py'):
         if name not in editor_files:
             raise RuntimeError('Missing Editor payload: '+name)
+    if not any('/bridge-linux/rtmidi/_rtmidi.' in path and path.endswith('.so') for path in editor_files):
+        raise RuntimeError('Missing native bundled RtMidi module')
+    if 'python3-rtmidi' in query(names['eleven-rack-editor-linux'], '--requires').splitlines():
+        raise RuntimeError('Editor must use bundled RtMidi, not an unavailable distro package')
     with tempfile.TemporaryDirectory(prefix='fedora-check-') as temporary:
         root = Path(temporary)
         archive = subprocess.Popen(['rpm2cpio', str(driver.resolve())], stdout=subprocess.PIPE)

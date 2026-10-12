@@ -13,6 +13,20 @@ spec.loader.exec_module(fedora)
 
 
 class FedoraPackaging(unittest.TestCase):
+    def test_bundled_rtmidi_uses_host_python_abi(self):
+        import sys
+        dependencies = fedora.editor_dependencies()
+        self.assertNotIn('python3-rtmidi', dependencies)
+        self.assertIn(f'python(abi) = {sys.version_info.major}.{sys.version_info.minor}', dependencies)
+
+    def test_editor_requires_bundled_rtmidi(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            editor = Path(temporary)/'editor'
+            for name in ('eleven-rack-editor-linux', 'resources/app.asar', 'resources/bridge-linux/bridge.py'):
+                fedora.write(editor, name, 'test')
+            with self.assertRaisesRegex(RuntimeError, 'rtmidi/__init__.py'):
+                fedora.editor_payload(Path(temporary)/'stage', editor)
+
     def test_scripts_target_explicit_kernel_not_runner(self):
         text = fedora.driver_scripts('0.1.2~beta8', '7.0.1-1.fc44.x86_64')
         self.assertNotIn('uname', text)

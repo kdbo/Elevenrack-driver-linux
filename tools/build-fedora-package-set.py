@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -124,7 +125,8 @@ fi
 
 
 def editor_payload(stage, editor):
-    for required in ('eleven-rack-editor-linux', 'resources/app.asar', 'resources/bridge-linux/bridge.py'):
+    for required in ('eleven-rack-editor-linux', 'resources/app.asar', 'resources/bridge-linux/bridge.py',
+                     'resources/bridge-linux/rtmidi/__init__.py'):
         if not (editor/required).is_file():
             raise RuntimeError('Missing built Editor file: '+required)
     shutil.copytree(editor, stage/'opt/eleven-rack-editor', symlinks=True)
@@ -139,6 +141,14 @@ Categories=AudioVideo;Audio;
 ''')
     for name in ('LICENSE', 'NOTICE'):
         copy(stage, ROOT/'editor'/name, 'usr/share/doc/eleven-rack-editor-linux/'+name)
+
+
+def editor_dependencies():
+    # RtMidi is bundled next to bridge.py and compiled for this Python ABI.
+    return ['python3', f'python(abi) = {sys.version_info.major}.{sys.version_info.minor}',
+            'python3-websockets', 'gtk3', 'nss', 'alsa-lib', 'mesa-libgbm', 'libdrm',
+            'cups-libs', 'libxkbcommon', 'libXScrnSaver', 'libXtst', 'at-spi2-core',
+            'libnotify', 'xdg-utils']
 
 
 def build_rpm(stage, output, recipe, backend):
@@ -190,9 +200,7 @@ def main():
         stage = Path(temporary)/'editor'
         stage.mkdir()
         editor_payload(stage, args.editor.resolve())
-        dependencies = ['python3', 'python3-rtmidi', 'python3-websockets', 'gtk3', 'nss',
-                        'alsa-lib', 'mesa-libgbm', 'libdrm', 'cups-libs', 'libxkbcommon',
-                        'libXScrnSaver', 'libXtst', 'at-spi2-core', 'libnotify', 'xdg-utils']
+        dependencies = editor_dependencies()
         build_rpm(stage, output, spec('eleven-rack-editor-linux', version, stage, dependencies), backend)
     target = {'version': version, 'kernel_release': args.kernel_release,
               'kernel_devel_version': args.kernel_devel_version, 'pipewire_package_version': pw}

@@ -6,6 +6,9 @@ provides the manual **Fedora package set** workflow. It produces exactly two RPM
 - `eleven-rack-driver`: DKMS sources prepared from Fedora's matching signed kernel
   source RPM, Control panel, PipeWire latency backend and configuration.
 - `eleven-rack-editor-linux`: Electron Editor and Linux MIDI bridge.
+  Python-RtMidi is built inside Fedora and bundled next to the bridge, so the
+  RPM does not depend on a `python3-rtmidi` repository package. It requires the
+  matching Python ABI; Fedora major upgrades need a matching Editor build.
 
 Select Fedora 43 or 44, a public source branch/commit/tag, and leave publication
 disabled to build downloadable artifacts without creating a release. Download
