@@ -22,6 +22,19 @@ def stop():
     call('systemctl','--user','stop','pipewire-pulse.socket','pipewire.socket')
     call('systemctl','--user','stop','wireplumber.service','pipewire-pulse.service','pipewire.service')
 
+def pcm_restarted(snapshots):
+    """Ignore unset startup timestamps; detect changes to an actual start time."""
+    for direction in ('p', 'c'):
+        triggers = {
+            value.strip()
+            for snapshot in snapshots
+            for value in re.findall(r'^trigger_time\s*:\s*(.+)', snapshot[direction+'_status'], re.M)
+            if not re.fullmatch(r'0+(?:\.0+)?', value.strip())
+        }
+        if len(triggers) > 1:
+            return True
+    return False
+
 def main():
     global OUT
     parser = argparse.ArgumentParser(description=__doc__)
@@ -89,9 +102,8 @@ def main():
                         actual = {int(v) for x in snapshots for v in re.findall(r'^rate: (\d+)',x[d+'_hw_params'],re.M)}
                         if actual != {rate}: raise ValueError('ALSA rate mismatch')
                     if args.regression:
-                        for d in ('p','c'):
-                            triggers={v for x in snapshots for v in re.findall(r'^trigger_time\s*:\s*(.+)',x[d+'_status'],re.M)}
-                            if len(triggers)>1: raise ValueError('PCM restarted during regression')
+                        if pcm_restarted(snapshots):
+                            raise ValueError('PCM restarted during regression')
                     if any(result.get('alsa_transport', {}).values()): raise ValueError('PCM restarted during recording')
                     row.update(result)
                     row['valid'] = result.get('passed', True)
