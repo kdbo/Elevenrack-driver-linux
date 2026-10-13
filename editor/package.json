@@ -1,6 +1,6 @@
 {
   "name": "eleven-rack-editor-linux",
-  "version": "0.1.2-beta9",
+  "version": "0.1.2-beta10",
   "description": "Linux port of Eleven Edit",
   "author": "Charles Wardick <charles.wardick@gmail.com>",
   "main": "main.js",
