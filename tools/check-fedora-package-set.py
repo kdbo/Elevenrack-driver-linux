@@ -88,7 +88,8 @@ def main():
     parser.add_argument('--directory', type=Path, default=Path('build/fedora-set'))
     args = parser.parse_args()
     target = check(args.directory)
-    (args.directory/'README.txt').write_text(f'''Eleven Rack Fedora package set
+    distro = 'CentOS Stream 10' if target.get('distro') == 'centos-stream10' else 'Fedora'
+    (args.directory/'README.txt').write_text(f'''Eleven Rack {distro} package set
 
 Exactly two RPMs: eleven-rack-driver and eleven-rack-editor-linux.
 Kernel: {target['kernel_release']}
@@ -103,7 +104,7 @@ Extract the artifact ZIP, then:
 
 Run eleven-rack-control gui and eleven-rack-editor-linux after reboot.
 Use the matching kernel and PipeWire packages above; rebuild the set before
-upgrading them. Fedora hardware latency is not validated; Ubuntu measurement
+upgrading them. {distro} hardware latency is not validated; Ubuntu measurement
 defaults are included. Secure Boot requires trusting the DKMS signing key.
 Container checks establish installation/build compatibility, not USB audio quality.
 ''')

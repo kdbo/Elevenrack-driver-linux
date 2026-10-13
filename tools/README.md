@@ -23,6 +23,8 @@ Current tools serve these workflows:
   `build-fedora-package-set.py` creates the complete driver and Editor RPMs.
   `check-fedora-package-set.py` verifies their payloads and version dependencies.
   See [Fedora build/download instructions](../docs/fedora-installation.md).
+  The CentOS Stream 10 workflow reuses these RPM tools in its own container;
+  see [CentOS build/download instructions](../docs/centos-installation.md).
 - Latency backend: `build-latency-backend.py`, `build-latency-package.py`,
   `check-latency-backend.py`, `spa-eleven-alsa.c`, `activate-profile-corrections.py`.
   See [multi-distribution builds and packages](../docs/backend-building.md).

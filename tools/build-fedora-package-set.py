@@ -169,6 +169,7 @@ def build_rpm(stage, output, recipe, backend):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--distro', choices=('fedora', 'centos-stream10'), default='fedora')
     parser.add_argument('--kernel-source', type=Path, required=True)
     parser.add_argument('--kernel-release', required=True)
     parser.add_argument('--kernel-devel-version', required=True)
@@ -204,7 +205,7 @@ def main():
         editor_payload(stage, args.editor.resolve())
         dependencies = editor_dependencies()
         build_rpm(stage, output, spec('eleven-rack-editor-linux', version, stage, dependencies), backend)
-    target = {'version': version, 'kernel_release': args.kernel_release,
+    target = {'distro': args.distro, 'version': version, 'kernel_release': args.kernel_release,
               'kernel_devel_version': args.kernel_devel_version, 'pipewire_package_version': pw}
     (output/'package-target.json').write_text(json.dumps(target, indent=2)+'\n')
     print('Built complete Fedora package set:', output)
