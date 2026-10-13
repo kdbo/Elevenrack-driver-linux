@@ -22,7 +22,8 @@ class FedoraPackaging(unittest.TestCase):
     def test_editor_requires_bundled_rtmidi(self):
         with tempfile.TemporaryDirectory() as temporary:
             editor = Path(temporary)/'editor'
-            for name in ('eleven-rack-editor-linux', 'resources/app.asar', 'resources/bridge-linux/bridge.py'):
+            for name in ('eleven-rack-editor-linux', 'resources/app.asar',
+                         'resources/eleven-rack-updates.py', 'resources/bridge-linux/bridge.py'):
                 fedora.write(editor, name, 'test')
             with self.assertRaisesRegex(RuntimeError, 'rtmidi/__init__.py'):
                 fedora.editor_payload(Path(temporary)/'stage', editor)

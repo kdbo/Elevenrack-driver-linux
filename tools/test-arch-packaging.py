@@ -62,6 +62,7 @@ class ArchPackageTests(unittest.TestCase):
     def editor_fixture(self, root):
         unpacked = root / 'unpacked'
         for name in ('eleven-rack-editor-linux', 'chrome-sandbox', 'resources/app.asar',
+                     'resources/eleven-rack-updates.py',
                      'resources/bridge-linux/bridge.py', 'resources/bridge-linux/segmented_sysex.py',
                      'resources/eleven-rack-editor-logo.png', 'resources/LICENSE', 'resources/NOTICE'):
             path = unpacked / name
