@@ -47,8 +47,12 @@ def reported_roundtrip(objects, rate, quantum):
         entries=[e for e in nodes[0]['info'].get('params',{}).get('Latency',[]) if e.get('direction')==direction]
         if len(entries)!=1: raise ValueError('Latency unavailable')
         e=entries[0]
+        # Our ALSA backend reports frames/ns directly, also in Automatic mode.
+        # Quantum-dependent values cannot be evaluated without live graph timing.
+        if quantum is None and any(float(e[b+'Quantum']) != 0 for b in ('min','max')):
+            raise ValueError('Latency requires active graph quantum')
         for i,bound in enumerate(('min','max')):
-            totals[i]+=(float(e[bound+'Quantum'])*quantum+float(e[bound+'Rate']))*1000/rate+float(e[bound+'Ns'])/1e6
+            totals[i]+=(float(e[bound+'Quantum'])*(quantum or 0)+float(e[bound+'Rate']))*1000/rate+float(e[bound+'Ns'])/1e6
     return totals
 
 
@@ -61,8 +65,10 @@ def roundtrip_status(values):
             match=re.search(r'^rate:\s+(\d+)',params,re.M)
             if not match: raise ValueError('Audio stream idle')
             rates.add(int(match[1]))
-        if len(rates)!=1 or quantum<=0: raise ValueError('Active graph timing unavailable')
+        if len(rates)!=1: raise ValueError('Active graph timing unavailable')
         rate=rates.pop()
+        if quantum<=0:
+            quantum=None
         result=subprocess.run(['pw-dump'],capture_output=True,text=True,timeout=3)
         if result.returncode: raise ValueError('PipeWire unavailable')
         low,high=reported_roundtrip(json.loads(result.stdout),rate,quantum)
