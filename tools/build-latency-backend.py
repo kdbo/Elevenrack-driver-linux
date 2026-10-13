@@ -66,9 +66,10 @@ def main():
     source = sources.get(version, {})
     expected = args.sha256 or source.get('sha256')
     if not expected or not re.fullmatch(r'[a-fA-F0-9]{64}', expected):
-        parser.error('Supply --archive and --sha256 for an unlisted PipeWire release')
+        parser.error(f'PipeWire {version} has no valid source checksum; supply --archive '
+                     'and --sha256 or add this release to packaging/pipewire-sources.json')
     if not source and not args.archive:
-        parser.error('Supply --archive for an unlisted PipeWire release')
+        parser.error(f'Supply --archive for unlisted PipeWire {version}')
     spa_dir = args.spa_plugin_dir or plugin_directory()
     # These paths are embedded in C and systemd configuration; reject control characters.
     if not re.fullmatch(r'/[A-Za-z0-9_./+-]+', str(spa_dir)):
