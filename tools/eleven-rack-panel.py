@@ -377,7 +377,13 @@ class Panel(Gtk.Window):
                 cache.mkdir(parents=True, exist_ok=True)
                 binary = cache / ('meters-' + hashlib.sha256(source.read_bytes()).hexdigest()[:16])
                 if not binary.exists():
-                    subprocess.run(['cc', '-std=c11', '-D_DEFAULT_SOURCE', '-O2', str(source), '-o', str(binary), '-l:libjack.so.0', '-lm'], check=True, capture_output=True, timeout=30)
+                    # Fedora keeps PipeWire's JACK library outside the linker's
+                    # default search directories; pw-jack handles runtime lookup.
+                    libraries = [Path('/usr/lib64/pipewire-0.3/jack/libjack.so.0'),
+                                 Path('/usr/lib/pipewire-0.3/jack/libjack.so.0')]
+                    libraries += sorted(Path('/usr/lib').glob('*-linux-gnu/pipewire-0.3/jack/libjack.so.0'))
+                    jack_library = next((str(p) for p in libraries if p.is_file()), '-l:libjack.so.0')
+                    subprocess.run(['cc', '-std=c11', '-D_DEFAULT_SOURCE', '-O2', str(source), '-o', str(binary), jack_library, '-lm'], check=True, capture_output=True, timeout=30)
                 env = os.environ.copy()
                 for key in ('PIPEWIRE_QUANTUM', 'PIPEWIRE_LATENCY', 'PIPEWIRE_RATE'):
                     env.pop(key, None)
@@ -390,7 +396,8 @@ class Panel(Gtk.Window):
                     values = [float(v) for v in line.split()]
                     if len(values) == 14:
                         GLib.idle_add(self.meters_updated, values, epoch)
-            except (OSError, ValueError, subprocess.SubprocessError):
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                print('Eleven Rack meters:', getattr(error, 'stderr', None) or str(error), file=sys.stderr)
                 GLib.idle_add(self.meters_updated, [-1] * 14, epoch)
             finally:
                 if process is not None:
