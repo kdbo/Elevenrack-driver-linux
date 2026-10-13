@@ -417,7 +417,6 @@ class Panel(Gtk.Window):
                 process.terminate()
 
     def refresh_meters(self, *_):
-        expanded = any(e.get_expanded() for e in self.meter_expanders)
         regression = False
         lock_path = Path('/tmp/eleven-rack-regression-%d.lock' % os.getuid())
         if lock_path.exists():
@@ -428,7 +427,9 @@ class Panel(Gtk.Window):
                 regression = True
             except OSError:
                 pass
-        if not expanded or regression or self.busy or self.meters_suspended:
+        # Keep the duplex client alive for live backend latency even when the
+        # channel meters are hidden. Only their rendering follows the expander.
+        if regression or self.busy or self.meters_suspended:
             self.stop_meters()
             self.meter_display_db = [-60.0] * 16
             for meter, readout in self.meter_widgets:
@@ -480,6 +481,8 @@ class Panel(Gtk.Window):
 
     def meters_updated(self, values, epoch):
         if epoch != self.meter_epoch:
+            return False
+        if not any(e.get_expanded() for e in self.meter_expanders):
             return False
         values = values + values[2:4]
         for index, ((meter, readout), peak) in enumerate(zip(self.meter_widgets, values)):
