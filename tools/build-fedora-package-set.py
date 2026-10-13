@@ -118,6 +118,7 @@ def driver_scripts(version, kernel):
     kernel = ' '.join(kernels)
     return f'''%post
 set -e
+echo 'Eleven Rack: registering DKMS sources...'
 dkms add -m eleven-rack -v {version} || test -d /var/lib/dkms/eleven-rack/{version}
 built=0
 running_kernel=$(uname -r)
@@ -131,10 +132,18 @@ for kernel in {kernel}; do
         continue
     fi
     test -f /usr/src/kernels/$kernel/Makefile || {{ echo "Missing kernel-devel files for $kernel" >&2; exit 1; }}
-    dkms build -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"
-    dkms install -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"
+    echo "Eleven Rack: building the driver for $kernel..."
+    echo 'Build log: /var/lib/dkms/eleven-rack/{version}/build/make.log'
+    dkms build -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel" --verbose
+    echo "Eleven Rack: installing the module for $kernel..."
+    dkms install -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel" --verbose
+    echo "Eleven Rack: updating module dependencies for $kernel..."
     depmod -a "$kernel"
-    if [ -f /boot/vmlinuz-$kernel ]; then dracut --force --kver "$kernel"; fi
+    if [ -f /boot/vmlinuz-$kernel ]; then
+        echo "Eleven Rack: rebuilding initramfs for $kernel (this may take a while)..."
+        dracut --force --kver "$kernel"
+    fi
+    echo "Eleven Rack: driver ready for $kernel."
     built=$((built + 1))
 done
 if [ "$built" -eq 0 ]; then
