@@ -103,6 +103,11 @@ CSS = b'''
 .eleven-rack-about-content textview, .eleven-rack-about-content textview text {
     background-color: #101010; color: #eee9e3;
 }
+.eleven-rack-about-content label,
+.eleven-rack-about-content textview, .eleven-rack-about-content textview text {
+    font-family: sans-serif; font-size: 12px;
+}
+.eleven-rack-about-content label.section { font-size: 15px; font-weight: bold; }
 '''
 
 
@@ -517,6 +522,24 @@ class Panel(Gtk.Window):
             thanks.show_all()
         else:
             dialog.add_credit_section('Thanks to', [acknowledgement.get_text()])
+        def uniform_about_fonts(widget):
+            # GTK's built-in pages use small/large markup and a monospace
+            # license view. Match the custom acknowledgement's typography.
+            if isinstance(widget, Gtk.Label):
+                attributes = widget.get_attributes()
+                if attributes is not None:
+                    attributes = attributes.copy()
+                    attributes.filter(lambda attribute, *_: attribute.klass.type in (
+                        Pango.AttrType.FAMILY, Pango.AttrType.SIZE,
+                        Pango.AttrType.ABSOLUTE_SIZE, Pango.AttrType.SCALE,
+                        Pango.AttrType.FONT_DESC))
+                    widget.set_attributes(attributes)
+            elif isinstance(widget, Gtk.TextView):
+                widget.set_monospace(False)
+            if isinstance(widget, Gtk.Container):
+                for child in widget.get_children():
+                    uniform_about_fonts(child)
+        uniform_about_fonts(dialog.get_content_area())
         dialog.connect('response', lambda widget, _response: widget.destroy())
         dialog.show()
 
