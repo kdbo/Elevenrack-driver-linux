@@ -29,7 +29,8 @@ class FedoraPackaging(unittest.TestCase):
 
     def test_scripts_target_explicit_kernel_not_runner(self):
         text = fedora.driver_scripts('0.1.2~beta8', '7.0.1-1.fc44.x86_64')
-        self.assertNotIn('uname', text)
+        self.assertIn('running_kernel=$(uname -r)', text)
+        self.assertIn('if [ "$kernel" != "$running_kernel" ]', text)
         for action in ('build', 'install'):
             self.assertIn(f'dkms {action} -m eleven-rack -v 0.1.2~beta8 -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"', text)
         self.assertIn('for kernel in 7.0.1-1.fc44.x86_64; do', text)

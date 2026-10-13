@@ -119,13 +119,27 @@ def driver_scripts(version, kernel):
     return f'''%post
 set -e
 dkms add -m eleven-rack -v {version} || test -d /var/lib/dkms/eleven-rack/{version}
+built=0
+running_kernel=$(uname -r)
 for kernel in {kernel}; do
+    if [ "$kernel" != "$running_kernel" ]; then
+        echo "Skipping inactive kernel $kernel"
+        continue
+    fi
+    if ! rpm -q "kernel-core-$kernel" >/dev/null 2>&1; then
+        echo "Skipping absent kernel $kernel"
+        continue
+    fi
     test -f /usr/src/kernels/$kernel/Makefile || {{ echo "Missing kernel-devel files for $kernel" >&2; exit 1; }}
     dkms build -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"
     dkms install -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"
     depmod -a "$kernel"
     if [ -f /boot/vmlinuz-$kernel ]; then dracut --force --kver "$kernel"; fi
+    built=$((built + 1))
 done
+if [ "$built" -eq 0 ]; then
+    echo 'No installed kernel matches the bundled sources. DKMS is registered; a supported kernel is required to use the patched driver.' >&2
+fi
 echo 'Eleven Rack installed. Reboot to activate the driver and audio configuration.'
 %preun
 if [ "$1" -eq 0 ]; then dkms remove -m eleven-rack -v {version} --all; fi
@@ -166,6 +180,19 @@ def editor_dependencies():
             'python3-websockets', 'gtk3', 'nss', 'alsa-lib', 'mesa-libgbm', 'libdrm',
             'cups-libs', 'libxkbcommon', 'libXScrnSaver', 'libXtst', 'at-spi2-core',
             'libnotify', 'xdg-utils']
+
+
+def driver_dependencies(pw, targets):
+    dependencies = ['dkms', 'gcc', 'make', 'python3', 'python3-gobject', 'python3-websockets',
+                    'gtk3', 'alsa-utils', 'alsa-lib', 'wireplumber >= 0.5', 'kmod', 'dracut',
+                    'pipewire = '+pw, 'pipewire-libs = '+pw,
+                    'pipewire-jack-audio-connection-kit = '+pw]
+    for target in targets:
+        version = target['kernel_devel_version']
+        # Resolve matching headers only when this kernel is already installed;
+        # never pull in a bundled kernel merely to satisfy the driver package.
+        dependencies.append(f'(kernel-devel = {version} if kernel-core = {version})')
+    return dependencies
 
 
 def build_rpm(stage, output, recipe, backend):
@@ -216,13 +243,7 @@ def main():
         stage.mkdir()
         metadata = driver_payload(stage, version, args.kernel_release, args.kernel_source.resolve(), args.backend_build, backend, args.extra_kernel_source)
         pw = backend.dependency_version('rpm', metadata)
-        dependencies = ['dkms', 'gcc', 'make', 'python3', 'python3-gobject', 'python3-websockets',
-                        'gtk3', 'alsa-utils', 'alsa-lib', 'wireplumber >= 0.5', 'kmod', 'dracut',
-                        'kernel-devel = '+args.kernel_devel_version,
-                        'kernel-devel-matched = '+args.kernel_devel_version, 'pipewire = '+pw,
-                        'pipewire-libs = '+pw, 'pipewire-jack-audio-connection-kit = '+pw]
-        for target in targets[1:]:
-            dependencies += ['kernel-devel = '+target['kernel_devel_version'], 'kernel-core = '+target['kernel_devel_version']]
+        dependencies = driver_dependencies(pw, targets)
         recipe = spec('eleven-rack-driver', version, stage, dependencies, driver_scripts(version, [t['kernel_release'] for t in targets]))
         build_rpm(stage, output, recipe, backend)
         stage = Path(temporary)/'editor'

@@ -35,7 +35,9 @@ for each bundled kernel and selects its matching source tree. The running kernel
 loads its own module; Control is shared. Both module builds and their vermagic
 are checked in CI before the artifact is uploaded.
 
-The driver pins matching core/devel dependencies for the bundled kernels and
+Installation builds only for the currently running, bundled kernel; other kernels
+are skipped. Matching headers are required. CI explicitly builds every bundled
+target because containers run the host kernel. The driver pins
 PipeWire to the versions recorded in `package-target.json` (the `kernels` list).
 Boot one of those kernels; build an updated set for kernels outside the list.
 Other Fedora releases and RPM distributions are not implicitly supported.

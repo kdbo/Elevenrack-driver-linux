@@ -30,17 +30,17 @@ def check(directory):
         raise RuntimeError('Expected complete driver and Editor')
     driver = names['eleven-rack-driver']
     dependencies = query(driver, '--requires').splitlines()
-    for dependency in ('kernel-devel = '+target['kernel_devel_version'],
-                       'kernel-devel-matched = '+target['kernel_devel_version'],
-                       'pipewire = '+target['pipewire_package_version'],
+    for dependency in ('pipewire = '+target['pipewire_package_version'],
                        'pipewire-libs = '+target['pipewire_package_version']):
         if dependency not in dependencies:
             raise RuntimeError('Missing exact dependency: '+dependency)
     kernels = target.get('kernels', [target])
-    for kernel in kernels[1:]:
-        for name in ('kernel-devel', 'kernel-core'):
-            if name+' = '+kernel['kernel_devel_version'] not in dependencies:
-                raise RuntimeError('Missing additional kernel dependency')
+    for kernel in kernels:
+        version = kernel['kernel_devel_version']
+        if f'(kernel-devel = {version} if kernel-core = {version})' not in dependencies:
+            raise RuntimeError('Missing conditional matching-header dependency')
+    if any(d.startswith(('kernel-core ', 'kernel-devel ', 'kernel-devel-matched ')) for d in dependencies):
+        raise RuntimeError('Driver must not force installation of bundled kernels')
     source = '/usr/src/eleven-rack-'+target['version']
     files = query(driver, '--list').splitlines()
     for name in ('/usr/bin/eleven-rack-control', '/usr/lib/eleven-rack/tools/eleven-rack-settings.py',
