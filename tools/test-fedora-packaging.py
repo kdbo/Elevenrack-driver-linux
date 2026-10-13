@@ -31,7 +31,8 @@ class FedoraPackaging(unittest.TestCase):
         text = fedora.driver_scripts('0.1.2~beta8', '7.0.1-1.fc44.x86_64')
         self.assertNotIn('uname', text)
         for action in ('build', 'install'):
-            self.assertIn(f'dkms {action} -m eleven-rack -v 0.1.2~beta8 -k 7.0.1-1.fc44.x86_64 --kernelsourcedir /usr/src/kernels/7.0.1-1.fc44.x86_64', text)
+            self.assertIn(f'dkms {action} -m eleven-rack -v 0.1.2~beta8 -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"', text)
+        self.assertIn('for kernel in 7.0.1-1.fc44.x86_64; do', text)
         for section in text.split('%')[1:]:
             body = section.split('\n', 1)[1]
             subprocess.run(['sh', '-n'], input=body, text=True, check=True)
@@ -62,6 +63,26 @@ class FedoraPackaging(unittest.TestCase):
             result = subprocess.run(['bash', str(script), '7.0.2-1.fc44.x86_64'], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('not 7.0.2-1.fc44.x86_64', result.stderr)
+
+    def test_additional_kernel_selects_its_own_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            script = root/'build-driver.sh'
+            script.write_text((ROOT/'packaging/fedora/build-driver.sh').read_text())
+            (root/'prepared-kernel').mkdir()
+            (root/'prepared-kernel/kernel-release').write_text('7.2.9-201.fc44.x86_64\n')
+            old = root/'prepared-kernels/6.19.10-300.fc44.x86_64'
+            old.mkdir(parents=True)
+            (old/'kernel-release').write_text('6.19.10-300.fc44.x86_64\n')
+            (root/'build-driver-common.sh').write_text('#!/bin/bash\nprintf "%s\\n" "$1" "$2" "$3"\n')
+            result = subprocess.run(['bash', str(script), '6.19.10-300.fc44.x86_64', '/test/headers'], capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), ['6.19.10-300.fc44.x86_64', '/test/headers', str(old/'sound/usb')])
+
+    def test_scriptlets_build_all_bundled_kernels(self):
+        text = fedora.driver_scripts('0.1.2~beta8', ['6.19.10-300.fc44.x86_64', '7.2.9-201.fc44.x86_64'])
+        self.assertIn('for kernel in 6.19.10-300.fc44.x86_64 7.2.9-201.fc44.x86_64; do', text)
+        for section in text.split('%')[1:]:
+            subprocess.run(['sh', '-n'], input=section.split('\n', 1)[1], text=True, check=True)
 
 
 if __name__ == '__main__':

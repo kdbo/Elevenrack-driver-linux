@@ -36,6 +36,11 @@ def check(directory):
                        'pipewire-libs = '+target['pipewire_package_version']):
         if dependency not in dependencies:
             raise RuntimeError('Missing exact dependency: '+dependency)
+    kernels = target.get('kernels', [target])
+    for kernel in kernels[1:]:
+        for name in ('kernel-devel', 'kernel-core'):
+            if name+' = '+kernel['kernel_devel_version'] not in dependencies:
+                raise RuntimeError('Missing additional kernel dependency')
     source = '/usr/src/eleven-rack-'+target['version']
     files = query(driver, '--list').splitlines()
     for name in ('/usr/bin/eleven-rack-control', '/usr/lib/eleven-rack/tools/eleven-rack-settings.py',
@@ -71,6 +76,10 @@ def check(directory):
             raise RuntimeError('Cannot extract driver')
         if (root/source.lstrip('/')/'prepared-kernel/kernel-release').read_text().strip() != target['kernel_release']:
             raise RuntimeError('Kernel source mismatch')
+        for kernel in kernels[1:]:
+            extra = root/source.lstrip('/')/'prepared-kernels'/kernel['kernel_release']
+            if (extra/'kernel-release').read_text().strip() != kernel['kernel_release'] or not (extra/'sound/usb/Makefile').is_file():
+                raise RuntimeError('Additional packaged kernel source mismatch')
         metadata = json.loads((root/'usr/share/doc/eleven-rack-latency-backend/backend-build.json').read_text())
         upstream = re.match(r'(?:\d+:)?(\d+\.\d+\.\d+)', target['pipewire_package_version'])[1]
         if metadata['pipewire_version'] != upstream or metadata['spa_plugin_dir'] != '/usr/lib64/spa-0.2':
@@ -94,6 +103,7 @@ def main():
 Exactly two RPMs: eleven-rack-driver and eleven-rack-editor-linux.
 Kernel: {target['kernel_release']}
 kernel-devel: {target['kernel_devel_version']}
+Bundled kernels: {', '.join(k['kernel_release'] for k in target.get('kernels', [target]))}
 PipeWire: {target['pipewire_package_version']}
 
 Extract the artifact ZIP, then:

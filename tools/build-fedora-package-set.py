@@ -71,7 +71,7 @@ cp -a payload/. %{{buildroot}}/
 '''
 
 
-def driver_payload(stage, version, kernel, source, backend_build, backend):
+def driver_payload(stage, version, kernel, source, backend_build, backend, extra_sources=()):
     metadata = backend.check_build(backend_build)
     if metadata['spa_plugin_dir'] != '/usr/lib64/spa-0.2':
         raise RuntimeError('Build the x86_64 backend inside Fedora')
@@ -95,7 +95,15 @@ def driver_payload(stage, version, kernel, source, backend_build, backend):
         copy(stage, ROOT/'packaging'/name, destination+'/'+name)
     copy(stage, ROOT/'packaging/fedora/build-driver.sh', destination+'/build-driver.sh')
     dkms = (ROOT/'packaging/dkms.conf').read_text().replace('@VERSION@', version)
-    dkms += 'BUILD_EXCLUSIVE_KERNEL="^'+re.escape(kernel)+'$"\n'
+    kernels = [kernel]
+    for extra in extra_sources:
+        release = (extra/'include/config/kernel.release').read_text().strip()
+        if not re.fullmatch(r'[0-9][A-Za-z0-9_.+-]*', release) or release in kernels:
+            raise RuntimeError('Invalid or duplicate additional kernel release')
+        kernels.append(release)
+        shutil.copytree(extra/'sound/usb', stage/destination/'prepared-kernels'/release/'sound/usb')
+        write(stage, destination+'/prepared-kernels/'+release+'/kernel-release', release+'\n')
+    dkms += 'BUILD_EXCLUSIVE_KERNEL="^('+('|'.join(re.escape(k) for k in kernels))+')$"\n'
     write(stage, destination+'/dkms.conf', dkms)
     shutil.copytree(source/'sound/usb', stage/destination/'prepared-kernel/sound/usb')
     write(stage, destination+'/prepared-kernel/kernel-release', kernel+'\n')
@@ -106,21 +114,29 @@ def driver_payload(stage, version, kernel, source, backend_build, backend):
 
 
 def driver_scripts(version, kernel):
+    kernels = [kernel] if isinstance(kernel, str) else kernel
+    kernel = ' '.join(kernels)
     return f'''%post
 set -e
-test -f /usr/src/kernels/{kernel}/Makefile || {{ echo 'Missing Fedora kernel-devel files for {kernel}' >&2; exit 1; }}
 dkms add -m eleven-rack -v {version} || test -d /var/lib/dkms/eleven-rack/{version}
-dkms build -m eleven-rack -v {version} -k {kernel} --kernelsourcedir /usr/src/kernels/{kernel}
-dkms install -m eleven-rack -v {version} -k {kernel} --kernelsourcedir /usr/src/kernels/{kernel}
-depmod -a {kernel}
-if [ -f /boot/vmlinuz-{kernel} ]; then dracut --force --kver {kernel}; fi
+for kernel in {kernel}; do
+    test -f /usr/src/kernels/$kernel/Makefile || {{ echo "Missing kernel-devel files for $kernel" >&2; exit 1; }}
+    dkms build -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"
+    dkms install -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel"
+    depmod -a "$kernel"
+    if [ -f /boot/vmlinuz-$kernel ]; then dracut --force --kver "$kernel"; fi
+done
 echo 'Eleven Rack installed. Reboot to activate the driver and audio configuration.'
 %preun
 if [ "$1" -eq 0 ]; then dkms remove -m eleven-rack -v {version} --all; fi
 %postun
-if [ "$1" -eq 0 ] && [ -d /lib/modules/{kernel} ]; then
-    depmod -a {kernel}
-    if [ -f /boot/vmlinuz-{kernel} ]; then dracut --force --kver {kernel}; fi
+if [ "$1" -eq 0 ]; then
+    for kernel in {kernel}; do
+        if [ -d /lib/modules/$kernel ]; then
+            depmod -a "$kernel"
+            if [ -f /boot/vmlinuz-$kernel ]; then dracut --force --kver "$kernel"; fi
+        fi
+    done
 fi
 '''
 
@@ -173,11 +189,18 @@ def main():
     parser.add_argument('--kernel-source', type=Path, required=True)
     parser.add_argument('--kernel-release', required=True)
     parser.add_argument('--kernel-devel-version', required=True)
+    parser.add_argument('--extra-kernel-source', type=Path, action='append', default=[])
     parser.add_argument('--backend-build', type=Path, default=ROOT/'build/latency')
     parser.add_argument('--editor', type=Path, default=ROOT/'editor/dist/linux-unpacked')
     parser.add_argument('--output', type=Path, default=ROOT/'build/fedora-set')
     args = parser.parse_args()
     version = (ROOT/'VERSION').read_text().strip()
+    targets = [{'kernel_release': args.kernel_release, 'kernel_devel_version': args.kernel_devel_version}]
+    for source in args.extra_kernel_source:
+        release = (source/'include/config/kernel.release').read_text().strip()
+        if not re.fullmatch(r'[0-9][A-Za-z0-9_.+-]*\.x86_64', release):
+            parser.error('Invalid additional kernel release')
+        targets.append({'kernel_release': release, 'kernel_devel_version': release.removesuffix('.x86_64')})
     for value in (version, args.kernel_release, args.kernel_devel_version):
         if not re.fullmatch(r'[0-9][A-Za-z0-9_.+~:-]*', value):
             parser.error('Invalid package or kernel version')
@@ -191,14 +214,16 @@ def main():
     with tempfile.TemporaryDirectory(prefix='fedora-payload-') as temporary:
         stage = Path(temporary)/'driver'
         stage.mkdir()
-        metadata = driver_payload(stage, version, args.kernel_release, args.kernel_source.resolve(), args.backend_build, backend)
+        metadata = driver_payload(stage, version, args.kernel_release, args.kernel_source.resolve(), args.backend_build, backend, args.extra_kernel_source)
         pw = backend.dependency_version('rpm', metadata)
         dependencies = ['dkms', 'gcc', 'make', 'python3', 'python3-gobject', 'python3-websockets',
                         'gtk3', 'alsa-utils', 'alsa-lib', 'wireplumber >= 0.5', 'kmod', 'dracut',
                         'kernel-devel = '+args.kernel_devel_version,
                         'kernel-devel-matched = '+args.kernel_devel_version, 'pipewire = '+pw,
                         'pipewire-libs = '+pw, 'pipewire-jack-audio-connection-kit = '+pw]
-        recipe = spec('eleven-rack-driver', version, stage, dependencies, driver_scripts(version, args.kernel_release))
+        for target in targets[1:]:
+            dependencies += ['kernel-devel = '+target['kernel_devel_version'], 'kernel-core = '+target['kernel_devel_version']]
+        recipe = spec('eleven-rack-driver', version, stage, dependencies, driver_scripts(version, [t['kernel_release'] for t in targets]))
         build_rpm(stage, output, recipe, backend)
         stage = Path(temporary)/'editor'
         stage.mkdir()
@@ -206,7 +231,8 @@ def main():
         dependencies = editor_dependencies()
         build_rpm(stage, output, spec('eleven-rack-editor-linux', version, stage, dependencies), backend)
     target = {'distro': args.distro, 'version': version, 'kernel_release': args.kernel_release,
-              'kernel_devel_version': args.kernel_devel_version, 'pipewire_package_version': pw}
+              'kernel_devel_version': args.kernel_devel_version, 'pipewire_package_version': pw,
+              'kernels': targets}
     (output/'package-target.json').write_text(json.dumps(target, indent=2)+'\n')
     print('Built complete Fedora package set:', output)
 

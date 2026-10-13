@@ -25,9 +25,19 @@ sudo reboot
 
 After reboot, run `eleven-rack-control gui` and `eleven-rack-editor-linux`.
 
-This initial set targets x86_64 Fedora with WirePlumber 0.5 or newer. The driver
-pins kernel-devel and PipeWire to the versions recorded in `package-target.json`.
-Boot the matching kernel; build an updated set before upgrading these packages.
+This initial set targets x86_64 Fedora with WirePlumber 0.5 or newer. Fedora 44
+builds bundle the current repository kernel and `6.19.10-300.fc44.x86_64` by
+default. The optional `additional_kernel_releases` input accepts space-separated
+kernel releases available in the selected Fedora repositories.
+
+There is still one driver RPM and one Editor RPM. DKMS builds a separate module
+for each bundled kernel and selects its matching source tree. The running kernel
+loads its own module; Control is shared. Both module builds and their vermagic
+are checked in CI before the artifact is uploaded.
+
+The driver pins matching core/devel dependencies for the bundled kernels and
+PipeWire to the versions recorded in `package-target.json` (the `kernels` list).
+Boot one of those kernels; build an updated set for kernels outside the list.
 Other Fedora releases and RPM distributions are not implicitly supported.
 The build fails if its PipeWire version has no verified source in the catalog.
 

@@ -15,6 +15,7 @@ def run(*args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, default=Path('build/fedora-kernel'))
+    parser.add_argument('--kernel-release', help='Select one installed kernel-devel release explicitly')
     parser.add_argument('--prep-only-dependencies', action='store_true',
                         help='Install source-preparation tools instead of full kernel build dependencies')
     args = parser.parse_args()
@@ -22,9 +23,14 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     # A container's uname is the runner kernel, not Fedora's build target.
     releases = run('rpm', '-q', 'kernel-devel', '--qf', '%{VERSION}-%{RELEASE}.%{ARCH}\n').splitlines()
-    if len(releases) != 1:
+    if args.kernel_release:
+        if args.kernel_release not in releases:
+            raise RuntimeError('Requested kernel-devel is not installed')
+        kernel = args.kernel_release
+    elif len(releases) != 1:
         raise RuntimeError('Install exactly one kernel-devel package in the CI container')
-    kernel = releases[0]
+    else:
+        kernel = releases[0]
     package = 'kernel-devel-'+kernel
     version = run('rpm', '-q', package, '--qf', '%{VERSION}-%{RELEASE}')
     expected = run('rpm', '-q', package, '--qf', '%{SOURCERPM}')
