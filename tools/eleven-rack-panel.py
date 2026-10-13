@@ -100,11 +100,20 @@ CSS = b'''
 .eleven-rack-panel .clock-dot.locked { color: #56d681; }
 .eleven-rack-panel stack, .eleven-rack-panel notebook, .eleven-rack-panel textview text { background: #101010; color: #eee9e3; }
 .eleven-rack-panel button:link, .eleven-rack-panel button:visited { color: #ff8a28; }
+window.eleven-rack-about { background-color: #101010; background-image: none; }
 .eleven-rack-about-content, .eleven-rack-about-content box,
 .eleven-rack-about-content label, .eleven-rack-about-content viewport,
 .eleven-rack-about-content scrolledwindow, .eleven-rack-about-content stack,
 .eleven-rack-about-content textview, .eleven-rack-about-content textview text {
-    background-color: #101010; color: #eee9e3;
+    background-color: #101010; background-image: none; color: #eee9e3;
+}
+.eleven-rack-about-content scrolledwindow,
+.eleven-rack-about-content frame {
+    border: none; box-shadow: none; background-color: #101010; background-image: none;
+}
+.eleven-rack-about-content scrolledwindow undershoot,
+.eleven-rack-about-content scrolledwindow overshoot {
+    background-image: none; box-shadow: none;
 }
 .eleven-rack-about-content label,
 .eleven-rack-about-content textview, .eleven-rack-about-content textview text {
@@ -124,6 +133,15 @@ def label(text, style=None):
 def box(vertical=True, spacing=12):
     return Gtk.Box(orientation=Gtk.Orientation.VERTICAL if vertical else Gtk.Orientation.HORIZONTAL,
                    spacing=spacing)
+
+
+def about_markup(markup):
+    """Remove GTK font overrides while preserving emphasis and clickable links."""
+    markup = re.sub(r'</?(?:small|big)\b[^>]*>', '', markup)
+    return re.sub(r'(<span\b)([^>]*)(>)',
+                  lambda match: match[1] + re.sub(
+                      r'\s+(?:size|font|font_desc|font_family|face|scale)\s*=\s*(?:"[^"]*"|\x27[^\x27]*\x27)',
+                      '', match[2]) + match[3], markup)
 
 
 class Panel(Gtk.Window):
@@ -538,13 +556,16 @@ class Panel(Gtk.Window):
         except OSError:
             version = 'Development version'
         dialog = Gtk.AboutDialog(transient_for=self, modal=True)
+        dialog.get_style_context().add_class('eleven-rack-about')
         dialog.get_content_area().get_style_context().add_class('eleven-rack-panel')
         dialog.get_content_area().get_style_context().add_class('eleven-rack-about-content')
         dialog.get_action_area().get_style_context().add_class('eleven-rack-panel')
         dialog.set_program_name('Eleven Rack Control')
         check = Gtk.Button(label='Check for updates')
         check.connect('clicked', lambda button: self.check_updates(button, manual=True))
-        dialog.get_action_area().pack_start(check, False, False, 0)
+        # AboutDialog may hide its action area when using a header bar.
+        # Keep the update action in the always-visible content instead.
+        dialog.get_content_area().pack_end(check, False, False, 8)
         check.show()
         dialog.set_version(version)
         dialog.set_logo(self.get_icon())
@@ -590,6 +611,7 @@ class Panel(Gtk.Window):
         thanks.pack_start(acknowledgement, False, False, 0)
         stack = find_stack(dialog.get_content_area())
         if stack is not None:
+            stack.set_transition_type(Gtk.StackTransitionType.NONE)
             stack.add_titled(thanks, 'thanks-to', 'Thanks to')
             thanks.show_all()
         else:
@@ -598,6 +620,11 @@ class Panel(Gtk.Window):
             # GTK's built-in pages use small/large markup and a monospace
             # license view. Match the custom acknowledgement's typography.
             if isinstance(widget, Gtk.Label):
+                if widget.get_use_markup():
+                    markup = widget.get_label()
+                    if re.search(r'<(?:b|strong)\b|weight\s*=\s*[\x27"]bold[\x27"]', markup):
+                        widget.get_style_context().add_class('section')
+                    widget.set_markup(about_markup(markup))
                 attributes = widget.get_attributes()
                 if attributes is not None:
                     attributes = attributes.copy()
@@ -608,10 +635,26 @@ class Panel(Gtk.Window):
                     widget.set_attributes(attributes)
             elif isinstance(widget, Gtk.TextView):
                 widget.set_monospace(False)
+                # AboutDialog applies a local font override to its license
+                # view; inherited CSS alone cannot override that provider.
+                if not getattr(widget, '_about_font_normalized', False):
+                    provider = Gtk.CssProvider()
+                    provider.load_from_data(b'textview, textview text { font-family: sans-serif; font-size: 12px; }')
+                    widget.get_style_context().add_provider(
+                        provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+                    widget._about_font_normalized = True
+                def reset_tag_font(tag, *_):
+                    for property_name in ('family-set', 'size-set', 'scale-set'):
+                        tag.set_property(property_name, False)
+                widget.get_buffer().get_tag_table().foreach(reset_tag_font, None)
             if isinstance(widget, Gtk.Container):
                 for child in widget.get_children():
                     uniform_about_fonts(child)
         uniform_about_fonts(dialog.get_content_area())
+        if stack is not None:
+            # GTK can create Credits and License widgets when first selected.
+            stack.connect('notify::visible-child',
+                          lambda *_: uniform_about_fonts(dialog.get_content_area()))
         dialog.connect('response', lambda widget, _response: widget.destroy())
         dialog.show()
 

@@ -615,6 +615,10 @@ body.studio #tuner-panel p { margin: 16px 0 0; text-align: center; font-size: 12
 body.studio .editor-logo { cursor: pointer; }
 body.studio .editor-logo:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; border-radius: 8px; }
 body.studio .about-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
-body.studio .about-tabs button { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 7px 12px; border-radius: 6px; cursor: pointer; }
+body.studio .about-tabs button,
+body.studio #about-check-updates { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 7px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+body.studio .about-tabs button:hover,
+body.studio #about-check-updates:hover:not(:disabled) { color: var(--amber); border-color: var(--amber); }
+body.studio #about-check-updates:disabled { opacity: .55; cursor: wait; }
 body.studio .about-tabs button[aria-selected="true"] { color: var(--amber); border-color: var(--amber); }
 #about-box [role="tabpanel"][hidden] { display: none; }
