@@ -15,6 +15,8 @@ def run(*args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, default=Path('build/fedora-kernel'))
+    parser.add_argument('--prep-only-dependencies', action='store_true',
+                        help='Install source-preparation tools instead of full kernel build dependencies')
     args = parser.parse_args()
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
@@ -42,14 +44,23 @@ def main():
     actual = run('rpm', '-qp', '--qf', '%{NAME}-%{VERSION}-%{RELEASE}.src.rpm', str(source_rpm))
     if actual != expected:
         raise RuntimeError('Source RPM metadata mismatch')
-    subprocess.run(['dnf', 'builddep', '-y', str(source_rpm)], check=True)
+    if args.prep_only_dependencies:
+        # CentOS SRPM build requirements include tools for full kernel images,
+        # documentation and selftests. We only execute its source %prep stage.
+        subprocess.run(['dnf', 'install', '-y', 'bc', 'bison', 'flex', 'perl-core',
+                        'openssl-devel', 'elfutils-libelf-devel', 'findutils',
+                        'diffutils', 'tar', 'gzip', 'bzip2', 'xz', 'patch',
+                        'redhat-rpm-config', 'python3-rpm-macros'], check=True)
+    else:
+        subprocess.run(['dnf', 'builddep', '-y', str(source_rpm)], check=True)
     top = work/'rpmbuild'
     for name in ('SOURCES', 'SPECS', 'BUILD', 'BUILDROOT', 'RPMS', 'SRPMS'):
         (top/name).mkdir(parents=True)
     subprocess.run(['rpm', '--define', '_topdir '+str(top), '-i', str(source_rpm)], check=True)
     # The RPM %prep applies Fedora patches; no full kernel image is built.
     subprocess.run(['chown', '-R', 'builder:builder', str(top)], check=True)
-    subprocess.run(['runuser', '-u', 'builder', '--', 'rpmbuild', '--define', '_topdir '+str(top),
+    dependency_flags = ['--nodeps'] if args.prep_only_dependencies else []
+    subprocess.run(['runuser', '-u', 'builder', '--', 'rpmbuild', *dependency_flags, '--define', '_topdir '+str(top),
                     '--define', '_smp_mflags -j2', '-bp', '--target', 'x86_64',
                     str(top/'SPECS/kernel.spec')], check=True)
     trees = [path.parents[2] for path in (top/'BUILD').rglob('sound/usb/Makefile')]
