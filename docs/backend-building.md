@@ -122,7 +122,7 @@ archive and are not build inputs.
 
 For complete two-package installations use **Arch package set** or
 **Ubuntu package set**, described in [Arch installation](arch-installation.md)
-and [Ubuntu installation](ubuntu-installation.md). Publication is opt-in using
+and [Ubuntu installation](../INSTALLATION.md#ubuntu-2404-and-newer). Publication is opt-in using
 `publish_release` and an existing public version tag; ordinary builds remain
 private. No pipeline installs on the user's host or attaches the Eleven Rack.
 Unknown PipeWire releases fail until a verified source hash and compatible

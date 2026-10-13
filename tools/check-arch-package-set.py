@@ -45,6 +45,7 @@ def check(directory, target):
             raise RuntimeError(f'Missing exact dependency: {dependency}')
     source = 'usr/src/eleven-rack-' + target['version']
     for name in ('usr/bin/eleven-rack-control', 'usr/lib/eleven-rack/tools/eleven-rack-panel.py',
+                 'usr/lib/eleven-rack/tools/eleven-rack-updates.py',
                  'usr/lib/eleven-rack/tools/eleven-rack-settings.py',
                  'usr/lib/eleven-rack/tools/eleven-rack-meters.c',
                  'etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf',
@@ -68,6 +69,7 @@ def check(directory, target):
     for name in ('usr/bin/eleven-rack-editor-linux', 'usr/share/applications/eleven-rack-editor-linux.desktop',
                  'opt/eleven-rack-editor/eleven-rack-editor-linux', 'opt/eleven-rack-editor/chrome-sandbox',
                  'opt/eleven-rack-editor/resources/app.asar',
+                 'opt/eleven-rack-editor/resources/eleven-rack-updates.py',
                  'opt/eleven-rack-editor/resources/bridge-linux/bridge.py',
                  'opt/eleven-rack-editor/resources/bridge-linux/segmented_sysex.py',
                  'usr/share/licenses/eleven-rack-editor-linux/LICENSE',

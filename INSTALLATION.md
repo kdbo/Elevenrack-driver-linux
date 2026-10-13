@@ -1,193 +1,224 @@
 # Installation guide
 
-This guide covers the Ubuntu `.deb` packages for **Eleven Rack Control and the
-patched audio driver**, and the separate **Eleven Rack Editor**. The packages
-target Ubuntu 24.04 LTS and newer; actual test coverage is listed in the
-[README distribution matrix](README.md#distribution-test-matrix).
-These are experimental beta packages.
+Install the package set built for your distribution and architecture. The
+`eleven-rack-driver` package includes the patched DKMS audio driver, Eleven Rack
+Control, the PipeWire backend and audio configuration. The optional
+`eleven-rack-editor-linux` package provides the rig Editor and Linux MIDI bridge.
+Node.js and npm are not required to run the packaged Editor.
 
-For optional Ubuntu Studio audio tools, PipeWire setup, and low-latency
-configuration, see [Ubuntu Studio setup](docs/ubuntu-studio-setup.md).
+These are experimental beta packages. A successful package build or driver load
+is not a complete hardware audio test. See the
+[distribution test matrix](README.md#distribution-test-matrix) for coverage.
 
-## 1. Download the packages
+## Download and prepare
 
-Open [GitHub Releases](https://github.com/kdbo/Elevenrack-driver-linux/releases)
-and choose the release you want to install. Expand **Assets** and download:
+Download matching packages from
+[GitHub Releases](https://github.com/kdbo/Elevenrack-driver-linux/releases) when
+available. A distribution's build recipe does not guarantee that its packages
+have already been published. For a supplied test artifact, extract it first.
+Keep each package set in its own folder and open a terminal there.
 
-- `eleven-rack-driver_<version>_all.deb`: the audio driver, Control panel, and
-  routing configuration.
-- `eleven-rack-editor-linux_<version>_amd64.deb`: the optional rig editor for
-  x86_64/amd64 computers.
-- `SHA256SUMS`: checksums for the release packages.
-
-The editor and driver are installed separately. To use the Rack's audio
-channels with this project, install the driver package first. You can skip
-the editor if you only need audio and interface settings.
-
-The examples below use `0.1.2~beta2`. Substitute the exact downloaded filenames
-when installing another release. Keep each release's downloads in its own
-folder so older packages are not accidentally selected.
-
-Optionally verify the files from that folder:
+Verify its checksums using the supplied checksum filename:
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-Each downloaded package should report `OK`. Stop if a checksum fails.
+Every downloaded package should report `OK`. Stop if a checksum fails. For sets
+containing `package-target.json` or `README.txt`, check the supported kernel,
+PipeWire and distribution versions before installation.
 
-## 2. Prepare the kernel headers
+Save your work and close audio and MIDI applications. Installation replaces
+`snd-usb-audio`, which also serves other USB audio devices. Reboot after a
+successful driver installation. If Secure Boot is enabled, the DKMS module's
+signing key must be trusted; complete any required key enrollment before use.
 
-Save your work and close audio and MIDI applications. Open a terminal in the
-download folder, then update APT and install headers for the running kernel:
+## Ubuntu 24.04 and newer
+
+Use the Ubuntu `.deb` package set. Install headers for the running kernel, then
+install the downloaded packages through APT so dependencies are resolved:
 
 ```sh
 sudo apt update
-sudo apt install linux-headers-$(uname -r)
+sudo apt install "linux-headers-$(uname -r)"
+sudo apt install ./*.deb
+dkms status
+sudo reboot
 ```
 
-The driver is built locally by DKMS for your kernel. Matching headers and
-Ubuntu kernel sources are required. The package resolves its declared build
-and runtime dependencies through APT; the DKMS helper retrieves exact Ubuntu
-sources when needed, including HWE sources. The first build may download
-hundreds of MB and need several GB of temporary disk space and network access.
+You can install only the driver if you do not need the Editor by replacing the
+wildcard with its exact filename. Wait for the DKMS build to succeed before
+rebooting. The installer obtains matching Ubuntu kernel sources when needed;
+network access and temporary disk space are required. Custom, mainline and OEM
+kernels are not validated by this guide.
 
-If exact headers or sources are unavailable, consult
-[the packaging guide](docs/packaging.md) before proceeding. Custom, mainline, and
-OEM kernels are not validated by this guide.
+The universal Ubuntu package builds its PipeWire backend locally from bundled,
+verified sources. PipeWire updates trigger a rebuild. A PipeWire version outside
+the bundled catalog requires an updated Eleven Rack package. The Editor uses
+the Ubuntu 24.04 amd64 baseline.
 
-## 3. Install the driver and Control panel
+For optional audio tools and desktop setup, see
+[Ubuntu Studio setup](docs/ubuntu-studio-setup.md).
 
-From the download folder:
+## Fedora
+
+Use RPMs built for your Fedora release (currently Fedora 43 or 44), not CentOS
+RPMs. The running kernel must be one of the package's bundled targets. Install
+its full module packages and development files before the Eleven Rack RPMs:
 
 ```sh
-sudo apt install ./eleven-rack-driver_0.1.2~beta2_all.deb
+sudo dnf install "kernel-devel-$(uname -r)" "kernel-modules-core-$(uname -r)" "kernel-modules-$(uname -r)" "kernel-modules-extra-$(uname -r)"
+sudo dnf install ./*.rpm
+dkms status
+sudo reboot
 ```
 
-Use `apt install` with the local filename so APT can install dependencies.
-Wait for the DKMS build to finish successfully. Installation overrides the
-system `snd-usb-audio` module with a patched build; that module also handles
-other USB audio devices. Installation does not forcibly unload the active
-module or restart your audio services.
+Use `dnf install` rather than installing RPMs without dependency resolution.
+The package set records its supported kernel and PipeWire versions; rebuild or
+obtain an updated set before upgrading beyond those targets. The Editor needs
+the matching Fedora Python ABI.
 
-If Secure Boot prompts you to create/enroll a Machine Owner Key (MOK), follow
-Ubuntu's instructions and complete enrollment during reboot. A successfully
-built module still needs a trusted signing key to load under Secure Boot.
+## CentOS Stream 10
 
-After successful installation, reboot. Connect and power on the Eleven Rack,
-then open **Eleven Rack Control** from the application menu, or run:
+Use the CentOS Stream 10 x86_64 RPM set. Enable CRB and EPEL for dependencies,
+then install the running kernel's module packages and development files:
+
+```sh
+sudo dnf install dnf-plugins-core
+sudo dnf config-manager --set-enabled crb
+sudo dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
+sudo dnf install "kernel-devel-$(uname -r)" "kernel-modules-core-$(uname -r)" "kernel-modules-$(uname -r)" "kernel-modules-extra-$(uname -r)"
+sudo dnf install ./*.rpm
+dkms status
+sudo reboot
+```
+
+The package's recorded kernel, PipeWire and Python versions must match the
+installation. Fedora RPMs are not interchangeable with CentOS RPMs. CentOS
+hardware audio validation is still pending.
+
+## Arch Linux
+
+Use the x86_64 Arch package set for the stock `linux` kernel. Check that the
+kernel, headers and PipeWire match the package's recorded targets:
+
+```sh
+uname -r
+pacman -Q linux linux-headers pipewire
+sudo pacman -U ./*.pkg.tar.zst
+dkms status
+sudo reboot
+```
+
+Pacman resolves declared dependencies. The package pins its kernel/header and
+PipeWire versions. Obtain a rebuilt set before updating those pinned components;
+`linux-lts`, custom kernels and ARM are not covered by this package. The complete
+driver includes its backend, so a separate backend package is not needed.
+
+## First use on every distribution
+
+Connect and power on the Eleven Rack. Open the applications from the desktop
+menu or run:
 
 ```sh
 eleven-rack-control gui
+eleven-rack-editor-linux
 ```
 
-## 4. Check device detection
-
-Control should report a connected device. You can also check:
+Check audio registration:
 
 ```sh
 dkms status
+cat /proc/asound/cards
+cat /proc/asound/pcm
 aplay -l
 arecord -l
 wpctl status
 ```
 
-Look for the Eleven Rack among ALSA's playback and capture devices and in
-PipeWire's device/node list. MIDI detection alone does not confirm that the
-patched audio driver is active.
+The Eleven Rack should have both playback and capture devices. MIDI alone does
+not confirm that the patched audio driver is active. Start with Internal clock
+and 48 kHz, then test capture and playback in your DAW.
 
-The configured interface has eight capture and six playback channels:
-**Eleven Rig L/R** are capture channels 3/4, and **Main Out L/R** are playback
-channels 1/2. See [interface settings](docs/interface-settings.md) for the complete
-mapping and Control's clock, rate, Rig Input, and buffer settings.
+The interface has eight capture and six playback channels. Eleven Rig L/R are
+capture channels 3/4; Main Out L/R are playback channels 1/2. See
+[interface settings](docs/interface-settings.md) for clock, rate, monitoring,
+buffer settings and the full channel mapping.
 
-Start with an internal clock and 48 kHz for the first audio check; capture and
-playback at that rate have been tested. Stop audio applications before changing
-hardware clock source or internal rate. The hardware-monitoring switch is not
-implemented yet.
-
-## 5. Install the optional editor
-
-From the download folder:
-
-```sh
-sudo apt install ./eleven-rack-editor-linux_0.1.2~beta2_amd64.deb
-```
-
-APT installs the editor's declared runtime dependencies, including the Python
-MIDI bridge dependencies. Node.js and npm are not required to run the packaged
-editor.
-
-Open **Eleven Rack Editor** from the application menu. With the Rack connected,
-select its MIDI ports if they are not selected automatically. If another
-application is using the same MIDI ports, close it and retry.
-
-The application is installed under `/opt/Eleven Rack Editor/`; its launcher
-is installed under `/usr/share/applications/`. See
-[the editor guide](editor/README.md) for usage and current limitations.
-
-## 6. Set up DAW and desktop audio
-
-If you want desktop audio through the Rack, select it as the output device in
-Ubuntu's sound settings.
-
-For a JACK-capable DAW on a PipeWire desktop, use PipeWire's JACK compatibility
-so the DAW and desktop audio can share the interface. Direct ALSA hardware
-access can conflict with PipeWire's ownership of the device.
-
-Follow [DAWs, the Eleven Rack, and system audio](docs/daw-audio.md) for installation,
-launching, port connections, and buffer settings. The
-[REAPER example](docs/reaper.md) provides application-specific settings.
+Select the Eleven Rack in your desktop sound settings for desktop playback.
+For a JACK-capable DAW on PipeWire, use its JACK compatibility layer so the DAW
+and desktop can share the device. See [DAW setup](docs/daw-audio.md),
+[REAPER setup](docs/reaper.md) and the [Editor guide](editor/README.md).
 
 ## Updates and removal
 
-Install a newer downloaded package with `sudo apt install ./<filename>.deb`.
-APT upgrades the installed package. After a driver update, reboot to use the
-new module. After an editor update, fully close and reopen the editor.
+Control and the Linux Editor check for newer published packages at startup.
+Successful checks are cached for 24 hours. Use **About → Check for updates** to
+check immediately. Beta installations also see newer beta releases; stable
+installations only see stable releases.
 
-DKMS rebuilds the driver for kernel updates when matching sources and headers
-are available. Check `dkms status` after an update and confirm that the build
-succeeded before relying on the new kernel for audio.
+An update notice appears only when a newer release contains one matching package
+for the application, distribution release and architecture. **Download and
+install…** shows the package name, installation command and an **Open download
+page** button. Download and verify the files, check the release requirements,
+then run the proposed command yourself. Nothing is downloaded or installed by
+the update checker. Driver updates require a reboot; close the Editor before
+installing its update and reopen it afterward.
 
-To remove the applications:
+Checks use the public GitHub releases API and require internet access. A failed
+background check does not interrupt audio or MIDI; a manual check reports the
+failure. Private build artifacts are not offered as public updates.
+
+Install updates using the same distribution package manager and the new local
+package filenames. Reboot after a driver update; restart the Editor after an
+Editor update. Check DKMS output before booting a new kernel. Fedora, CentOS and
+Arch sets need matching build targets; Ubuntu rebuilds when matching sources and
+headers are available.
+
+Remove the applications with your distribution's package manager:
 
 ```sh
+# Ubuntu
 sudo apt remove eleven-rack-editor-linux eleven-rack-driver
+# Fedora / CentOS
+sudo dnf remove eleven-rack-editor-linux eleven-rack-driver
+# Arch
+sudo pacman -R eleven-rack-editor-linux eleven-rack-driver
 ```
 
-Reboot after removing the driver to return to the distribution's module.
-Use `apt purge` instead of `apt remove` if you also want package-owned
-configuration removed. Per-user settings are not removed by these commands.
+Reboot after driver removal to return to the distribution's USB audio module.
+Per-user settings are retained.
 
-## Common installation problems
+## Troubleshooting
 
-**DKMS reports a bad module build status:** read the `make.log` path printed
-by DKMS. Check the exact kernel version, matching headers, and source download
-failure before retrying. Once the cause is fixed, `sudo dpkg --configure -a`
-retries package configuration. See [packaging](docs/packaging.md) for source handling
-and log locations.
+**DKMS build failure:** read the build-log path printed by DKMS. Check the
+running kernel, matching development files and supported package targets. See
+[packaging](docs/packaging.md) for log locations. On Ubuntu, after fixing the
+cause, `sudo dpkg --configure -a` retries incomplete package configuration.
 
-**APT says a local download was performed unsandboxed as root:** APT's `_apt`
-user could not read the package or traverse its parent directories. This notice
-alone is not a DKMS build failure. Copy the downloaded package to `/tmp/`, make
-it readable, and install that copy if needed:
+**Unknown ALSA/media symbols:** verify that the running kernel's complete module
+packages are installed, including `kernel-modules` and `kernel-modules-extra`
+on Fedora/CentOS. A matching `kernel-devel` package alone is insufficient.
+
+**MIDI only after installing kernel packages:** check `modinfo -n snd_usb_audio`
+and `modinfo -p snd_usb_audio`. If the stock module is selected, reinstall the
+patched module using the version reported by `dkms status`:
 
 ```sh
-cp ./eleven-rack-driver_0.1.2~beta2_all.deb /tmp/
-chmod 644 /tmp/eleven-rack-driver_0.1.2~beta2_all.deb
-sudo apt install /tmp/eleven-rack-driver_0.1.2~beta2_all.deb
+sudo dkms install -m eleven-rack -v '<installed-version>' -k "$(uname -r)" --force
+sudo depmod -a
+modinfo -n snd_usb_audio
+sudo reboot
 ```
 
-**The module built but the Rack has no audio devices:** reboot, check
-`dkms status`, and check kernel logs for module-load or signature errors. Under
-Secure Boot, confirm that the signing key was enrolled. Include the kernel
-version and DKMS/kernel error when reporting an issue.
+For the tested RPM installation, the patched module path is under `extra/`.
+Confirm playback and capture registration after reboot.
 
-**The DAW reports a busy device or produces no sound:** use
-[the shared-audio troubleshooting guide](docs/daw-audio.md#when-audio-is-missing).
-Check audio connections to the Rack rather than the built-in sound card.
+**Module built but no audio device:** check kernel logs for module-load and
+signature errors. Under Secure Boot, verify that the signing key is trusted.
+Include the kernel release and DKMS/kernel errors in an issue report.
 
-**Rig Input or editor MIDI reads fail:** another MIDI application may own the
-port. Close competing applications, verify the selected ports, and retry.
-USB passthrough in a VM may require separate investigation; a working audio
-driver does not establish that every MIDI exchange is reliable there.
+**DAW device busy or no sound:** check
+[shared-audio troubleshooting](docs/daw-audio.md#when-audio-is-missing) and use
+Eleven Rack ports rather than built-in sound-card ports. Close competing MIDI
+applications if Editor communication fails.

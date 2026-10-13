@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setZoom:        (factor)        => ipcRenderer.invoke('set-zoom', factor),
   getStartupMode: ()              => ipcRenderer.invoke('get-startup-mode'),
   getAppVersion:  ()              => ipcRenderer.invoke('get-app-version'),
+  checkUpdates:   (force = false) => ipcRenderer.invoke('check-updates', force),
+  showUpdateOffer: ()             => ipcRenderer.invoke('show-update-offer'),
   getMidiStackStatus:          () => ipcRenderer.invoke('get-midi-stack-status'),
   setWin11UploadWarnDisabled: (v) => ipcRenderer.invoke('set-win11-upload-warn-disabled', v),
   setWin11StartupAck:          () => ipcRenderer.invoke('set-win11-startup-ack'),

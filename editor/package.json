@@ -33,6 +33,10 @@
       {
         "from": "../assets/eleven-rack-linux-editor-logo-v1.png",
         "to": "eleven-rack-editor-logo.png"
+      },
+      {
+        "from": "../tools/eleven-rack-updates.py",
+        "to": "eleven-rack-updates.py"
       }
     ],
     "linux": {

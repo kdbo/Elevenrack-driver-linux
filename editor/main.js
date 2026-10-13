@@ -119,6 +119,45 @@ const startupMode = 3;
 ipcMain.handle('get-startup-mode', function() { return startupMode; });
 ipcMain.handle('get-app-version', function() { return app.getVersion(); });
 
+// Read-only release checks. Installation remains an explicit package-manager action.
+let updateResult = null;
+let updateCheck = null;
+ipcMain.handle('check-updates', function(_event, force) {
+  if (!IS_LINUX) return { status: 'unsupported', message: 'Update checks are available for the Linux packages.' };
+  if (updateCheck) return updateCheck;
+  const helper = app.isPackaged
+    ? path.join(process.resourcesPath, 'eleven-rack-updates.py')
+    : path.join(__dirname, '..', 'tools', 'eleven-rack-updates.py');
+  const args = [helper, '--version', app.getVersion(), '--component', 'editor'];
+  if (force === true) args.push('--force');
+  updateCheck = new Promise(function(resolve) {
+    execFile('/usr/bin/python3', args, { timeout: 15000, maxBuffer: 128 * 1024 }, function(error, stdout) {
+      let result;
+      try { if (error) throw error; result = JSON.parse(stdout); }
+      catch (_) { result = { status: 'offline', message: 'Could not check for updates. Try again later.' }; }
+      updateResult = result;
+      resolve(result);
+    });
+  }).finally(function() { updateCheck = null; });
+  return updateCheck;
+});
+ipcMain.handle('show-update-offer', async function() {
+  const result = updateResult;
+  if (!mainWindow || !result || result.status !== 'available') return false;
+  const choice = await dialog.showMessageBox(mainWindow, {
+    type: 'info', title: 'Install Editor update',
+    message: 'Eleven Rack Editor ' + result.version + ' is available (installed: ' + app.getVersion() + ').',
+    detail: result.message + '\n\nPackage: ' + result.package + '\n\n' + result.command,
+    buttons: ['Later', 'Open download page'], defaultId: 0, cancelId: 0,
+  });
+  // Only the fixed repository release URL returned by our helper can be opened.
+  if (choice.response === 1 && /^https:\/\/github\.com\/kdbo\/Elevenrack-driver-linux\/releases\/tag\/[^/?#]+$/.test(result.url)) {
+    await shell.openExternal(result.url);
+    return true;
+  }
+  return false;
+});
+
 // ── Windows 11 "new MIDI stack" detection (Phase B, "Gate and Wait") ──
 // The new in-box Windows MIDI Services stack corrupts the large SysEx a patch
 // upload needs (see docs). Detect it the same way Microsoft's own checker does:

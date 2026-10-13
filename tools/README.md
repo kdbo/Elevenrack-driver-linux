@@ -18,13 +18,13 @@ Current tools serve these workflows:
   `build-deb.py --backend-sources build/latency-sources` assembles one reusable
   Ubuntu driver. `install-latency-backend.py` detects PipeWire and builds its
   backend automatically. The private workflow adds the Editor as the second package.
-  See [Ubuntu build/download instructions](../docs/ubuntu-installation.md).
+  See [installation instructions](../INSTALLATION.md#ubuntu-2404-and-newer); Ubuntu build documentation is maintained in the private build repository.
   `prepare-fedora-kernel.py` prepares Fedora's matching signed source RPM;
   `build-fedora-package-set.py` creates the complete driver and Editor RPMs.
   `check-fedora-package-set.py` verifies their payloads and version dependencies.
-  See [Fedora build/download instructions](../docs/fedora-installation.md).
+  Fedora installation and dependency documentation is maintained in the private build repository.
   The CentOS Stream 10 workflow reuses these RPM tools in its own container;
-  see [CentOS build/download instructions](../docs/centos-installation.md).
+  CentOS installation and dependency documentation is maintained in the private build repository.
 - Latency backend: `build-latency-backend.py`, `build-latency-package.py`,
   `check-latency-backend.py`, `spa-eleven-alsa.c`, `activate-profile-corrections.py`.
   See [multi-distribution builds and packages](../docs/backend-building.md).

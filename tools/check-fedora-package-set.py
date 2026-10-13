@@ -45,6 +45,7 @@ def check(directory):
     files = query(driver, '--list').splitlines()
     for name in ('/usr/bin/eleven-rack-control', '/usr/lib/eleven-rack/tools/eleven-rack-settings.py',
                  '/usr/lib/eleven-rack/tools/eleven-rack-panel.py',
+                 '/usr/lib/eleven-rack/tools/eleven-rack-updates.py',
                  '/usr/lib/eleven-rack/spa/alsa/libspa-alsa.so',
                  '/etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf',
                  '/etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf',
@@ -57,6 +58,7 @@ def check(directory):
                  '/usr/share/applications/eleven-rack-editor-linux.desktop',
                  '/opt/eleven-rack-editor/eleven-rack-editor-linux',
                  '/opt/eleven-rack-editor/resources/app.asar',
+                 '/opt/eleven-rack-editor/resources/eleven-rack-updates.py',
                  '/opt/eleven-rack-editor/resources/bridge-linux/bridge.py',
                  '/opt/eleven-rack-editor/resources/bridge-linux/rtmidi/__init__.py'):
         if name not in editor_files:

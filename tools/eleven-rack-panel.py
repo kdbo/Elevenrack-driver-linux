@@ -33,6 +33,9 @@ GLib.set_application_name('Eleven Rack Control')
 spec = importlib.util.spec_from_file_location('settings', BACKEND)
 settings = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(settings)
+update_spec = importlib.util.spec_from_file_location('updates', ROOT / 'eleven-rack-updates.py')
+updates = importlib.util.module_from_spec(update_spec)
+update_spec.loader.exec_module(updates)
 
 
 def control_preferences():
@@ -182,6 +185,9 @@ class Panel(Gtk.Window):
         except OSError:
             version = 'Development version'
         version_label = label(version, 'subtitle')
+        self.installed_version = version
+        self.update_result = None
+        self.update_check_running = False
         version_label.set_valign(Gtk.Align.CENTER)
         title_row.pack_start(version_label, False, False, 0)
         identity.pack_start(title_row, False, False, 0)
@@ -204,6 +210,10 @@ class Panel(Gtk.Window):
         about.connect('clicked', self.show_about)
         header.pack_end(about, False, False, 0)
         body.pack_start(header, False, False, 0)
+        self.update_button = Gtk.Button(label='Update available')
+        self.update_button.set_no_show_all(True)
+        self.update_button.connect('clicked', self.show_update_offer)
+        body.pack_start(self.update_button, False, False, 0)
 
         control_row = box(False, 12)
         clock_card = self.card('Clock & sample rate')
@@ -342,6 +352,61 @@ class Panel(Gtk.Window):
         GLib.idle_add(lambda: (self.poll_buffer(), False)[1])
         # Establish a real rollback value before the first clock selection.
         GLib.idle_add(self.refresh_all)
+        GLib.timeout_add_seconds(3, self.check_updates)
+
+    def check_updates(self, _button=None, manual=False):
+        if self.update_check_running:
+            return False
+        self.update_check_running = True
+        def worker():
+            result = updates.check_updates(self.installed_version, 'driver', force=manual)
+            GLib.idle_add(self.updates_checked, result, manual)
+        threading.Thread(target=worker, daemon=True).start()
+        return False
+
+    def updates_checked(self, result, manual):
+        self.update_check_running = False
+        self.update_result = result
+        if result['status'] == 'available':
+            self.update_button.set_label('Driver update available: %s — Download and install…' % result['version'])
+            self.update_button.show()
+            if manual:
+                self.show_update_offer()
+        elif manual:
+            if result['status'] == 'current':
+                self.update_button.hide()
+            dialog = Gtk.MessageDialog(transient_for=self, modal=True,
+                                       buttons=Gtk.ButtonsType.CLOSE,
+                                       message_type=Gtk.MessageType.INFO,
+                                       text='Update check')
+            dialog.format_secondary_text(result.get('message', 'No newer driver package is available for this system.'))
+            dialog.connect('response', lambda widget, _response: widget.destroy())
+            dialog.show()
+        return False
+
+    def show_update_offer(self, _button=None):
+        result = self.update_result
+        if not result or result['status'] != 'available':
+            return
+        dialog = Gtk.Dialog(title='Install driver update', transient_for=self, modal=True)
+        dialog.add_button('Later', Gtk.ResponseType.CANCEL)
+        dialog.add_button('Open download page', Gtk.ResponseType.ACCEPT)
+        content = dialog.get_content_area()
+        content.set_border_width(16)
+        content.set_spacing(12)
+        for text in ('Eleven Rack driver %s is available (installed: %s).' % (result['version'], self.installed_version),
+                     result['message'], result['package'], result['command']):
+            item = label(text)
+            item.set_line_wrap(True)
+            item.set_max_width_chars(70)
+            item.set_selectable(True)
+            content.pack_start(item, False, False, 0)
+        def response(widget, response_id):
+            if response_id == Gtk.ResponseType.ACCEPT:
+                Gtk.show_uri_on_window(self, result['url'], Gdk.CURRENT_TIME)
+            widget.destroy()
+        dialog.connect('response', response)
+        dialog.show_all()
 
     def stop_meters(self, *_):
         self.meter_epoch += 1
@@ -474,6 +539,10 @@ class Panel(Gtk.Window):
         dialog.get_content_area().get_style_context().add_class('eleven-rack-about-content')
         dialog.get_action_area().get_style_context().add_class('eleven-rack-panel')
         dialog.set_program_name('Eleven Rack Control')
+        check = Gtk.Button(label='Check for updates')
+        check.connect('clicked', lambda button: self.check_updates(button, manual=True))
+        dialog.get_action_area().pack_start(check, False, False, 0)
+        check.show()
         dialog.set_version(version)
         dialog.set_logo(self.get_icon())
         dialog.set_comments('Linux audio routing and hardware settings for the Eleven Rack.')

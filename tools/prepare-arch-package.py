@@ -52,6 +52,7 @@ def main():
              'LICENSES/GPL-2.0.txt', 'assets/eleven-rack-control-logo-v2.png',
              'config/51-eleven-rack.conf', 'config/eleven-rack-driver.desktop',
              'tools/eleven-rack-panel.py', 'tools/eleven-rack-settings.py',
+             'tools/eleven-rack-updates.py',
              'tools/eleven-rack-meters.c', 'packaging/dkms.conf',
              'packaging/build-driver-common.sh', 'packaging/prepare-driver.py',
              'packaging/mixer-eleven-rack.h', 'packaging/arch/build-driver.sh',

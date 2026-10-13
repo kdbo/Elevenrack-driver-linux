@@ -15,7 +15,7 @@ def prepare(unpacked, output):
     version = (ROOT / 'VERSION').read_text().strip().replace('~', '')
     if not re.fullmatch(r'[0-9][A-Za-z0-9_.+]*', version):
         raise RuntimeError('Unsupported package version')
-    for name in ('eleven-rack-editor-linux', 'chrome-sandbox', 'resources/app.asar',
+    for name in ('eleven-rack-editor-linux', 'chrome-sandbox', 'resources/app.asar', 'resources/eleven-rack-updates.py',
                  'resources/bridge-linux/bridge.py', 'resources/bridge-linux/segmented_sysex.py',
                  'resources/eleven-rack-editor-logo.png', 'resources/LICENSE', 'resources/NOTICE'):
         if not (unpacked / name).is_file():

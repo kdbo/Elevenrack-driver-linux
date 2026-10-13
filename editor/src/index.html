@@ -1142,6 +1142,10 @@
   #scan-progress-track { background: var(--raised); border: 1px solid var(--border2); border-radius: 4px; height: 10px; overflow: hidden; }
   #scan-progress-bar { background: var(--accent-dim); height: 100%; width: 0%; transition: width 0.15s linear; }
   .about-version { font-size: 13px; color: var(--text-dark); letter-spacing: 1px; margin-top: -8px; }
+  #editor-update-notice { position: fixed; top: 8px; right: 16px; z-index: 9999; padding: 8px 12px; background: #302b26; color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; font: inherit; }
+  #editor-update-notice[hidden] { display: none; }
+  #about-check-updates { font: inherit; cursor: pointer; margin: 8px 0; }
+  #about-update-status { font-size: 13px; color: var(--text-dim); }
   .about-section h3 { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
   .about-section p  { color: var(--text-dim); font-size: 14px; line-height: 1.7; }
   .about-section a  { color: var(--accent-dim); text-decoration: none; }
@@ -2351,6 +2355,8 @@
   <div id="about-box">
     <div class="about-brand"><img src="../assets/eleven-rack-editor-logo.png" alt="Eleven Rack Editor logo"><h2>Eleven Rack Editor</h2></div>
     <div class="about-version" id="about-version">Version —</div>
+    <button type="button" id="about-check-updates">Check for updates</button>
+    <p id="about-update-status" role="status"></p>
     <div class="about-tabs" role="tablist" aria-label="About sections">
       <button type="button" role="tab" id="about-tab-info" aria-controls="about-info" aria-selected="true">About</button>
       <button type="button" role="tab" id="about-tab-credits" aria-controls="about-credits" aria-selected="false">Credits</button>
@@ -3460,6 +3466,37 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
 // ════════════════════════════════════════════════════════════════════
 // ABOUT
 // ════════════════════════════════════════════════════════════════════
+const editorUpdateNotice = document.createElement('button');
+editorUpdateNotice.id = 'editor-update-notice';
+editorUpdateNotice.type = 'button';
+editorUpdateNotice.hidden = true;
+document.body.appendChild(editorUpdateNotice);
+editorUpdateNotice.addEventListener('click', function() {
+  window.electronAPI.showUpdateOffer().catch(function() {});
+});
+async function checkEditorUpdates(manual) {
+  if (!window.electronAPI || !window.electronAPI.checkUpdates) return;
+  const button = document.getElementById('about-check-updates');
+  const status = document.getElementById('about-update-status');
+  button.disabled = true;
+  if (manual) status.textContent = 'Checking for updates…';
+  try {
+    const result = await window.electronAPI.checkUpdates(manual);
+    if (result.status === 'available') {
+      editorUpdateNotice.textContent = 'Editor update ' + result.version + ' — Download and install…';
+      editorUpdateNotice.hidden = false;
+      status.textContent = 'New Editor version available: ' + result.version;
+      if (manual) await window.electronAPI.showUpdateOffer();
+    } else {
+      if (result.status === 'current') editorUpdateNotice.hidden = true;
+      if (manual) status.textContent = result.message || 'No newer Editor package is available for this system.';
+    }
+  } catch (_) {
+    if (manual) status.textContent = 'Could not check for updates. Try again later.';
+  } finally { button.disabled = false; }
+}
+document.getElementById('about-check-updates').addEventListener('click', function() { checkEditorUpdates(true); });
+setTimeout(function() { checkEditorUpdates(false); }, 3000);
 window.openEditorAbout = async function() {
   document.getElementById('about-overlay').classList.add('open');
   document.getElementById('about-tab-info').click();
