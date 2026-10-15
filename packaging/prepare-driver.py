@@ -17,15 +17,94 @@ def replace_once(text, old, new):
     return text.replace(old, new, 1)
 
 
+def implicit_feedback_capacity(card, endpoint):
+    """Backport upstream 76a986c980bb only when its source fix is absent.
+
+    CVE-2026-98265: payload byte bounds do not protect iso_frame_desc[].
+    Inspect source instead of kernel versions because distros backport fixes.
+    Return new strings only; unfamiliar/partial fixes must never be written.
+    """
+    def compact(text):
+        text = re.sub(r'/\*.*?\*/|//[^\n]*', '', text, flags=re.S)
+        return re.sub(r'\s+', '', text)
+
+    c, e = compact(card), compact(endpoint)
+    fixed = (
+        c.count('unsignedintmax_urb_packs;') == 1
+        and e.count('ep->max_urb_packs=urb_packs;') == 1
+        and e.count('ctx->packets=min_t(int,packet->packets,ep->max_urb_packs);') == 1
+        and e.count('memcpy(ctx->packet_size,packet->packet_size,'
+                    'ctx->packets*sizeof(packet->packet_size[0]));') == 1
+        and e.count('u->urb=usb_alloc_urb(u->packets,GFP_KERNEL);') == 1
+        and ('ep->max_urb_packs=urb_packs;'
+             'for(i=0;i<ep->nurbs;i++){structsnd_urb_ctx*u=&ep->urb[i];'
+             'u->index=i;u->ep=ep;u->packets=urb_packs;') in e
+        and 'ctx->packets=packet->packets;' not in e
+        and 'u->packets++;' not in e
+    )
+    if fixed:
+        return card, endpoint, 'already present'
+    if 'max_urb_packs' in c or 'max_urb_packs' in e:
+        raise RuntimeError('Incomplete or unfamiliar implicit-feedback capacity fix; review kernel sources')
+
+    card = replace_once(card,
+        '\tunsigned int maxframesize;      /* max packet size in frames */',
+        '\tunsigned int maxframesize;      /* max packet size in frames */\n'
+        '\tunsigned int max_urb_packs; /* packets allocated per data URB */')
+    endpoint = replace_once(endpoint, '\t\tctx->packets = packet->packets;',
+        '\t\tctx->packets = min_t(int, packet->packets,\n'
+        '\t\t\t\t     ep->max_urb_packs);')
+    endpoint = replace_once(endpoint,
+        '\t\t       packet->packets * sizeof(packet->packet_size[0]));',
+        '\t\t       ctx->packets * sizeof(packet->packet_size[0]));')
+    endpoint = replace_once(endpoint,
+        '\t\tif (fmt->fmt_type == UAC_FORMAT_TYPE_II)\n'
+        '\t\t\tu->packets++; /* for transfer delimiter */\n', '')
+    endpoint = replace_once(endpoint,
+        '\t/* allocate and initialize data urbs */\n',
+        '\t/* Upstream 76a986c980bb: keep feedback within allocated descriptors. */\n'
+        '\tif (fmt->fmt_type == UAC_FORMAT_TYPE_II)\n'
+        '\t\turb_packs++; /* for transfer delimiter */\n'
+        '\tep->max_urb_packs = urb_packs;\n\n'
+        '\t/* allocate and initialize data urbs */\n')
+    # Validate the generated fix through the same gate used for distro backports.
+    _, _, status = implicit_feedback_capacity(card, endpoint)
+    assert status == 'already present'
+    return card, endpoint, 'backported'
+
+
+def eleven_rack_attributes(text):
+    """Normalize only the known Rack playback layout for implicit feedback."""
+    start = text.index('void snd_usb_audioformat_attributes_quirk(')
+    switch = text.index('\tswitch (chip->usb_id) {', start)
+    end = switch + len('\tswitch (chip->usb_id) {')
+    return text[:end] + '''
+\tcase USB_ID(0x0dba, 0xb011): /* Eleven Rack */
+\t\t/* Endpoint pitch SET_CUR fails; use the clock frequency control. */
+\t\tfp->attributes &= ~UAC_EP_CS_ATTR_PITCH_CONTROL;
+\t\t/* Match capture's 13-frame ceiling for implicit-feedback packing.
+\t\t * Capture: 416 / (8 * 4) = 13 frames; playback: 13 * 6 * 4.
+\t\t * Restrict this allocation quirk to the known descriptor layout.
+\t\t */
+\t\tif (stream == SNDRV_PCM_STREAM_PLAYBACK && fp->iface == 3 &&
+\t\t    fp->altsetting == 1 && fp->endpoint == 0x03 &&
+\t\t    fp->channels == 6 && fp->datainterval == 0 &&
+\t\t    fp->maxpacksize == 416)
+\t\t\tfp->maxpacksize = 312;
+\t\tbreak;''' + text[end:]
+
+
 def prepare(root):
     original = {name: (root / name).read_text() for name in
                 ('quirks-table.h', 'implicit.c', 'format.c', 'quirks.c',
-                 'mixer_maps.c', 'mixer.c', 'mixer_quirks.c', 'Makefile', 'pcm.c', 'card.h')}
+                 'mixer_maps.c', 'mixer.c', 'mixer_quirks.c', 'Makefile', 'pcm.c', 'card.h', 'endpoint.c')}
     if 'Eleven Rack Linux package' in original['quirks-table.h']:
         raise RuntimeError('Source already patched; extract a clean source tree first.')
     if re.search(r'0x0dba,\s*0xb011', original['quirks-table.h']):
         raise RuntimeError('Kernel already has an Eleven Rack quirk; review before replacing it.')
     result = dict(original)
+    result['card.h'], result['endpoint.c'], capacity_status = implicit_feedback_capacity(
+        original['card.h'], original['endpoint.c'])
     # The explicit initializer also works before the newer QUIRK_DATA macros.
     entry = '''/* Eleven Rack Linux package: vendor interfaces with UAC2 descriptors. */
 {
@@ -68,15 +147,7 @@ def prepare(root):
 \t}'''
     end = switch + len('\tswitch (chip->usb_id) {')
     result['format.c'] = text[:end] + rates + text[end:]
-    text = original['quirks.c']
-    start = text.index('void snd_usb_audioformat_attributes_quirk(')
-    switch = text.index('\tswitch (chip->usb_id) {', start)
-    end = switch + len('\tswitch (chip->usb_id) {')
-    result['quirks.c'] = text[:end] + '''
-\tcase USB_ID(0x0dba, 0xb011): /* Eleven Rack */
-\t\t/* Endpoint pitch SET_CUR fails; use the clock frequency control. */
-\t\tfp->attributes &= ~UAC_EP_CS_ATTR_PITCH_CONTROL;
-\t\tbreak;''' + text[end:]
+    result['quirks.c'] = eleven_rack_attributes(original['quirks.c'])
     maps = '''/* Eleven Rack: do not probe proprietary routing units. */
 static const struct usbmix_name_map eleven_rack_map[] = {
 \t{ 0x20, NULL },
@@ -137,7 +208,7 @@ static const struct usbmix_selector_map eleven_rack_selectors[] = {
     result['Makefile'] = text[:text.index(marker)] + 'obj-m := snd-usb-audio.o\n'
     # Opt-in high-resolution delay for this USB id. The upstream frame-counter
     # path remains the default and remains unchanged for every other interface.
-    result['card.h'] = replace_once(original['card.h'],
+    result['card.h'] = replace_once(result['card.h'],
         'unsigned int last_frame_number;\t/* stored frame number */',
         'unsigned int last_frame_number;\t/* stored frame number */\n\tu64 eleven_delay_ns;')
     text = replace_once(original['pcm.c'], '#include <linux/init.h>',
@@ -171,6 +242,7 @@ static const struct usbmix_selector_map eleven_rack_selectors[] = {
     # Validate every transformation before modifying any source file.
     for name, text in result.items():
         (root / name).write_text(text)
+    print('Implicit-feedback URB capacity fix (76a986c980bb): ' + capacity_status)
 
 
 if __name__ == '__main__':
