@@ -132,7 +132,7 @@
       checks.push(visible('panel-ampcab') && ids.every(id => !visible(id)));
     }
     const controlLabelFontSize = parseFloat(getComputedStyle(document.querySelector('.amp .ctrl-knob label')).fontSize);
-    return { initialHidden, toneDisplay, controlLabelFontSize, panelSwitches:checks, passed:controlLabelFontSize >= 12 && initialHidden && toneDisplay === 'flex' && checks.every(Boolean) };
+    return { initialHidden, toneDisplay, controlLabelFontSize, panelSwitches:checks, passed:controlLabelFontSize >= 11 && initialHidden && toneDisplay === 'flex' && checks.every(Boolean) };
   }
   document.addEventListener('DOMContentLoaded', () => {
     Promise.all([api.getAppVersion(), api.getCapturesDir(), api.getSavedPorts(), call('getRuntimeInfo')])

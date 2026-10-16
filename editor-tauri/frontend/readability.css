@@ -6,7 +6,7 @@ body.studio .kv > .label,
 body.studio .kv .ctrl-dd label,
 body.studio .kv .ctrl-tog label,
 body.studio .kv .sctrl label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .02em;
   line-height: 1.35;
@@ -26,7 +26,7 @@ body.studio .kv .ctrl-tog label,
 body.studio .kv .sctrl label { color: #dce2ec; }
 body.studio .kv { grid-template-columns: 76px 1fr; }
 body.studio .pedal [id$="-knob-row"] div[style*="text-transform"] {
-  font-size: 12px !important;
+  font-size: 11px !important;
   letter-spacing: .02em !important;
   font-weight: 700;
   opacity: 1;
