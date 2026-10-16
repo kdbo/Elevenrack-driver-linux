@@ -55,6 +55,24 @@ selected profiles for 1, 5, 15 or 30 minutes. See
 `analyze-loopback-regression.py` analyzes the recorded audio;
 `test-regression-analysis.py` checks the detector using synthetic faults.
 
+For physical white-noise loopbacks, `analyze-white-noise-path.py RECORDING.raw`
+provides a separate offline diagnosis of stationary analog filtering and timing
+faults. First build its helper with
+`cc -shared -fPIC -O2 tools/loopback-filter.c -o build/latency/libloopback-filter.so -lm`.
+The existing correlation helper must also be built, as for the regression tool.
+The diagnostic estimates one fixed 65-tap response from 0.2 seconds and validates
+it on independent data. It retains raw correlation results and rejects waveform
+mismatches, delay steps over eight frames, recorded callback xruns and observed
+PCM restarts. It does not recalibrate after a timing step. Missing PCM evidence
+is reported as unavailable. Consecutive 512-sample residual blocks complement sparse alignment windows;
+finite thresholds and the excluded startup/tail do not prove sample-perfect audio.
+Results are saved separately as `.white-path.json`; the standard regression pass
+criteria are not changed. Run `python3 tools/test-white-noise-analysis.py` for
+synthetic filtering, discontinuity and calibration-failure checks.
+`test-audio-regression.py --analog-white-noise` enables this diagnostic for its
+white-noise measurements and builds the helper. Other signals retain their
+existing analysis; raw white-noise scores are retained separately.
+
 ## Control channel meters
 
 `eleven-rack-meters.c` is the read-only JACK peak meter for eight capture channels

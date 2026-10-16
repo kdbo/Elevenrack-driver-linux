@@ -69,8 +69,9 @@ def main():
         name=f'{index:03d}-{r}-{q}-{m}min-{kind}-{datetime.now(ZONE):%Y%m%d-%H%M%S}'
         output=storage/name
         print('Starting',name,flush=True)
+        analysis_flags = ['--analog-white-noise'] if kind == 'white' else []
         with (storage/(name+'.log')).open('w') as log:
-            child=subprocess.Popen([sys.executable,str(ROOT/'tools/test-audio-regression.py'),'--output',str(output),'--profiles',f'{r}:{q}','--minutes',str(m),'--signals',kind],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+            child=subprocess.Popen([sys.executable,str(ROOT/'tools/test-audio-regression.py'),*analysis_flags,'--output',str(output),'--profiles',f'{r}:{q}','--minutes',str(m),'--signals',kind],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             try:
                 while child.poll() is None:
                     if datetime.now(ZONE)>=end:
@@ -86,11 +87,13 @@ def main():
         matrices=list(output.glob('*/matrix.json'))
         complete=False
         restored=False
+        driver_srcversion=None
         if matrices:
             report=json.loads(matrices[0].read_text())
+            driver_srcversion=report.get('driver_srcversion')
             restored=report.get('restored',False)
             complete=restored and len(report.get('results',[]))==1
-        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'output':str(output)})
+        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'driver_srcversion':driver_srcversion,'output':str(output)})
         if complete: state['next_task']=index+1
         save()
         if (storage / 'stop-after-current').exists():

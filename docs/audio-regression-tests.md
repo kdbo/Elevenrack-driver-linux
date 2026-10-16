@@ -40,6 +40,44 @@ Ctrl+C stopt de reeks. Het matrixscript herstelt in `finally` de eerdere hardwar
 
 ## Softwarecontrole zonder hardware
 
+### Witte ruis door de analoge loopback
+
+Een analoge retour verandert het spectrum en de fase van witte ruis. Daardoor
+kan de oorspronkelijke vergelijking met het onbewerkte referentiebestand onder
+de correlatiegrens vallen zonder dat samples ontbreken. Voor deze metingen is
+er een afzonderlijke, expliciet selecteerbare analyse:
+
+```sh
+python3 tools/test-audio-regression.py --analog-white-noise --output build/latency/analog-white --profiles 88200:128 --minutes 1 --signals white
+```
+
+Deze optie schat één vaste filterrespons uit 0,2 seconde en controleert die op
+andere meetvensters. De filter wordt niet opnieuw geschat na een timingstap.
+Naast de uitlijnvensters worden opeenvolgende blokken van 512 samples
+gecontroleerd, met minimaal 0,98 correlatie en maximaal 10% relatieve RMS-afwijking.
+De oorspronkelijke correlaties blijven bewaard. Stilte, clipping, gemelde xruns,
+waargenomen PCM-herstarts en plotselinge delaystappen van meer dan acht samples
+blijven fouten. Die acht samples vormen een diagnostische grens; de analyse
+bewijst daarmee geen sample-perfecte overdracht. Zonder hardwarestatus en
+callbacktijdstippen wordt de PCM-herstartcontrole als niet beschikbaar gemeld.
+De bestaande analyse blijft de standaard; sinus, roze ruis en multitoon wijzigen
+niet door deze optie.
+
+Voor een bestaand witte-ruisbestand:
+
+```sh
+cc -shared -fPIC -O2 tools/loopback-filter.c -o build/latency/libloopback-filter.so -lm
+python3 tools/analyze-white-noise-path.py PAD/OPNAME.raw
+python3 tools/test-white-noise-analysis.py
+```
+
+Het referentiebestand, logbestand en de bestaande correlatiebibliotheek zijn
+ook nodig. De uitvoer staat in `OPNAME.white-path.json`. De acht synthetische
+controles bevatten filtering, een samplesprong, stilte, een korte onderbreking
+tussen de uitlijnvensters, clipping, een xrun, een PCM-herstart en onbruikbare
+trainingsdata. Een geslaagde filtervergelijking
+mag een gemeten timingstap of PCM-herstart nooit overrulen.
+
 ```sh
 cc -shared -fPIC -O2 tools/latency-correlation.c -o build/latency/liblatency-correlation.so -lm
 python3 tools/test-regression-analysis.py
@@ -68,3 +106,38 @@ python3 tools/test-audio-regression.py --output build/latency/regression-multito
 ```
 
 Start deze aparte run pas wanneer de huidige runner is afgelopen: `test-audio-regression.py` zelf neemt het nachtelijke lock niet over. De bestaande nachtelijke wachtrij blijft 288 taken met sinus/witte/roze ruis en wordt niet aangepast. Twee extra synthetische tests controleren absolute multitoondelay (ook >100 ms) en een delayverschuiving. Fysieke multitoonmetingen zijn nog niet uitgevoerd. De multitoontest heeft geen afzonderlijke detector per frequentie voor fase- of amplitudesprongen; hij gebruikt de gezamenlijke correlatie en de bestaande signaalscan.
+
+## Bestaande samplerate-override en driveridentiteit
+
+Vanaf 2026-10-16 bewaart de matrixrunner een bestaande
+`99-eleven-matrix-rate.conf` in de uitvoermap als `original-rate-override.conf`.
+De test gebruikt de bestandsnaam tijdelijk en herstelt daarna de oorspronkelijke
+bytes en bestandsrechten; als het bestand oorspronkelijk ontbrak, wordt het
+testbestand verwijderd. Symlinks en andere niet-reguliere bestanden worden
+geweigerd. Het herstel geldt ook bij een afgebroken meting. `matrix.json`
+registreert de oorspronkelijke bestandsstatus en de gecontroleerde eindstatus
+van het bestand, hardwarefrequentie en PipeWire-metadata. Herstelfouten blijven
+in het rapport staan en mogen de wachtrij niet laten doorgaan.
+
+De module-srcversion wordt voor en na een matrix vastgelegd; nieuwe nachtelijke
+wachtrijresultaten nemen de gemeten beginidentiteit over. Historische resultaten
+zonder die metadata krijgen daarmee niet achteraf een driver toegewezen.
+De nachtelijke runner kiest voor witte ruis nu de vaste analoge responsanalyse;
+ruwe screenings blijven bewaard. Een oud raw-correlatie-FAIL en een nieuw
+analog-response-PASS mogen niet zonder heranalyse als driververbetering worden
+vergeleken. Sinus- en roze-ruisanalyse blijven hetzelfde.
+
+Gerichte controles zonder hardware:
+
+```sh
+python3 tools/test-matrix-rate-override.py
+python3 tools/test-nightly-runner.py
+python3 tools/test-pcm-restart-detection.py
+```
+
+De start-/herstelcontrole op 2026-10-16 nam tien seconden witte ruis op bij
+48 kHz / 128 frames met module `BFA8216A48C7CCD7D84B7B8`: geen xruns,
+waveformfouten of PCM-herstart, bestaand overridebestand en audio-instellingen
+geverifieerd hersteld. Bewijs: `build/latency/nightly-override-smoke-20261016/`.
+Dit is een controle van de gerepareerde testworkflow, geen vervanging voor de
+geplande dertigminutentest of langdurige driverregressie.

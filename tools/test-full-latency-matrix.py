@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -15,6 +16,30 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'build/latency/full-profile-matrix'
 PROFILES = [(r, q) for r in (44100, 48000) for q in (128,64,256,512,1024,2048)] + [(r,q) for r in (88200,96000) for q in (512,1024,2048)]
 UNITS = ['wireplumber.service','pipewire-pulse.service','pipewire-pulse.socket','pipewire.service','pipewire.socket']
+
+class RateOverride:
+    """Back up an existing rule before using its filename for a test."""
+    def __init__(self, path, backup_directory):
+        self.path = path
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise RuntimeError('Rate override must be a regular file')
+        self.original = path.read_bytes() if path.exists() else None
+        self.mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
+        if self.original is not None:
+            (backup_directory/'original-rate-override.conf').write_bytes(self.original)
+
+    def restore(self):
+        if self.original is None:
+            self.path.unlink(missing_ok=True)
+        else:
+            self.path.write_bytes(self.original)
+            self.path.chmod(self.mode)
+
+    def restored(self):
+        if self.original is None:
+            return not self.path.exists()
+        return (self.path.is_file() and self.path.read_bytes() == self.original
+                and stat.S_IMODE(self.path.stat().st_mode) == self.mode)
 
 def call(*args):
     return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT)
@@ -62,10 +87,14 @@ def main():
     global OUT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--regression', action='store_true', help='Analyze continuous regression signal instead of calibration bursts')
+    parser.add_argument('--analog-white-noise', action='store_true',
+                        help='Validate a fixed analog response for white-noise regression; retain timing faults')
     parser.add_argument('--output', type=Path, default=OUT)
     parser.add_argument('--starts', type=int, nargs='+', default=[1,2])
     parser.add_argument('--profiles', nargs='+', help='Subset as rate:quantum, for invalid-run recovery')
     args = parser.parse_args()
+    if args.analog_white_noise and (not args.regression or os.environ.get('ELEVEN_TEST_SIGNAL') != 'white'):
+        parser.error('--analog-white-noise requires white-noise regression')
     headroom = os.environ.get('ELEVEN_TEST_PLAYBACK_HEADROOM')
     if headroom is not None and (not headroom.isdecimal() or not 0 <= int(headroom) <= 512):
         parser.error('Playback headroom must be 0..512 frames')
@@ -83,14 +112,18 @@ def main():
     active = [u for u in UNITS if subprocess.run(['systemctl','--user','is-active','--quiet',u]).returncode==0]
     config = Path('/etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf').read_text()
     old = {(int(r),int(q)):int(v) for r,q,v in re.findall(r'eleven-correction-(\d+)-(\d+)\s*=\s*(-?\d+)',config)}
-    spec = importlib.util.spec_from_file_location('analysis',ROOT/('tools/analyze-loopback-regression.py' if args.regression else 'tools/analyze-jack-loopback.py'))
+    analyzer = ('tools/analyze-white-noise-path.py' if args.analog_white_noise else
+                'tools/analyze-loopback-regression.py' if args.regression else 'tools/analyze-jack-loopback.py')
+    spec = importlib.util.spec_from_file_location('analysis', ROOT/analyzer)
     analysis = importlib.util.module_from_spec(spec); spec.loader.exec_module(analysis)
     OUT.mkdir()
     report = {'original_settings':settings,'original_hardware_rate':original_rate,'results':[],'restored':False}
+    report['driver_srcversion'] = Path('/sys/module/snd_usb_audio/srcversion').read_text().strip()
     rate_config = Path.home()/'.config/wireplumber/wireplumber.conf.d/99-eleven-matrix-rate.conf'
-    if rate_config.exists(): raise RuntimeError('Existing matrix rate override; refusing overwrite')
+    override = RateOverride(rate_config, OUT)
+    report['original_rate_override_existed'] = override.original is not None
+    report['original_rate_override_mode'] = override.mode
     rate_config.parent.mkdir(parents=True,exist_ok=True)
-    rate_config.touch(exist_ok=False)
     def save(): (OUT/'matrix.json').write_text(json.dumps(report,indent=2)+'\n')
     save()
     try:
@@ -146,13 +179,35 @@ def main():
                 if len(report['results']) == 1 and not row['valid'] and 'correlated' in row['error']:
                     raise RuntimeError('First probe has no reliable signal; check loopback before continuing')
     finally:
-        stop()
-        rate_config.unlink()
-        subprocess.run(['arecord','-D','hw:Rack,0','-f','S32_LE','-r',str(original_rate),'-c','8','-d','1','-t','raw','/dev/null'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        call('systemctl','--user','start',*active); time.sleep(2)
-        for key in ('clock.allowed-rates','clock.rate','clock.force-rate','clock.force-quantum'):
-            if key in settings: call('pw-metadata','-n','settings','0',key,settings[key])
-        report['restored']=True; save()
-        print('Original audio settings restored',flush=True)
+        try:
+            try:
+                stop()
+            finally:
+                override.restore()
+            try:
+                subprocess.run(['arecord','-D','hw:Rack,0','-f','S32_LE','-r',str(original_rate),'-c','8','-d','1','-t','raw','/dev/null'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            finally:
+                call('systemctl','--user','start',*active)
+            time.sleep(2)
+            for key in ('clock.allowed-rates','clock.rate','clock.force-rate','clock.force-quantum'):
+                if key in settings: call('pw-metadata','-n','settings','0',key,settings[key])
+            report['final_settings'] = dict(re.findall(r"key:'([^']+)' value:'([^']+)'", call('pw-metadata','-n','settings')))
+            hardware = call('python3',str(ROOT/'tools/eleven-rack-settings.py'),'rate')
+            report['final_hardware_rate'] = int(re.search(r'Hardware sample rate: (\d+)', hardware)[1])
+            report['final_driver_srcversion'] = Path('/sys/module/snd_usb_audio/srcversion').read_text().strip()
+            report['rate_override_restored'] = override.restored()
+            report['restored'] = (report['rate_override_restored']
+                and report['final_hardware_rate'] == original_rate
+                and all(report['final_settings'].get(k) == settings.get(k) for k in
+                        ('clock.allowed-rates','clock.rate','clock.force-rate','clock.force-quantum'))
+                and all(subprocess.run(['systemctl','--user','is-active','--quiet',u]).returncode == 0 for u in active))
+            if not report['restored']:
+                raise RuntimeError('Original audio settings restoration could not be verified')
+            print('Original audio settings restored and verified',flush=True)
+        except BaseException as error:
+            report['restore_error'] = str(error)
+            raise
+        finally:
+            save()
 
 if __name__ == '__main__': main()

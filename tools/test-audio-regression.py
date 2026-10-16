@@ -19,6 +19,8 @@ def main():
     parser.add_argument('--signals',nargs='+',choices=['sine','white','pink','multitone'],default=['sine','white','pink'])
     parser.add_argument('--profiles',nargs='+',default=[f'{r}:{q}' for r in (44100,48000,88200,96000) for q in (64,128,256,512,1024,2048)])
     parser.add_argument('--plan',action='store_true',help='Show duration and profiles without touching audio')
+    parser.add_argument('--analog-white-noise', action='store_true',
+                        help='Use fixed-response analog white-noise analysis; keep raw results and timing checks')
     args=parser.parse_args()
     durations=[args.seconds] if args.seconds is not None else [m*60 for m in args.minutes]
     if any(not 1<=s<=1800 for s in durations) or args.cycles<1: parser.error('seconds: 1..1800; cycles: positive')
@@ -38,12 +40,16 @@ def main():
     try:
         subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror',str(ROOT/'tools/jack-loopback.c'),'-o',str(ROOT/'build/latency/jack-loopback-diagnostic'),'-l:libjack.so.0','-lm'],check=True)
         subprocess.run(['cc','-shared','-fPIC','-O2',str(ROOT/'tools/latency-correlation.c'),'-o',str(ROOT/'build/latency/liblatency-correlation.so'),'-lm'],check=True)
+        if args.analog_white_noise:
+            subprocess.run(['cc','-shared','-fPIC','-O2',str(ROOT/'tools/loopback-filter.c'),
+                            '-o',str(ROOT/'build/latency/libloopback-filter.so'),'-lm'],check=True)
         for cycle in range(1,args.cycles+1):
             for seconds in durations:
               for kind in args.signals:
                 out=args.output/f'cycle-{cycle}-{seconds}s-{kind}'
                 env=dict(os.environ,ELEVEN_TEST_SIGNAL=kind,ELEVEN_TEST_SECONDS=str(seconds))
-                child=subprocess.Popen([sys.executable,str(ROOT/'tools/test-full-latency-matrix.py'),'--regression','--output',str(out),'--starts',str(cycle),'--profiles',*args.profiles],env=env)
+                analysis_flags = ['--analog-white-noise'] if args.analog_white_noise and kind == 'white' else []
+                child=subprocess.Popen([sys.executable,str(ROOT/'tools/test-full-latency-matrix.py'),'--regression',*analysis_flags,'--output',str(out),'--starts',str(cycle),'--profiles',*args.profiles],env=env)
                 try: code=child.wait()
                 except KeyboardInterrupt:
                     child.send_signal(signal.SIGINT)
