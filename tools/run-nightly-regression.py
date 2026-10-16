@@ -55,7 +55,8 @@ def main():
     def save():
         temp=statefile.with_suffix('.tmp');temp.write_text(json.dumps(state,indent=2)+'\n');temp.replace(statefile)
     queue=tasks()
-    for index in range(state['next_task'],len(queue)):
+    first_task=state['next_task']
+    for index in range(first_task,len(queue)):
         stop_request = storage / 'stop-after-current'
         if stop_request.exists():
             stop_request.unlink()
@@ -70,6 +71,8 @@ def main():
         output=storage/name
         print('Starting',name,flush=True)
         analysis_flags = ['--analog-white-noise'] if kind == 'white' else []
+        # One SMI/stolen-time calibration per night, before the first audio task.
+        if index == first_task: analysis_flags += ['--platform-calibration', '30']
         with (storage/(name+'.log')).open('w') as log:
             child=subprocess.Popen([sys.executable,str(ROOT/'tools/test-audio-regression.py'),*analysis_flags,'--output',str(output),'--profiles',f'{r}:{q}','--minutes',str(m),'--signals',kind],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             try:
@@ -88,12 +91,14 @@ def main():
         complete=False
         restored=False
         driver_srcversion=None
+        platform=None
         if matrices:
             report=json.loads(matrices[0].read_text())
             driver_srcversion=report.get('driver_srcversion')
+            platform=next((row.get('platform',{}).get('classification') for row in report.get('results',[])),None)
             restored=report.get('restored',False)
             complete=restored and len(report.get('results',[]))==1
-        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'driver_srcversion':driver_srcversion,'output':str(output)})
+        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'driver_srcversion':driver_srcversion,'platform':platform,'output':str(output)})
         if complete: state['next_task']=index+1
         save()
         if (storage / 'stop-after-current').exists():

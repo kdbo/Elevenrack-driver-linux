@@ -21,7 +21,10 @@ def main():
     parser.add_argument('--plan',action='store_true',help='Show duration and profiles without touching audio')
     parser.add_argument('--analog-white-noise', action='store_true',
                         help='Use fixed-response analog white-noise analysis; keep raw results and timing checks')
+    parser.add_argument('--platform-calibration', type=int, default=0, metavar='SECONDS',
+                        help='Before audio, busy-loop this long to measure SMI/stolen-time gaps (0: skip)')
     args=parser.parse_args()
+    if not 0<=args.platform_calibration<=600: parser.error('platform calibration: 0..600 seconds')
     durations=[args.seconds] if args.seconds is not None else [m*60 for m in args.minutes]
     if any(not 1<=s<=1800 for s in durations) or args.cycles<1: parser.error('seconds: 1..1800; cycles: positive')
     allowed={f'{r}:{q}' for r in (44100,48000,88200,96000) for q in (64,128,256,512,1024,2048)}
@@ -43,6 +46,15 @@ def main():
         if args.analog_white_noise:
             subprocess.run(['cc','-shared','-fPIC','-O2',str(ROOT/'tools/loopback-filter.c'),
                             '-o',str(ROOT/'build/latency/libloopback-filter.so'),'-lm'],check=True)
+        # Unprivileged fallback; the installed cap_perfmon copy is preferred for SMI counts.
+        subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror',str(ROOT/'tools/smi-counter.c'),'-o',str(ROOT/'build/latency/smi-counter')],check=True)
+        if args.platform_calibration:
+            sys.path.insert(0,str(ROOT/'tools'))
+            import platform_noise
+            calibration=platform_noise.calibrate(args.platform_calibration)
+            (args.output/'platform-calibration.json').write_text(json.dumps(calibration,indent=2)+'\n')
+            report['platform_calibration']={k:v for k,v in calibration.items() if k!='gaps'};save()
+            print('Platform calibration:',json.dumps(report['platform_calibration']),flush=True)
         for cycle in range(1,args.cycles+1):
             for seconds in durations:
               for kind in args.signals:
@@ -60,7 +72,15 @@ def main():
         report['completed']=True
     finally:
         report['finished']=time.time();save()
-    failed=sum(not row['valid'] for run in report['runs'] for row in json.loads((Path(run['directory'])/'matrix.json').read_text())['results'])
+    rows=[row for run in report['runs'] for row in json.loads((Path(run['directory'])/'matrix.json').read_text())['results']]
+    failed=sum(not row['valid'] for row in rows)
     print(f'Finished: {failed} failing profiles. Reports: {args.output}',flush=True)
+    if failed:
+        causes={}
+        for row in rows:
+            if not row['valid']:
+                cause=row.get('platform',{}).get('classification','none')
+                causes[cause]=causes.get(cause,0)+1
+        print('Failing profiles by platform attribution:',', '.join(f'{k}={v}' for k,v in sorted(causes.items())),flush=True)
     if failed: sys.exit(1)
 if __name__=='__main__': main()

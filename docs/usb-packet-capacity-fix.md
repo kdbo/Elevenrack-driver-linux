@@ -90,7 +90,9 @@ playback headroom 256 frames and a physical Main Out L → Line In L loopback:
 
 The last test contains three failed waveforms despite zero JACK xruns. All
 three failed captures have SMI activity and fresh timer expiry lateness of
-approximately 23–27 ms. The 128-frame captures had no SMI events, so their
+approximately 23–27 ms. On 2026-10-16 those SMIs were traced to Dell
+keyboard-backlight writes from GNOME's idle dimming; see
+[firmware pauses](system-pauses.md) and the open 44.1 kHz issue below. The 128-frame captures had no SMI events, so their
 6/6 result does not establish better tolerance of firmware pauses. Likewise,
 256 frames is not intrinsically broken: five repeated captures passed.
 
@@ -114,6 +116,123 @@ recordings, graphs, timestamps and traces remain locally under
 `build/latency/usb-errors-20261015/`, in `noise-post-bios-1.38.0-171912`,
 `white-matrix-post-bios-1.38.0-172801` and
 `white-balanced-48k-post-bios-1.38.0-200753`.
+
+## Open: 33–34-frame delay steps at 44.1 kHz (2026-10-16)
+
+With GNOME idle dimming disabled, no SMIs occurred in any regression run that
+day. One failure mode remains. With the same module (srcversion
+`BFA8216A48C7CCD7D84B7B8`), 3 of 10 five-minute 44.1 kHz / 128-frame
+white-noise runs failed:
+
+| Run | Delay step | Time into recording |
+| --- | --- | --- |
+| `nodim-white-20261016-080517` | +34 frames | 60.6 s |
+| `rate441-repeat-20261016-084608`, cycle 1 | +34 frames | 13.4 s |
+| `rate441-editor-20261016-090624`, cycle 1 | +33 frames | 3.1 s |
+
+Each failure has the same signature:
+
+- The loopback delay increases once and stays there; about 35 ms of samples
+  around the step fail the residual check.
+- At the same moment, the playback latency reported by PipeWire rises by
+  8–10 frames and does not return.
+- There is no JACK xrun, PCM restart, callback stall, SMI or kernel message.
+- All steps fell within the first minute, while the reported playback/capture
+  latencies are still settling (about 60–90 s in every run). After that point,
+  about 20 minutes of settled recording contained no step.
+- No step has been seen at 48 kHz.
+
+Ruled out:
+
+- **SMIs:** the counter did not change.
+- **The Editor and its MIDI traffic:** MIDI bytes were logged every 100 ms;
+  traffic occurred only during setup, about 12 s before the closest step.
+- **A WebKit process crash:** one coincided with the first failure, but not
+  with the others.
+
+### Candidate 1: implicit-feedback zero-size packets (driver)
+
+In `sound/usb/endpoint.c`, each playback URB copies the packet layout of a
+received capture URB:
+
+- A capture packet with a non-zero status, such as a missed microframe, makes
+  the matching playback packet size 0.
+- A capture URB without any valid bytes produces no playback URB at all. This
+  avoids 0-byte OUT URBs, which stop M-Audio devices.
+
+Either way, playback silently sends fewer frames than the device consumes, and
+the loopback delay grows. Nothing reports an xrun. At 44.1 kHz high-speed
+packets alternate between 5 and 6 frames, so six packets total 33 or 34 frames,
+the measured step sizes. At 48 kHz six packets would be 36 frames.
+
+Other implementations derive playback packet sizes from a history of
+received capture packets, rather than pairing each playback URB with one
+capture URB. With a history, a failed capture packet does not leave a hole
+in playback, because a plausible size is always available.
+
+### Candidate 2: PipeWire follower resync (backend)
+
+The playback node (`hw:1,0p`) follows the capture clock without resampling
+(`matching:0`). When its timing error exceeds `max_resync`
+(`min(quantum + headroom, max_error)`), `alsa-pcm.c` rewinds or inserts
+silence. This also produces a step without an xrun. It is logged only at
+INFO level, so the default journal shows nothing.
+
+With `PIPEWIRE_DEBUG=2,spa.alsa:3`, three 44.1 kHz / 128 runs showed one
+resync per stream start, during warmup, and none during recording. Those runs
+had no step, so this neither confirms nor excludes the candidate.
+
+### Distinguishing the two
+
+Enable both logs, then run 44.1 kHz / 128 tests until a step occurs:
+
+```sh
+systemctl --user set-environment PIPEWIRE_DEBUG="2,spa.alsa:3"
+echo 'module snd_usb_audio format "frame %d active" +pt' | sudo tee /proc/dynamic_debug/control
+```
+
+The second command enables the existing rate-limited `retire_capture_urb`
+message for capture packets with a non-zero status. It resets on reboot or
+module reload. Afterwards, disable both:
+
+```sh
+systemctl --user unset-environment PIPEWIRE_DEBUG
+echo 'module snd_usb_audio format "frame %d active" -p' | sudo tee /proc/dynamic_debug/control
+```
+
+At the step time, compare the kernel log (`journalctl -k`) and the user
+journal (`journalctl --user | grep resync`):
+
+| Evidence at the step | Conclusion |
+| --- | --- |
+| `frame N active: <status>` lines | Candidate 1: driver implicit-feedback path |
+| `follower … resync` line | Candidate 2: PipeWire backend |
+| Neither | Below both, for example the Rack's firmware; trace the URBs |
+
+### Fix direction if candidate 1 is confirmed
+
+Make this a device-specific quirk for `0dba:b011`, in the same style as the
+packet-capacity normalization:
+
+- When a capture packet fails, take its playback size from recent valid
+  capture packets instead of 0. The frame count then follows the device clock.
+- When an entire capture URB fails, still produce a playback URB with
+  history-based sizes rather than skipping it.
+
+The aim is to reproduce the benefit of a packet-size history without
+changing the generic implicit-feedback design that other devices depend on.
+
+Before relying on this, establish:
+
+1. Whether the Rack itself tolerates zero-length OUT packets. The M-Audio
+   behaviour shows that devices differ.
+2. The error status the capture packets actually report.
+3. That the fix removes the 44.1 kHz steps without new faults at 48, 88.2 and
+   96 kHz.
+
+Upstream ALSA already has `QUIRK_FLAG_IFB_SILENCE_ON_EMPTY` for devices that
+need an OUT packet even when the whole capture URB failed. That quirk still
+sends zero-size packets, so it would not prevent the frame loss.
 
 ## Local DKMS trial
 

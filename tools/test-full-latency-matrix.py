@@ -116,6 +116,8 @@ def main():
                 'tools/analyze-loopback-regression.py' if args.regression else 'tools/analyze-jack-loopback.py')
     spec = importlib.util.spec_from_file_location('analysis', ROOT/analyzer)
     analysis = importlib.util.module_from_spec(spec); spec.loader.exec_module(analysis)
+    spec = importlib.util.spec_from_file_location('platform_noise', ROOT/'tools/platform_noise.py')
+    platform = importlib.util.module_from_spec(spec); spec.loader.exec_module(platform)
     OUT.mkdir()
     report = {'original_settings':settings,'original_hardware_rate':original_rate,'results':[],'restored':False}
     report['driver_srcversion'] = Path('/sys/module/snd_usb_audio/srcversion').read_text().strip()
@@ -125,6 +127,8 @@ def main():
     report['original_rate_override_mode'] = override.mode
     rate_config.parent.mkdir(parents=True,exist_ok=True)
     def save(): (OUT/'matrix.json').write_text(json.dumps(report,indent=2)+'\n')
+    smi = platform.SmiMonitor(OUT/'smi.csv').__enter__()
+    report['smi_counter'] = smi.status
     save()
     try:
         for repeat in args.starts:
@@ -150,6 +154,7 @@ def main():
                 subprocess.run([sys.executable,str(ROOT/'tools/record-latency-status.py'),'--binary',str(ROOT/'build/latency/jack-loopback-diagnostic'),'--output',str(directory),'--quanta',str(quantum),'--repeats','1'],check=True,env=env, stdout=subprocess.DEVNULL)
                 raw = directory/f'quantum-{quantum}-run-1.raw'
                 row = {'rate_hz':rate,'quantum':quantum,'start':repeat,'existing_correction':old.get((rate,quantum),0)}
+                result = {}
                 try:
                     result = analysis.analyze(raw)
                     if result['rate_hz'] != rate or result['quantum'] != quantum: raise ValueError('Graph mismatch')
@@ -168,9 +173,19 @@ def main():
                     if not row['valid']: row['error'] = 'Signal continuity screening or xruns failed'
                 except (ValueError, OSError, KeyError) as error:
                     row.update(valid=False,error=str(error))
+                if args.regression:
+                    # Evidence only; never changes the verdict. Also runs after a
+                    # rejected recording: a long SMI is what restarts the PCM.
+                    try:
+                        row['platform'] = platform.attribute(
+                            raw, rate, quantum, result.get('faults', []) + result.get('dense_faults', []),
+                            smi.status, platform.smi_events(OUT/'smi.csv'))
+                    except (ValueError, OSError, KeyError, IndexError) as error:
+                        row['platform'] = {'classification': 'error', 'error': str(error)}
                 report['results'].append(row); save()
                 if args.regression:
-                    print('REGRESSION',rate,quantum,'START',repeat,'PASS' if row['valid'] else 'FAIL',flush=True)
+                    print('REGRESSION',rate,quantum,'START',repeat,'PASS' if row['valid'] else 'FAIL',
+                          'platform='+row.get('platform',{}).get('classification','none'),flush=True)
                 elif row['valid']:
                     values = [b['minus_live_reported_frames'] for b in row['bursts'] if b['stimulus_seconds']>=2.5]
                     print('PROFILE',rate,quantum,'START',repeat,'RESIDUAL',values,flush=True)
@@ -179,6 +194,7 @@ def main():
                 if len(report['results']) == 1 and not row['valid'] and 'correlated' in row['error']:
                     raise RuntimeError('First probe has no reliable signal; check loopback before continuing')
     finally:
+        smi.__exit__(None, None, None)
         try:
             try:
                 stop()

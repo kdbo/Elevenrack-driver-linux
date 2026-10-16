@@ -1,21 +1,19 @@
-# Automatische bufferingvergelijking
+# Automatic buffering comparison
 
-`tools/tune-audio-buffering.py` automatiseert een begrensde vergelijking op 48 kHz / 128 samples. Het onderzoekt de bestaande instellingen en playback `api.alsa.headroom` van 0, 32, 64, 96, 128, 192 en 256 frames. Dit is echte playbackbuffermarge in de PipeWire ALSA-backend, geen wijziging van de latencycorrectietabel of de kernel-USB-pakketplanning. Headroom wordt alleen tijdelijk op de Eleven Rack-outputnode toegepast.
+`tools/tune-audio-buffering.py` automates a bounded comparison at 48 kHz / 128 samples. It examines the existing settings and playback `api.alsa.headroom` values of 0, 32, 64, 96, 128, 192 and 256 frames. This is real playback buffer margin in the PipeWire ALSA backend, not a change to the latency correction table or to the kernel's USB packet scheduling. Headroom is applied only temporarily, and only to the Eleven Rack output node.
 
-Plan tonen:
+Show the plan:
 
 ```sh
 python3 tools/tune-audio-buffering.py --output build/latency/buffering-tuning
 ```
 
-Fysiek uitvoeren, met Main Out L → Line In L aangesloten en REAPER gesloten:
+Run it physically, with Main Out L → Line In L connected and REAPER closed:
 
 ```sh
 python3 tools/tune-audio-buffering.py --output build/latency/buffering-tuning --execute
 ```
 
-Iedere kandidaat wordt eerst met één minuut van elk signaal getest. Alleen foutloze kandidaten met gemeten roundtriplatency tussen 10 en 12 ms gaan door naar twee verse-startcycli van 5, 15 en 30 minuten per signaal. Kandidaten dichter bij 12 ms krijgen voorrang. Het resultaat is een voorstel in `tuning.json`, geen automatisch geïnstalleerde standaard. Zonder bevestigde kandidaat blijven de defaults behouden. De fysieke afstelling is nog niet uitgevoerd.
+Each candidate is first tested with one minute of each signal. Only fault-free candidates with a measured round-trip latency between 10 and 12 ms go on to two fresh-start cycles of 5, 15 and 30 minutes per signal. Candidates closer to 12 ms get priority. The result is a proposal in `tuning.json`, not an automatically installed default. Without a confirmed candidate, the defaults are kept. The physical tuning has not been carried out yet.
 
-De latency wordt bepaald uit de mediane fysieke lag van de betrouwbare witte-/roze-ruisvensters, niet uit sinus of enkel de gerapporteerde latency. De beperkingen van de regressiedetector blijven gelden; controleer verdachte audio. Deze begrensde headroomreeks garandeert niet dat het doel haalbaar is. Een eventuele aanbeveling betreft alleen het geteste profiel en systeem; andere profielen moeten daarna opnieuw gecontroleerd worden.
-
-De tool gebruikt hetzelfde lock als de nachtrunner, zodat beide geen instellingen tegelijk aanpassen. Hij weigert te starten zolang de huidige regressiereeks actief is. Hij is niet aan de cronjob toegevoegd en heeft geen tijdvenster: bevestigingstests kunnen ruim vijf uur per kandidaat duren. De nachtelijke baselinemetingen blijven ongewijzigd. Iedere matrix herstelt de oorspronkelijke audio-instellingen; bij mislukte restauratie stopt de afstelling.
+The latency is determined from the median physical lag of the reliable white/pink-noise windows, not from the sine wave or from the reported latency alone. The limitations of the regression detector still apply; check suspicious audio. This bounded headroom range does not guarantee that the target is achievable. Any recommendation applies only to the tested profile and system; other profiles must be checked again afterwards.

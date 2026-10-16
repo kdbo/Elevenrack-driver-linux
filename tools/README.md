@@ -54,6 +54,10 @@ selected profiles for 1, 5, 15 or 30 minutes. See
 [instructions and limitations](../docs/audio-regression-tests.md).
 `analyze-loopback-regression.py` analyzes the recorded audio;
 `test-regression-analysis.py` checks the detector using synthetic faults.
+`smi-counter.c` and `platform_noise.py` record firmware SMIs during each matrix
+and mark callback stalls and faults that coincide with them (`platform` in
+`matrix.json`); `test-platform-noise.py` checks that attribution. The counter
+needs the helper installed with `cap_perfmon`; see the regression instructions.
 
 For physical white-noise loopbacks, `analyze-white-noise-path.py RECORDING.raw`
 provides a separate offline diagnosis of stationary analog filtering and timing
