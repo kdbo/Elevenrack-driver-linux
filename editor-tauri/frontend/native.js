@@ -131,7 +131,8 @@
       document.querySelector('.chain-open[data-panel="reverb"]').click(); await settle();
       checks.push(visible('panel-ampcab') && ids.every(id => !visible(id)));
     }
-    return { initialHidden, toneDisplay, panelSwitches:checks, passed:initialHidden && toneDisplay === 'flex' && checks.every(Boolean) };
+    const controlLabelFontSize = parseFloat(getComputedStyle(document.querySelector('.amp .ctrl-knob label')).fontSize);
+    return { initialHidden, toneDisplay, controlLabelFontSize, panelSwitches:checks, passed:controlLabelFontSize >= 12 && initialHidden && toneDisplay === 'flex' && checks.every(Boolean) };
   }
   document.addEventListener('DOMContentLoaded', () => {
     Promise.all([api.getAppVersion(), api.getCapturesDir(), api.getSavedPorts(), call('getRuntimeInfo')])

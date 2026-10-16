@@ -16,6 +16,7 @@ fn main() {
     let target = Path::new("../.generated");
     println!("cargo:rerun-if-changed=../../editor/src");
     println!("cargo:rerun-if-changed=../frontend/native.js");
+    println!("cargo:rerun-if-changed=../frontend/readability.css");
     println!("cargo:rerun-if-changed=../../editor/assets");
     if target.exists() {
         fs::remove_dir_all(target).unwrap();
@@ -30,9 +31,18 @@ fn main() {
         }
     }
     fs::copy("../frontend/native.js", target.join("native.js")).unwrap();
+    fs::copy(
+        "../frontend/readability.css",
+        target.join("readability.css"),
+    )
+    .unwrap();
     let html = fs::read_to_string(target.join("index.html"))
         .unwrap()
-        .replace("../assets/", "assets/");
+        .replace("../assets/", "assets/")
+        .replace(
+            "</head>",
+            "<link rel=\"stylesheet\" href=\"readability.css\">\n</head>",
+        );
     assert!(html.contains("<head>"));
     fs::write(
         target.join("index.html"),
