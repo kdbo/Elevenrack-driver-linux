@@ -16,6 +16,7 @@ fn main() {
     let target = Path::new("../.generated");
     println!("cargo:rerun-if-changed=../../editor/src");
     println!("cargo:rerun-if-changed=../frontend/native.js");
+    println!("cargo:rerun-if-changed=../frontend/splash.js");
     println!("cargo:rerun-if-changed=../frontend/readability.css");
     println!("cargo:rerun-if-changed=../../editor/assets");
     if target.exists() {
@@ -36,6 +37,21 @@ fn main() {
         target.join("readability.css"),
     )
     .unwrap();
+    fs::copy("../frontend/splash.js", target.join("splash.js")).unwrap();
+    // Keep the original splash document and CSS, replacing only its IPC script.
+    let splash = fs::read_to_string(source.join("splash.html")).unwrap();
+    let splash = splash.replace("</style>", r#"
+#progress-bar { position:relative; }
+#progress-bar::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent); animation:loading-shimmer 1.3s linear infinite; }
+@keyframes loading-shimmer { from { transform:translateX(-100%); } to { transform:translateX(100%); } }
+@media (prefers-reduced-motion:reduce) { #progress-bar::after { animation:none; } }
+</style>"#);
+    let splash = format!(
+        "{}<script src=\"splash.js\"></script></body></html>",
+        splash.split_once("<script>").unwrap().0
+    )
+    .replace("../assets/", "assets/");
+    fs::write(target.join("splash.html"), splash).unwrap();
     let html = fs::read_to_string(target.join("index.html"))
         .unwrap()
         .replace("../assets/", "assets/")

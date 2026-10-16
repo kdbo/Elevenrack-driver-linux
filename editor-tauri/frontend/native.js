@@ -32,43 +32,40 @@
   }
   api.removeBridgeStatus = () => remove('bridge-status');
   api.removeWatchdogAlert = () => remove('watchdog-alert');
-  function gate(data) {
-    let el = document.getElementById('tauri-startup-gate');
-    if (!el) {
-      el = document.createElement('section'); el.id = 'tauri-startup-gate';
-      el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#111e;display:grid;place-content:center;gap:20px;padding:40px;text-align:center;color:#ddd';
-      const title = document.createElement('h2'); title.textContent = 'Eleven Rack Editor';
-      const message = document.createElement('p'); message.id = 'tauri-gate-message';
-      const retry = document.createElement('button'); retry.textContent = 'Try again';
-      retry.onclick = () => { el.hidden = true; el.style.display = 'none'; window.dispatchEvent(new Event('tauri-startup-retry')); };
-      const quit = document.createElement('button'); quit.textContent = 'Quit'; quit.onclick = () => api.quitApp();
-      el.append(title, message, retry, quit); document.body.append(el);
-    }
-    el.hidden = false; el.style.display = 'grid';
-    document.getElementById('tauri-gate-message').textContent = data && data.reason === 'firmware'
-      ? 'The connected Rack firmware is not supported. ' + (data.detail || '')
-      : 'Connect your Eleven Rack and try again, or select its MIDI ports.';
+  const splashCall = (method, ...args) => call(method, ...args).catch(console.error);
+  api.splashShowGate = data => splashCall('splashShowGate', data);
+  api.splashHideGate = () => splashCall('splashHideGate');
+  api.splashProgress = data => splashCall('splashProgress', data);
+  api.waitForMidi = ms => call('midiDelay', ms);
+  api.appReady = () => call('appReady');
+  api.onStartupRetryClick = cb => subscribe('startup-retry-click', cb);
+  api.sendStartupRetryClick = () => splashCall('splashRetry');
+  async function localRackChoice(devices) {
+    return new Promise(resolve => {
+      const dialog = document.createElement('dialog');
+      const select = document.createElement('select');
+      for (const device of devices) { const option = document.createElement('option'); option.value=device.id; option.textContent=device.label; select.append(option); }
+      const done = choice => { dialog.close(); dialog.remove(); resolve(choice); };
+      const button = document.createElement('button'); button.textContent='Connect'; button.onclick=() => done(select.value);
+      const cancel = document.createElement('button'); cancel.textContent='Cancel'; cancel.onclick=() => done(null);
+      dialog.addEventListener('cancel', event => {event.preventDefault(); done(null);});
+      dialog.append(select,button,cancel); document.body.append(dialog); dialog.showModal();
+    });
   }
-  api.splashShowGate = data => gate(data);
-  api.splashHideGate = () => { const el = document.getElementById('tauri-startup-gate'); if (el) { el.hidden = true; el.style.display = 'none'; } };
-  api.splashProgress = () => {};
-  api.appReady = () => { api.splashHideGate(); return call('appReady'); };
-  api.onStartupRetryClick = cb => { window.addEventListener('tauri-startup-retry', cb); return () => window.removeEventListener('tauri-startup-retry', cb); };
-  api.sendStartupRetryClick = () => window.dispatchEvent(new Event('tauri-startup-retry'));
-  api.chooseRack = devices => new Promise(resolve => {
-    if (!Array.isArray(devices) || !devices.length || devices.length > 32) { resolve(null); return; }
-    const dialog = document.createElement('dialog');
-    const label = document.createElement('label'); label.textContent = 'Select Eleven Rack ';
-    const select = document.createElement('select');
-    for (const device of devices) { const option = document.createElement('option'); option.value = device.id; option.textContent = device.label; select.append(option); }
-    label.append(select);
-    const choose = document.createElement('button'); choose.textContent = 'Connect';
-    const cancel = document.createElement('button'); cancel.textContent = 'Cancel';
-    const done = value => { dialog.close(); dialog.remove(); resolve(value); };
-    choose.onclick = () => done(select.value); cancel.onclick = () => done(null);
-    dialog.addEventListener('cancel', event => { event.preventDefault(); done(null); });
-    dialog.append(label, choose, cancel); document.body.append(dialog); dialog.showModal();
-  });
+  api.chooseRack = async devices => {
+    if (!(await call('getRuntimeInfo')).splash) return localRackChoice(devices);
+    const token = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      let unlisten;
+      listen('rack-choice', event => {
+        if (event.payload.token !== token) return;
+        unlisten(); resolve(event.payload.choice);
+      }).then(stop => {
+        unlisten = stop;
+        return call('splashChooseRack', devices, token);
+      }).catch(error => { if (unlisten) unlisten(); reject(error); });
+    });
+  };
   // Retain the shared renderer API name while replacing all Electron IPC.
   window.electronAPI = Object.freeze(api);
 
@@ -133,14 +130,17 @@
       checks.push(visible('panel-ampcab') && ids.every(id => !visible(id)));
     }
     const controlLabelFontSize = parseFloat(getComputedStyle(document.querySelector('.amp .ctrl-knob label')).fontSize);
-    return { initialHidden, toneDisplay, controlLabelFontSize, panelSwitches:checks, passed:controlLabelFontSize >= 11 && initialHidden && toneDisplay === 'flex' && checks.every(Boolean) };
+    return { initialHidden, toneDisplay, controlLabelFontSize, panelSwitches:checks, passed: controlLabelFontSize >= 11 && initialHidden && toneDisplay === 'flex' && checks.every(Boolean) };
   }
   document.addEventListener('DOMContentLoaded', () => {
     Promise.all([api.getAppVersion(), api.getCapturesDir(), api.getSavedPorts(), call('getRuntimeInfo')])
       .then(async values => {
+        // Hidden WebKit windows pause animation frames. In no-MIDI mode the UI
+        // is ready at DOMContentLoaded; reveal it before exercising panel buttons.
+        if (values[3].noMidi) await api.appReady();
         // Exercise panel buttons only in the explicitly MIDI-disabled smoke test.
         const layout = await layoutAudit(values[3].smoke);
-        return call('frontendReady', {sharedInit:typeof init === 'function',body:!!document.body,layout});
+        await call('frontendReady', {sharedInit:typeof init === 'function',body:!!document.body,layout});
       })
       .catch(error => call('logWrite', 'JS error: startup verification: ' + String(error)));
   });

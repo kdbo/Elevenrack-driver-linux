@@ -16,7 +16,7 @@ use std::{
     },
     time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -165,7 +165,9 @@ impl Host {
             return self.set(key, arg(0));
         }
         match method {
-            "getRuntimeInfo" => Ok(json!({"smoke":std::env::args().any(|arg|arg=="--smoke-test")})),
+            "getRuntimeInfo" => Ok(
+                json!({"splash":app.get_webview_window("splash").is_some(),"smoke":std::env::args().any(|arg|arg=="--smoke-test"),"noMidi":std::env::args().any(|arg|arg=="--no-midi" || arg=="--smoke-test")}),
+            ),
             "frontendReady" => {
                 self.log(&format!("LAYOUT_AUDIT {}", arg(0)["layout"]))?;
                 if arg(0)["layout"]["passed"].as_bool() != Some(true) {
@@ -190,12 +192,72 @@ impl Host {
                 app.exit(0);
                 Ok(Value::Null)
             }
+            "midiDelay" => {
+                let ms = arg(0)
+                    .as_u64()
+                    .filter(|ms| *ms <= 10_000)
+                    .ok_or("Invalid MIDI delay")?;
+                std::thread::sleep(std::time::Duration::from_millis(ms));
+                Ok(json!(true))
+            }
+            "splashReady" => {
+                if arg(0)["barVisible"].as_bool() != Some(true) {
+                    return Err("Splash progress bar did not render".into());
+                }
+                self.log(&format!("SPLASH_PAINTED {}", arg(0)))?;
+                let handle = app.clone();
+                app.run_on_main_thread(move || {
+                    if handle.get_webview_window("main").is_none() {
+                        let config = &handle.config().app.windows[0];
+                        match tauri::WebviewWindowBuilder::from_config(&handle, config)
+                            .and_then(|b| b.build())
+                        {
+                            Ok(_) => {}
+                            Err(error) => {
+                                eprintln!("Cannot create editor: {error}");
+                                handle.exit(1);
+                            }
+                        }
+                    }
+                })
+                .map_err(|e| e.to_string())?;
+                Ok(json!(true))
+            }
+            "splashProgress" | "splashShowGate" | "splashHideGate" | "splashChooseRack" => {
+                app.emit_to("splash", method, args)
+                    .map_err(|e| e.to_string())?;
+                Ok(json!(true))
+            }
+            "splashRetry" => {
+                app.emit_to("main", "startup-retry-click", ())
+                    .map_err(|e| e.to_string())?;
+                Ok(json!(true))
+            }
+            "splashChoice" => {
+                app.emit_to("main", "rack-choice", arg(0))
+                    .map_err(|e| e.to_string())?;
+                Ok(json!(true))
+            }
+            "appReady" => {
+                let window = app
+                    .get_webview_window("main")
+                    .ok_or("Editor window missing")?;
+                if !window.is_decorated().map_err(|e| e.to_string())? {
+                    return Err("Editor title bar is missing".into());
+                }
+                window.show().map_err(|e| e.to_string())?;
+                self.log("EDITOR_SHOWN_WITH_TITLE_BAR")?;
+                window.set_focus().map_err(|e| e.to_string())?;
+                if let Some(splash) = app.get_webview_window("splash") {
+                    splash.close().map_err(|e| e.to_string())?;
+                }
+                Ok(json!(true))
+            }
             "checkAvidEditor" => Ok(json!(false)),
             "startWatchdog"
             | "stopWatchdog"
             | "setWin11UploadWarnDisabled"
-            | "setWin11StartupAck"
-            | "appReady" => Ok(json!(true)),
+            | "setWin11StartupAck" => Ok(json!(true)),
             "getMidiStackStatus" => {
                 Ok(json!({"newStack":false,"permanentlyDisabled":false,"startupAck":true}))
             }

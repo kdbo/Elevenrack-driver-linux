@@ -16,7 +16,23 @@
         "height": 850,
         "minWidth": 900,
         "minHeight": 600,
-        "backgroundColor": "#111111"
+        "backgroundColor": "#0e0e0e",
+        "decorations": true,
+        "resizable": true,
+        "center": true,
+        "create": false,
+        "visible": false
+      },
+      {
+        "label": "splash",
+        "title": "Eleven Rack Editor",
+        "url": "splash.html",
+        "width": 520,
+        "height": 380,
+        "decorations": false,
+        "resizable": false,
+        "center": true,
+        "backgroundColor": "#0e0e0e"
       }
     ],
     "security": {
@@ -25,7 +41,8 @@
         {
           "identifier": "main",
           "windows": [
-            "main"
+            "main",
+            "splash"
           ],
           "permissions": [
             "core:event:allow-listen",

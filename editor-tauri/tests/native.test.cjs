@@ -52,3 +52,11 @@ test('content policy preserves legacy inline layouts without allowing remote con
   assert.match(csp,/object-src 'none'/);
   assert.match(csp,/connect-src ipc: http:\/\/ipc\.localhost/);
 });
+test('MIDI pacing uses a native wait with the requested duration', async () => {
+  const {context,calls}=load(async () => true);
+  const transport=fs.readFileSync(path.join(__dirname,'../../editor/src/js/transport.js'),'utf8');
+  const start=transport.indexOf('function sleep(ms) {');
+  vm.runInContext(transport.slice(start,transport.indexOf('\n}',start)+2),context);
+  await context.sleep(35);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),['host_call',{method:'midiDelay',args:[35]}]);
+});
