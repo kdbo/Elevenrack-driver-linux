@@ -23,6 +23,7 @@ package() {
     cp -a "$srcdir/eleven-rack-backend/etc" "$srcdir/eleven-rack-backend/usr" "$pkgdir/"
     cd "$srcdir/eleven-rack-source"
     install -Dm755 tools/eleven-rack-panel.py "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-panel.py"
+    install -Dm644 tools/rack_devices.py "$pkgdir/usr/lib/eleven-rack/tools/rack_devices.py"
     install -Dm755 tools/eleven-rack-settings.py "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-settings.py"
     install -Dm755 tools/eleven-rack-updates.py "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-updates.py"
     install -Dm644 tools/eleven-rack-meters.c "$pkgdir/usr/lib/eleven-rack/tools/eleven-rack-meters.c"

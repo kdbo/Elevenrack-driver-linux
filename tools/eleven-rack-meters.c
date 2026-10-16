@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <stdatomic.h>
 #include <math.h>
+#include <string.h>
 typedef uint32_t jack_nframes_t;
 typedef struct _jack_client jack_client_t;
 typedef struct _jack_port jack_port_t;
@@ -35,7 +36,9 @@ static int process(jack_nframes_t frames,void *unused) {
     }
     return 0;
 }
-int main(void) {
+int main(int argc, char **argv) {
+    int external = argc == 3 && strcmp(argv[1], "--external") == 0;
+    if (argc != 1 && !external) return 2;
     const char *sources[14]={
         "Eleven Rack Inputs:Guitar In","Eleven Rack Inputs:Mic In",
         "Eleven Rack Inputs:Eleven Rig L","Eleven Rack Inputs:Eleven Rig R",
@@ -46,7 +49,7 @@ int main(void) {
         "Eleven Rack Outputs:monitor_Digital Out L","Eleven Rack Outputs:monitor_Digital Out R"};
     unsigned status=0;
     if (!atomic_is_lock_free(&peaks[0])) return 1;
-    jack_client_t *client=jack_client_open("eleven-control-meters",1,&status);
+    jack_client_t *client=jack_client_open(external ? argv[2] : "eleven-control-meters",1,&status);
     if (!client) { fprintf(stderr,"JACK unavailable: %u\n",status);return 1; }
     for (int c=0;c<14;c++) {
         char name[32];snprintf(name,sizeof(name),"meter_%d",c);
@@ -59,7 +62,7 @@ int main(void) {
     unsigned tick=0;
     while (!stopping) {
         for (int c=0;c<14;c++) {
-            if (tick%5==0 && !jack_port_connected(ports[c])) jack_connect(client,sources[c],jack_port_name(ports[c]));
+            if (!external && tick%5==0 && !jack_port_connected(ports[c])) jack_connect(client,sources[c],jack_port_name(ports[c]));
             float peak=atomic_exchange_explicit(&peaks[c],0,memory_order_relaxed);
             printf("%s%.6g",c?" ":"",jack_port_connected(ports[c])?peak:-1.0f);
         }

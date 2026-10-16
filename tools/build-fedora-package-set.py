@@ -80,7 +80,7 @@ def driver_payload(stage, version, kernel, source, backend_build, backend, extra
     if (source / 'include/config/kernel.release').read_text().strip() != kernel:
         raise RuntimeError('Prepared source identity does not match kernel-devel')
     backend.stage_payload(stage, backend_build, metadata)
-    for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py', 'eleven-rack-updates.py'):
+    for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py', 'eleven-rack-updates.py', 'rack_devices.py'):
         copy(stage, ROOT/'tools'/name, 'usr/lib/eleven-rack/tools/'+name, True)
     copy(stage, ROOT/'tools/eleven-rack-meters.c', 'usr/lib/eleven-rack/tools/eleven-rack-meters.c')
     write(stage, 'usr/lib/eleven-rack/VERSION', version+'\n')
