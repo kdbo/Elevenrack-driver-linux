@@ -64,6 +64,22 @@ int main(void) {
             subprocess.run(['cc', '-Wall', '-Wextra', '-Werror', str(c), '-o', str(binary)], check=True)
             subprocess.run([str(binary)], check=True)
 
+    def test_playback_lead_applies_to_clean_source_and_rejects_unknown_layout(self):
+        archive = Path('/usr/src/linux-source-7.0.0.tar.bz2')
+        if not archive.exists():
+            self.skipTest('Ubuntu 7.0 kernel source archive not installed')
+        endpoint = subprocess.run(['tar', '-xjOf', str(archive),
+                                   'linux-source-7.0.0/sound/usb/endpoint.c'],
+                                  check=True, capture_output=True, text=True).stdout
+        patched = prepare.eleven_playback_lead(endpoint)
+        self.assertIn('module_param(eleven_playback_lead_ms, uint, 0644);', patched)
+        self.assertIn('for (i = 0; i < (lead ? lead : ep->nurbs); i++) {', patched)
+        self.assertIn('if (!i && !lead) {', patched)
+        self.assertIn('ep->chip->usb_id != USB_ID(0x0dba, 0xb011)', patched)
+        with self.assertRaises(RuntimeError):
+            prepare.eleven_playback_lead(endpoint.replace('No URB submission due to implicit fb sync',
+                                                          'Changed upstream message'))
+
     def test_unrecognized_function_layout_is_rejected(self):
         with self.assertRaises(ValueError):
             prepare.eleven_rack_attributes(QUIRK.replace('snd_usb_audioformat_attributes_quirk', 'other'))

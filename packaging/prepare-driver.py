@@ -94,6 +94,77 @@ def eleven_rack_attributes(text):
 \t\tbreak;''' + text[end:]
 
 
+def eleven_playback_lead(text):
+    """Optionally queue a bounded amount of silent playback at implicit-feedback start.
+
+    Upstream submits no playback until capture returns, so the OUT ring holds only
+    about one capture URB (0.5-1 ms). A late completion empties it (xHCI Ring
+    Underrun) and shifts playback. QUIRK_FLAG_PLAYBACK_FIRST fixes that by queuing
+    every URB, costing up to ~14 ms. This queues only the requested milliseconds.
+    0 (the default) keeps the upstream behaviour.
+    """
+    text = replace_once(text, '#include <linux/init.h>\n',
+                        '#include <linux/init.h>\n#include <linux/moduleparam.h>\n')
+    text = replace_once(text, '#include "quirks.h"\n', '''#include "quirks.h"
+
+/* Eleven Rack Linux package: bounded implicit-feedback playback lead. */
+static unsigned int eleven_playback_lead_ms;
+module_param(eleven_playback_lead_ms, uint, 0644);
+MODULE_PARM_DESC(eleven_playback_lead_ms,
+\t"Eleven Rack: ms of silent playback queued at implicit-feedback start (0 = upstream)");
+
+static unsigned int eleven_lead_urbs(struct snd_usb_endpoint *ep)
+{
+\tunsigned int ms = min(READ_ONCE(eleven_playback_lead_ms), 20U);
+\tunsigned int packets;
+
+\tif (!ms || ep->chip->usb_id != USB_ID(0x0dba, 0xb011) ||
+\t    !ep->nurbs || !ep->urb[0].packets)
+\t\treturn 0;
+\tpackets = ms * (snd_usb_get_speed(ep->chip->dev) == USB_SPEED_FULL ?
+\t\t\t1 : 8 >> ep->datainterval);
+\treturn clamp(DIV_ROUND_UP(packets, ep->urb[0].packets), 1U, ep->nurbs);
+}
+''')
+    text = replace_once(text, '''int snd_usb_endpoint_start(struct snd_usb_endpoint *ep)
+{
+\tbool is_playback = usb_pipeout(ep->pipe);
+\tint err;
+\tunsigned int i;
+''', '''int snd_usb_endpoint_start(struct snd_usb_endpoint *ep)
+{
+\tbool is_playback = usb_pipeout(ep->pipe);
+\tint err;
+\tunsigned int i, lead;
+''')
+    text = replace_once(text, '''\tif (snd_usb_endpoint_implicit_feedback_sink(ep) &&
+\t    !(ep->chip->quirk_flags & QUIRK_FLAG_PLAYBACK_FIRST)) {
+\t\tusb_audio_dbg(ep->chip, "No URB submission due to implicit fb sync\\n");''',
+    '''\tlead = snd_usb_endpoint_implicit_feedback_sink(ep) &&
+\t       !(ep->chip->quirk_flags & QUIRK_FLAG_PLAYBACK_FIRST) ?
+\t       eleven_lead_urbs(ep) : 0;
+\tif (snd_usb_endpoint_implicit_feedback_sink(ep) && !lead &&
+\t    !(ep->chip->quirk_flags & QUIRK_FLAG_PLAYBACK_FIRST)) {
+\t\tusb_audio_dbg(ep->chip, "No URB submission due to implicit fb sync\\n");''')
+    # Without queued application data, fall back to waiting for capture.
+    text = replace_once(text, '''\tif (!i) {
+\t\tusb_audio_dbg(ep->chip, "XRUN at starting EP 0x%x\\n",''', '''\tif (!i && !lead) {
+\t\tusb_audio_dbg(ep->chip, "XRUN at starting EP 0x%x\\n",''')
+    return replace_once(text, '''\tfor (i = 0; i < ep->nurbs; i++) {
+\t\tstruct urb *urb = ep->urb[i].urb;
+
+\t\tif (snd_BUG_ON(!urb))
+\t\t\tgoto __error;
+
+\t\tif (is_playback)''', '''\tfor (i = 0; i < (lead ? lead : ep->nurbs); i++) {
+\t\tstruct urb *urb = ep->urb[i].urb;
+
+\t\tif (snd_BUG_ON(!urb))
+\t\t\tgoto __error;
+
+\t\tif (is_playback)''')
+
+
 def prepare(root):
     original = {name: (root / name).read_text() for name in
                 ('quirks-table.h', 'implicit.c', 'format.c', 'quirks.c',
@@ -105,6 +176,7 @@ def prepare(root):
     result = dict(original)
     result['card.h'], result['endpoint.c'], capacity_status = implicit_feedback_capacity(
         original['card.h'], original['endpoint.c'])
+    result['endpoint.c'] = eleven_playback_lead(result['endpoint.c'])
     # The explicit initializer also works before the newer QUIRK_DATA macros.
     entry = '''/* Eleven Rack Linux package: vendor interfaces with UAC2 descriptors. */
 {
