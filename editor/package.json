@@ -37,6 +37,10 @@
       {
         "from": "../tools/eleven-rack-updates.py",
         "to": "eleven-rack-updates.py"
+      },
+      {
+        "from": "../tools/rack_devices.py",
+        "to": "bridge-linux/rack_devices.py"
       }
     ],
     "linux": {

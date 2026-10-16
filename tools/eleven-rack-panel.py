@@ -154,6 +154,9 @@ class Panel(Gtk.Window):
         self.set_position(Gtk.WindowPosition.CENTER)
         self.connect('destroy', Gtk.main_quit)
         self.busy = False
+        self.device_epoch = 0
+        self.selected_device = os.environ.get('ELEVEN_RACK_DEVICE')
+        self.device_snapshot = None
         self.polling_lock = False
         self.event_process = None
         self.event_card = None
@@ -233,6 +236,24 @@ class Panel(Gtk.Window):
         self.update_button.connect('clicked', self.show_update_offer)
         body.pack_start(self.update_button, False, False, 0)
 
+        self.device_selector = Gtk.ComboBoxText()
+        self.device_selector.connect('changed', self.device_changed)
+        self.device_caption = label('Device', 'subtitle')
+        self.device_caption.set_no_show_all(True)
+        self.device_selector.set_no_show_all(True)
+        device_row = box(False, 8)
+        self.device_selector.set_hexpand(False)
+        self.device_selector.set_halign(Gtk.Align.START)
+        self.device_selector.set_size_request(180, -1)
+        for cell in self.device_selector.get_cells():
+            cell.set_property('ellipsize', Pango.EllipsizeMode.END)
+            cell.set_property('max-width-chars', 22)
+        device_row.pack_start(self.device_caption, False, False, 0)
+        device_row.pack_start(self.device_selector, False, False, 0)
+        body.pack_start(device_row, False, False, 0)
+        self.buffer_scope = label('Sample rate and buffer size affect the shared PipeWire session.', 'subtitle')
+        body.pack_start(self.buffer_scope, False, False, 0)
+
         control_row = box(False, 12)
         clock_card = self.card('Clock & sample rate')
         self.clock = self.choice(clock_card, 'Clock source', [('internal', 'Internal'), ('aes', 'AES / EBU'), ('spdif', 'S/PDIF')])
@@ -243,7 +264,7 @@ class Panel(Gtk.Window):
         clock_selector.pack_start(self.clock_dot, False, False, 0)
         clock_card.pack_start(clock_selector, False, False, 0)
         self.set_clock_lock(None)
-        self.rate = self.choice(clock_card, 'Sample rate', [(str(r), f'{r / 1000:g} kHz') for r in settings.RATES])
+        self.rate = self.choice(clock_card, 'Sample rate · shared PipeWire session', [(str(r), f'{r / 1000:g} kHz') for r in settings.RATES])
         self.rate.set_active_id('48000')
         self.buffer = self.choice(clock_card, 'Buffer size',
                                   [(str(n), 'Automatic' if n == 0 else f'{n} samples') for n in settings.BUFFERS])
@@ -362,6 +383,7 @@ class Panel(Gtk.Window):
         for command, choice in self.choices.items():
             choice.connect('changed', self.selection_changed, command)
             choice.set_tooltip_text('Selecting a value applies it immediately.')
+        self.refresh_devices()
         self.refresh_connection()
         GLib.timeout_add_seconds(3, self.refresh_connection)
         GLib.timeout_add(2000, self.poll_clock_lock)
@@ -372,10 +394,100 @@ class Panel(Gtk.Window):
         GLib.idle_add(self.refresh_all)
         GLib.timeout_add_seconds(3, self.check_updates)
 
+    def backend_args(self, command, device_id=None):
+        device_id = device_id or self.selected_device
+        return [sys.executable, str(BACKEND), '--device', device_id or '__unselected__', *command]
+
+    def device_result(self, epoch, callback, *args):
+        if epoch == self.device_epoch:
+            return callback(*args)
+        return False
+
+    def refresh_devices(self):
+        found = settings.rack_devices.devices()
+        snapshot = [(d['id'], d['label']) for d in found]
+        if snapshot == self.device_snapshot:
+            return
+        auto_switch = len(found) == 1 and self.selected_device not in [d['id'] for d in found]
+        if auto_switch and self.busy:
+            return
+        self.device_snapshot = snapshot
+        self.device_selector.set_visible(len(found) > 1)
+        self.device_caption.set_visible(len(found) > 1)
+        self.updating = True
+        self.device_selector.remove_all()
+        self.device_selector.append('__unselected__', 'Select an Eleven Rack…')
+        for identity, name in snapshot:
+            self.device_selector.append(identity, name)
+        old_device = self.selected_device
+        if auto_switch:
+            self.selected_device = found[0]['id']
+        self.device_selector.set_active_id(self.selected_device or '__unselected__')
+        if self.device_selector.get_active() < 0:
+            self.device_selector.append(self.selected_device, 'Selected Rack disconnected')
+            self.device_selector.set_active_id(self.selected_device)
+        os.environ['ELEVEN_RACK_DEVICE'] = self.selected_device or '__unselected__'
+        self.device_selector.set_tooltip_text(self.device_selector.get_active_text())
+        self.updating = False
+        if auto_switch and old_device is not None:
+            self.device_changed(self.device_selector)
+
+    def device_changed(self, choice):
+        if self.updating:
+            return
+        if self.busy:
+            self.updating = True
+            choice.set_active_id(self.selected_device or '__unselected__')
+            self.updating = False
+            return
+        self.selected_device = choice.get_active_id()
+        choice.set_tooltip_text(choice.get_active_text())
+        os.environ['ELEVEN_RACK_DEVICE'] = self.selected_device or '__unselected__'
+        self.device_epoch += 1
+        self.monitor_epoch += 1
+        self.polling_lock = self.polling_monitor = self.polling_buffer = False
+        self.stop_control_events()
+        self.stop_meters()
+        self.confirmed = dict.fromkeys(self.confirmed)
+        self.status_hardware_rate = self.status_stream_rate = 'unavailable'
+        self.set_clock_lock(None)
+        self.firmware_label.set_text('Firmware · reading…')
+        self.refresh_all()
+
+    def connect_meter_ports(self, device_id, client_name, process):
+        for _ in range(20):
+            if process.poll() is not None or device_id != self.selected_device:
+                return
+            selected = settings.rack_devices.select(device_id)
+            objects = json.loads(subprocess.check_output(['pw-dump'], text=True, timeout=3))
+            nodes = {o['id']: o.get('info', {}).get('props', {}) for o in objects
+                     if o.get('type') == 'PipeWire:Interface:Node'}
+            sources, targets = {}, {}
+            for obj in objects:
+                if obj.get('type') != 'PipeWire:Interface:Port':
+                    continue
+                props = obj.get('info', {}).get('props', {})
+                node = nodes.get(int(props.get('node.id', -1)), {})
+                name = props.get('port.name', '')
+                if node.get('node.name') == client_name:
+                    targets[name] = obj['id']
+                if node.get('api.alsa.card.id') == selected['card_id'] and props.get('port.direction') == 'out':
+                    sources[name] = obj['id']
+            names = list(settings.INPUTS) + ['monitor_' + name for name in settings.OUTPUTS]
+            if len(targets) >= 14:
+                for index, name in enumerate(names):
+                    if name in sources:
+                        subprocess.run(['pw-link', str(sources[name]), str(targets['meter_%d' % index])],
+                                       capture_output=True, timeout=3, check=True)
+                return
+            time.sleep(.1)
+
     def check_updates(self, _button=None, manual=False):
         if self.update_check_running:
             return False
         self.update_check_running = True
+        device_id = self.selected_device
+        device_epoch = self.device_epoch
         def worker():
             result = updates.check_updates(self.installed_version, 'driver', force=manual)
             GLib.idle_add(self.updates_checked, result, manual)
@@ -458,6 +570,8 @@ class Panel(Gtk.Window):
             return True
         self.meter_starting = True
         epoch = self.meter_epoch
+        device_id = self.selected_device
+        device_epoch = self.device_epoch
         def worker():
             process = None
             try:
@@ -473,14 +587,20 @@ class Panel(Gtk.Window):
                     libraries += sorted(Path('/usr/lib').glob('*-linux-gnu/pipewire-0.3/jack/libjack.so.0'))
                     jack_library = next((str(p) for p in libraries if p.is_file()), '-l:libjack.so.0')
                     subprocess.run(['cc', '-std=c11', '-D_DEFAULT_SOURCE', '-O2', str(source), '-o', str(binary), jack_library, '-lm'], check=True, capture_output=True, timeout=30)
+                if not device_id or device_id == '__unselected__':
+                    return
+                settings.rack_devices.select(device_id)
+                client_name = 'eleven-control-meters-%d-%d-%s' % (os.getpid(), epoch, hashlib.sha256(device_id.encode()).hexdigest()[:8])
+                self.meter_client_name = client_name
                 env = os.environ.copy()
-                for key in ('PIPEWIRE_QUANTUM', 'PIPEWIRE_LATENCY', 'PIPEWIRE_RATE'):
+                for key in ('PIPEWIRE_QUANTUM', 'PIPEWIRE_LATENCY', 'PIPEWIRE_RATE', 'PIPEWIRE_NODE'):
                     env.pop(key, None)
                 with self.meter_process_lock:
                     if epoch != self.meter_epoch or self.busy or self.meters_suspended:
                         return
-                    process = subprocess.Popen(['pw-jack', str(binary)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, env=env)
+                    process = subprocess.Popen(['pw-jack', str(binary), '--external', client_name], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, env=env)
                     self.meter_process = process
+                self.connect_meter_ports(device_id, client_name, process)
                 for line in process.stdout:
                     values = [float(v) for v in line.split()]
                     if len(values) == 14:
@@ -683,6 +803,8 @@ class Panel(Gtk.Window):
         return button
 
     def refresh_connection(self):
+        self.refresh_devices()
+        self.device_selector.set_sensitive(not self.busy)
         try:
             number = settings.card()
             connected = True
@@ -693,6 +815,7 @@ class Panel(Gtk.Window):
                 self.poll_monitor()
             self.start_control_events(number)
         except RuntimeError:
+            self.stop_meters()
             connected = False
             self.connection.set_text('Driver disconnected')
             self.connection.get_style_context().remove_class('driver-connected')
@@ -765,14 +888,16 @@ class Panel(Gtk.Window):
             return
         self.polling_monitor = True
         epoch = self.monitor_epoch
+        device_id = self.selected_device
+        device_epoch = self.device_epoch
         def worker():
             try:
-                result = subprocess.run([sys.executable, str(BACKEND), 'monitor'],
+                result = subprocess.run(self.backend_args(['monitor'], device_id),
                                         capture_output=True, text=True, timeout=6)
                 text = result.stdout if result.returncode == 0 else ''
             except (OSError, subprocess.TimeoutExpired):
                 text = ''
-            GLib.idle_add(self.monitor_polled, text, epoch)
+            GLib.idle_add(self.device_result, device_epoch, self.monitor_polled, text, epoch)
         threading.Thread(target=worker, daemon=True).start()
 
     def refresh_monitor(self):
@@ -818,17 +943,19 @@ class Panel(Gtk.Window):
         self.monitor_epoch += 1
         self.refresh_connection()
         self.show_status_message('Refreshing settings…', 0)
+        device_id = self.selected_device
+        device_epoch = self.device_epoch
         def worker():
             results = {}
             for command in ('status', 'monitor', 'buffer', 'rig-input', 'firmware'):
                 try:
-                    result = subprocess.run([sys.executable, str(BACKEND), command],
+                    result = subprocess.run(self.backend_args([command], device_id),
                                             capture_output=True, text=True, timeout=8)
                     results[command] = (result.stdout.strip() if result.returncode == 0
                                         else result.stderr.strip(), result.returncode == 0)
                 except (OSError, subprocess.TimeoutExpired) as error:
                     results[command] = (str(error), False)
-            GLib.idle_add(self.all_refreshed, results)
+            GLib.idle_add(self.device_result, device_epoch, self.all_refreshed, results)
         threading.Thread(target=worker, daemon=True).start()
         return False
 
@@ -869,14 +996,16 @@ class Panel(Gtk.Window):
         if self.busy or self.polling_lock:
             return True
         self.polling_lock = True
+        device_id = self.selected_device
+        device_epoch = self.device_epoch
         def worker():
             try:
-                result = subprocess.run([sys.executable, str(BACKEND), 'status'],
+                result = subprocess.run(self.backend_args(['status'], device_id),
                                         capture_output=True, text=True, timeout=8)
                 text = result.stdout if result.returncode == 0 else ''
             except (OSError, subprocess.TimeoutExpired):
                 text = ''
-            GLib.idle_add(self.lock_polled, text)
+            GLib.idle_add(self.device_result, device_epoch, self.lock_polled, text)
         threading.Thread(target=worker, daemon=True).start()
         return True
 
@@ -956,14 +1085,16 @@ class Panel(Gtk.Window):
         if self.busy or self.polling_buffer:
             return True
         self.polling_buffer = True
+        device_id = self.selected_device
+        device_epoch = self.device_epoch
         def worker():
             try:
-                result = subprocess.run([sys.executable, str(BACKEND), 'buffer'],
+                result = subprocess.run(self.backend_args(['buffer'], device_id),
                                         capture_output=True, text=True, timeout=6)
                 text = result.stdout if result.returncode == 0 else ''
             except (OSError, subprocess.TimeoutExpired):
                 text = ''
-            GLib.idle_add(self.buffer_polled, text)
+            GLib.idle_add(self.device_result, device_epoch, self.buffer_polled, text)
         threading.Thread(target=worker, daemon=True).start()
         return True
 
@@ -1003,6 +1134,8 @@ class Panel(Gtk.Window):
             self.set_clock_lock(None)
         self.refresh_connection()
         self.show_status_message('Reading hardware…' if len(command) == 1 else 'Applying setting…', 0)
+        device_id = self.selected_device
+        device_epoch = self.device_epoch
         def worker():
             try:
                 if command[0] in ('clock', 'rate'):
@@ -1017,17 +1150,17 @@ class Panel(Gtk.Window):
                     # Other audio clients still cause the backend idle check to reject.
                     deadline = time.monotonic() + 10
                     while time.monotonic() < deadline:
-                        stream = Path('/proc/asound/card%d/stream0' % settings.card())
+                        stream = Path('/proc/asound/card%d/stream0' % settings.rack_devices.select(device_id)['card'])
                         if not stream.exists() or 'Status: Running' not in stream.read_text():
                             break
                         time.sleep(.1)
-                invocation = [sys.executable, str(BACKEND), *command]
+                invocation = self.backend_args(command, device_id)
                 result = subprocess.run(invocation, capture_output=True, text=True, timeout=120)
                 text = result.stdout.strip() if result.returncode == 0 else result.stderr.strip() or 'Authentication cancelled or setting not applied.'
                 success = result.returncode == 0
             except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
                 text, success = str(error), False
-            GLib.idle_add(self.finished, command, text, success)
+            GLib.idle_add(self.device_result, device_epoch, self.finished, command, text, success)
         threading.Thread(target=worker, daemon=True).start()
 
     def finished(self, command, text, success):
