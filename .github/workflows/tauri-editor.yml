@@ -30,6 +30,7 @@ jobs:
       - name: Check frontend compatibility and Rust formatting
         run: |
           npm --prefix editor-tauri test
+          node editor/tests/multi-device.test.cjs
           cargo fmt --manifest-path editor-tauri/src-tauri/Cargo.toml -- --check
       - name: Test Rust services
         run: cargo test --locked --manifest-path editor-tauri/src-tauri/Cargo.toml -j 2

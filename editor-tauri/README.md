@@ -132,11 +132,11 @@ This preparation is not yet full hardware/UI parity certification. In particular
 - Validate complete SysEx rig reads and uploads, pacing and long bank transfers
   on hardware. Only discovery and the small identity reply have been checked
   live; do not infer large-message integrity from that test.
-- Review stable physical USB identities and multiple-Rack UX. Current native
-  port IDs are ALSA client IDs, which can change after unplug/reboot. Input/output
-  pairing and stale-name checks protect a connection but are not stable identity
-  persistence. The separate uncommitted multi-device draft in the original
-  worktree is not silently included in this migration baseline.
+- Multiple Racks are grouped by native ALSA card association and physical USB
+  location. Choose a Rack at startup or use the device selector; switching reloads
+  the editor to clear patch caches. Save edits before switching. Moving a Rack to
+  another USB port changes its saved identity. Hardware switching acceptance is
+  still pending.
 - Automatic release updates are explicitly unavailable in the preview, avoiding
   offers to install an Electron release over it. Windows/macOS-specific watchdog
   and MIDI-stack hooks have Linux compatibility responses; no Windows/macOS port

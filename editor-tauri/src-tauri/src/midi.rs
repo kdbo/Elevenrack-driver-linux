@@ -25,11 +25,59 @@ struct Port {
     name: String,
     kind: &'static str,
     client: Option<u32>,
+    device: Option<(String, String)>,
 }
 fn client_id(name: &str) -> Option<u32> {
     let (client, port) = name.split_whitespace().last()?.split_once(':')?;
     let _: u32 = port.parse().ok()?;
     client.parse().ok()
+}
+// Resolve the sequencer client to its physical USB location, not enumeration order.
+fn device_identity(client: Option<u32>) -> Option<(String, String)> {
+    let client = client?;
+    let card = unsafe {
+        let mut seq = std::ptr::null_mut();
+        if alsa_sys::snd_seq_open(&mut seq, c"default".as_ptr(), 3, 1) < 0 {
+            return None;
+        }
+        let mut info = std::ptr::null_mut();
+        if alsa_sys::snd_seq_client_info_malloc(&mut info) < 0 {
+            alsa_sys::snd_seq_close(seq);
+            return None;
+        }
+        let card = if alsa_sys::snd_seq_get_any_client_info(seq, client as i32, info) >= 0 {
+            alsa_sys::snd_seq_client_info_get_card(info)
+        } else {
+            -1
+        };
+        alsa_sys::snd_seq_client_info_free(info);
+        alsa_sys::snd_seq_close(seq);
+        card
+    };
+    if card < 0 {
+        return None;
+    }
+    let proc = std::path::PathBuf::from(format!("/proc/asound/card{card}"));
+    if std::fs::read_to_string(proc.join("usbid")).ok()?.trim() != "0dba:b011" {
+        return None;
+    }
+    let path = std::fs::canonicalize(format!("/sys/class/sound/card{card}/device")).ok()?;
+    let usb = path
+        .ancestors()
+        .find(|p| p.join("idVendor").exists() && p.join("idProduct").exists())?;
+    let card_id = std::fs::read_to_string(proc.join("id")).ok()?;
+    Some((
+        format!("usb:{}", usb.display()),
+        match card_id.trim() {
+            "Rack" => "Eleven Rack 1".to_string(),
+            id => id
+                .strip_prefix("Rack_")
+                .and_then(|suffix| suffix.parse::<u32>().ok())
+                .and_then(|number| number.checked_add(1))
+                .map(|number| format!("Eleven Rack {number}"))
+                .unwrap_or_else(|| format!("Eleven Rack ({id})")),
+        },
+    ))
 }
 fn ports() -> Result<Vec<Port>, String> {
     let input = MidiInput::new("Eleven Rack Tauri discovery").map_err(|e| e.to_string())?;
@@ -44,6 +92,7 @@ fn ports() -> Result<Vec<Port>, String> {
             index: result.len(),
             local,
             client: client_id(&name),
+            device: device_identity(client_id(&name)),
             name,
             kind: "in",
         });
@@ -57,6 +106,7 @@ fn ports() -> Result<Vec<Port>, String> {
             index: result.len(),
             local,
             client: client_id(&name),
+            device: device_identity(client_id(&name)),
             name,
             kind: "out",
         });
@@ -65,7 +115,7 @@ fn ports() -> Result<Vec<Port>, String> {
 }
 fn port_event(ports: &[Port]) -> Value {
     json!({"type":"ports","devices":ports.iter().map(|p| json!({"index":p.index,"name":p.name,
-        "kind":p.kind,"desc":"ALSA MIDI","alsaClient":p.client,"deviceId":p.client.map(|id|format!("alsa-client:{id}"))})).collect::<Vec<_>>()})
+        "kind":p.kind,"desc":p.device.as_ref().map(|d|d.1.as_str()).unwrap_or("ALSA MIDI"),"alsaClient":p.client,"deviceId":p.device.as_ref().map(|d|d.0.as_str())})).collect::<Vec<_>>()})
 }
 pub fn list_ports() -> Result<Value, String> {
     Ok(port_event(&ports()?))
@@ -248,6 +298,8 @@ impl Actor {
                     || !input.name.to_lowercase().contains("eleven rack")
                     || !output.name.to_lowercase().contains("eleven rack")
                     || input.client != output.client
+                    || input.device.is_none()
+                    || input.device != output.device
                 {
                     return Err("Select input and output from the same Eleven Rack".into());
                 }
@@ -286,10 +338,10 @@ impl Actor {
                 self.input = Some(connection);
                 self.output = Some(output_connection);
                 self.owner = Some(session.into());
-                self.selected = Some((input.name, output.name));
+                self.selected = Some((input.name.clone(), output.name.clone()));
                 self.replies = Some(rx);
                 Ok(Some(
-                    json!({"type":"connected","inPort":input.index,"outPort":output.index}),
+                    json!({"type":"connected","inPort":input.index,"outPort":output.index,"deviceId":input.device.as_ref().map(|d|&d.0),"deviceLabel":input.device.as_ref().map(|d|&d.1)}),
                 ))
             }
             "disconnect" => {
@@ -316,8 +368,8 @@ impl Actor {
                     let expected = self
                         .selected
                         .as_ref()
-                        .and_then(|(name, _)| client_id(name))
-                        .map(|id| format!("alsa-client:{id}"));
+                        .and_then(|(name, _)| device_identity(client_id(name)))
+                        .map(|d| d.0);
                     if message["deviceId"].as_str() != expected.as_deref() {
                         return Ok(Some(json!({"type":"rig_input","available":false})));
                     }
@@ -373,6 +425,32 @@ impl Actor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn discovery_keeps_identical_rack_names_separate_by_usb_location() {
+        let make = |index, client, id: &str, label: &str| Port {
+            index,
+            local: index,
+            name: format!("Eleven Rack:Eleven Rack Rig {client}:0"),
+            kind: "in",
+            client: Some(client),
+            device: Some((id.into(), label.into())),
+        };
+        let event = port_event(&[
+            make(0, 20, "usb:/one", "Rack one"),
+            make(1, 24, "usb:/two", "Rack two"),
+        ]);
+        assert_ne!(
+            event["devices"][0]["deviceId"],
+            event["devices"][1]["deviceId"]
+        );
+        assert_eq!(event["devices"][1]["desc"], "Rack two");
+        // ALSA renumbering must not alter the saved physical identity.
+        let moved = port_event(&[make(0, 28, "usb:/one", "Rack one")]);
+        assert_eq!(
+            event["devices"][0]["deviceId"],
+            moved["devices"][0]["deviceId"]
+        );
+    }
     #[test]
     fn disabled_backend_never_opens_midi_and_rejects_unowned_writes() {
         let (events, _) = mpsc::channel();

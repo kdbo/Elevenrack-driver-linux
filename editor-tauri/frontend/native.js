@@ -94,6 +94,7 @@
         .then(reply => { if (reply && !this._closed) this._message(reply); })
         .catch(error => this._error(error));
     }
+    drain() { return this._queue; }
     close() {
       if (this._closed) return;
       this._closed = true; this.readyState = 3;

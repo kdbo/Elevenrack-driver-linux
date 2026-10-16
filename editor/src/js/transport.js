@@ -200,11 +200,12 @@ function handleBridgeMsg(msg) {
       populateBridgePorts(msg.devices || []);
       break;
     case 'connected':
+      linuxConnectedDeviceId = msg.deviceId || null;
       bridgeMidiReady = true;
       clearTimeout(startupGateTimer);
       hideStartupGate();
       splashSetProgress('Eleven Rack found — reading current patch...', 0.6);
-      midiOutName = 'Eleven Rack (' + BRIDGE_LABEL + ')';
+      midiOutName = msg.deviceLabel || 'Eleven Rack (' + BRIDGE_LABEL + ')';
       document.getElementById('midi-dot').classList.add('connected');
       document.getElementById('midi-label').textContent = 'Connected';
       setStatus('Ready — ' + midiOutName);
@@ -268,6 +269,7 @@ function handleBridgeMsg(msg) {
       }, 2000);
       break;
     case 'disconnected':
+      linuxConnectedDeviceId = null;
       bridgeMidiReady = false;
       document.getElementById('midi-dot').classList.remove('connected');
       setStatus('Bridge MIDI disconnected');
@@ -314,6 +316,84 @@ function handleBridgeMsg(msg) {
 // USB MIDI interface, so name/desc matching alone isn't fully reliable.
 // We treat "auto-detect picked the same device for both IN and OUT" as a
 // failed detection rather than silently connecting a port to itself.
+// Linux pairs are grouped by physical USB identity supplied by the ALSA bridge.
+// Never infer a pair from list order or duplicate display names.
+var rackPickerPending = false;
+var linuxConnectedDeviceId = null;
+function linuxRackPairs(devices) {
+  var groups = {};
+  (devices || []).forEach(function(d) {
+    if (!d.deviceId || !/eleven.*rack/i.test(d.name || '') || /external/i.test(d.name || '')) return;
+    var group = groups[d.deviceId] || (groups[d.deviceId] = { id: d.deviceId, label: d.desc, ins: [], outs: [] });
+    if (d.kind === 'in') group.ins.push(d);
+    if (d.kind === 'out') group.outs.push(d);
+  });
+  return Object.values(groups).filter(g => g.ins.length === 1 && g.outs.length === 1);
+}
+function populateLinuxRacks(devices) {
+  var pairs = linuxRackPairs(devices);
+  var picker = document.getElementById('rack-device-select');
+  var connectedPair = pairs.find(p => p.id === linuxConnectedDeviceId);
+  picker.innerHTML = '';
+  var empty = document.createElement('option'); empty.value = ''; empty.textContent = 'Select Eleven Rack…'; picker.appendChild(empty);
+  pairs.forEach(function(pair) {
+    var option = document.createElement('option'); option.value = pair.id; option.textContent = pair.label; picker.appendChild(option);
+  });
+  picker.style.display = pairs.length > 1 ? '' : 'none';
+  if (bridgeMidiReady && connectedPair) {
+    bridgeInIdx = connectedPair.ins[0].index; bridgeOutIdx = connectedPair.outs[0].index;
+    picker.value = connectedPair.id;
+    picker.title = connectedPair.label;
+    return; // Adding the other Rack must not reconnect or navigate this one.
+  }
+  if (rackPickerPending) return;
+  rackPickerPending = true;
+  window.electronAPI.getSavedPorts().then(async function(saved) {
+    var selected = saved && saved.deviceId;
+    var pair = pairs.find(p => p.id === selected);
+    if (!selected && saved && saved.inName && saved.outName) {
+      var legacyMatches = pairs.filter(p => p.ins[0].name === saved.inName && p.outs[0].name === saved.outName);
+      if (legacyMatches.length === 1) pair = legacyMatches[0];
+    }
+    if (pairs.length === 1) pair = pairs[0];
+    if (!pair && pairs.length > 1) {
+      clearTimeout(startupGateTimer);
+      var choice = await window.electronAPI.chooseRack(pairs.map(p => ({id:p.id,label:p.label})));
+      pair = pairs.find(p => p.id === choice);
+    }
+    if (pair && bridgePorts === devices) {
+      picker.value = pair.id;
+      picker.title = pair.label;
+      if (hasCompletedInitialConnect && linuxConnectedDeviceId !== pair.id) {
+        await switchLinuxRack(pair); return;
+      }
+      finishPortSelection(pair.ins[0].index, pair.outs[0].index, devices);
+    } else if (!pair) {
+      setStatus('Select an Eleven Rack to connect');
+    }
+  }).catch(function(error) { setStatus('Device selection: ' + error.message); })
+    .finally(function() {
+      rackPickerPending = false;
+      if (bridgePorts !== devices) populateLinuxRacks(bridgePorts);
+    });
+}
+async function switchLinuxRack(pair) {
+  // A fresh renderer discards all old patch caches, timers and pending knob writes.
+  bridgeMidiReady = false;
+  setVolumeControlsEnabled(false);
+  if (bridgeWs && bridgeWs.readyState === 1) bridgeWs.send(JSON.stringify({cmd:'disconnect'}));
+  bridgeReady = false;
+  if (bridgeWs && typeof bridgeWs.drain === 'function') await bridgeWs.drain();
+  await window.electronAPI.savePorts({deviceId:pair.id, inIndex:pair.ins[0].index,
+    inName:pair.ins[0].name, outIndex:pair.outs[0].index, outName:pair.outs[0].name});
+  window.location.reload();
+}
+var rackDevicePicker = document.getElementById('rack-device-select');
+if (rackDevicePicker) rackDevicePicker.addEventListener('change', function(event) {
+  var pair = linuxRackPairs(bridgePorts).find(p => p.id === event.target.value);
+  if (pair) switchLinuxRack(pair).catch(error => setStatus('Device selection: ' + error.message));
+});
+
 function populateBridgePorts(devices) {
   try {
     bridgePorts = devices;
@@ -355,6 +435,10 @@ function populateBridgePorts(devices) {
       autoIn = -1; autoOut = -1;
     }
 
+    if (IS_LINUX && devices.some(d => d.deviceId)) {
+      populateLinuxRacks(devices);
+      return;
+    }
     window.electronAPI.getSavedPorts().then(function(saved) {
       if (saved) {
         // Prefer an exact (index AND name) match — safe even if multiple
@@ -403,6 +487,7 @@ function connectBridgeMidi(inIdx, outIdx, devices) {
   var inDev  = (devices || bridgePorts).find(d => d.index === inIdx);
   var outDev = (devices || bridgePorts).find(d => d.index === outIdx);
   window.electronAPI.savePorts({
+    deviceId: inDev ? inDev.deviceId : null,
     inIndex:  inIdx,
     inName:   inDev  ? inDev.name  : null,
     outIndex: outIdx,
