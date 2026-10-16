@@ -81,6 +81,10 @@ Stop audio applications before changing hardware clock source or internal rate.
   as the desktop output and check its playback connections.
 - **No Rack audio ports appear anywhere:** first check driver loading and
   device detection using the [installation guide](packaging.md).
+- **Occasional dropouts at irregular intervals on a laptop, even with a larger
+  buffer:** the firmware may be pausing the whole computer. On Dell laptops,
+  keyboard-backlight dimming is a known trigger; see
+  [dropouts from firmware pauses](system-pauses.md).
 
 Direct ALSA remains an option for a dedicated setup that deliberately manages
 exclusive hardware access. The PipeWire/JACK approach is intended for sharing

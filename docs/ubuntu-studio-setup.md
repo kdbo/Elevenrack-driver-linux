@@ -53,6 +53,9 @@ Close audio applications before changing the hardware sample rate. In Control,
 check that the hardware and ALSA rates agree once audio is running. If playback
 crackles or drops out, increase the buffer to 256 or 512 frames and check again.
 Higher sample rates and smaller buffers need separate stability testing.
+If dropouts remain at irregular intervals on a Dell laptop, check
+[dropouts from firmware pauses](system-pauses.md) before increasing the buffer
+further.
 
 At 48 kHz, 128 frames represent 2.67 ms per buffer. That is only one component
 of roundtrip latency: USB scheduling, playback/capture queues, and the hardware

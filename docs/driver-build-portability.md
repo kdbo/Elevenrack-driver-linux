@@ -29,6 +29,28 @@ sources into `$PWD/ubuntu-source`, and invokes the shared script. The Debian
 package includes both scripts. Existing build-check and CI entry points remain
 valid. Neither script installs or loads the resulting module.
 
+The shared preparation conditionally includes upstream ALSA commit
+`76a986c980bb502c7688d605ac7a67fd257a9a1b` (CVE-2026-98265), which limits
+implicit-feedback packet counts to the allocated USB request descriptor capacity.
+It checks the source rather than the kernel version: an existing recognized fix
+is preserved, missing code is backported, and partial or unfamiliar fixes stop
+the build for review. The build log reports `already present` or `backported`.
+This is a general ALSA fix in the packaged module and applies to all devices
+using that module. It does not patch the distribution's original source tree.
+
+Run `python3 tools/test-driver-capacity-backport.py` to check the source guards.
+
+For the known Eleven Rack playback descriptor layout, preparation also normalizes
+its allocation ceiling from 416 to 312 bytes (13 frames × 6 channels × 4 bytes),
+matching capture's 416-byte / 8-channel / 4-byte ceiling of 13 frames.
+This keeps implicit-feedback packet capacities aligned; the generic safety
+clamp alone can otherwise truncate feedback groups on small high-rate periods.
+Other devices and unmatched Rack layouts retain their original ceiling.
+See [the fix rationale and validation](usb-packet-capacity-fix.md) for scope,
+remaining firmware-associated pauses and incomplete long-run validation.
+Run `python3 tools/test-driver-packet-normalization.py` for the compiled quirk
+boundary checks.
+
 The initial [Arch local recipe](arch-installation.md) supplies a pinned prepared
 source tree. Future automatic Arch source retrieval and RPM adapters must supply
 their own matching prepared sources
