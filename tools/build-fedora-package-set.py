@@ -80,6 +80,10 @@ def driver_payload(stage, version, kernel, source, backend_build, backend, extra
     if (source / 'include/config/kernel.release').read_text().strip() != kernel:
         raise RuntimeError('Prepared source identity does not match kernel-devel')
     backend.stage_payload(stage, backend_build, metadata)
+    # Fedora DKMS installs replacement modules in extra; retain priority even
+    # when a distribution kernel-modules transaction regenerates modules.dep.
+    write(stage, 'usr/lib/depmod.d/90-eleven-rack.conf',
+          'override snd-usb-audio * extra\n')
     for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py', 'eleven-rack-updates.py', 'rack_devices.py'):
         copy(stage, ROOT/'tools'/name, 'usr/lib/eleven-rack/tools/'+name, True)
     copy(stage, ROOT/'tools/eleven-rack-meters.c', 'usr/lib/eleven-rack/tools/eleven-rack-meters.c')
@@ -139,6 +143,11 @@ for kernel in {kernel}; do
     dkms install -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel" --verbose
     echo "Eleven Rack: updating module dependencies for $kernel..."
     depmod -a "$kernel"
+    selected=$(modinfo -k "$kernel" -n snd_usb_audio)
+    case "$selected" in
+        /lib/modules/$kernel/extra/*|/usr/lib/modules/$kernel/extra/*) ;;
+        *) echo "Eleven Rack replacement module not selected: $selected" >&2; exit 1 ;;
+    esac
     if [ -f /boot/vmlinuz-$kernel ]; then
         echo "Eleven Rack: rebuilding initramfs for $kernel (this may take a while)..."
         dracut --force --kver "$kernel"
@@ -200,7 +209,9 @@ def driver_dependencies(pw, targets):
         version = target['kernel_devel_version']
         # Resolve matching headers only when this kernel is already installed;
         # never pull in a bundled kernel merely to satisfy the driver package.
-        dependencies.append(f'(kernel-devel = {version} if kernel-core = {version})')
+        for package in ('kernel-devel', 'kernel-modules-core', 'kernel-modules',
+                        'kernel-modules-extra'):
+            dependencies.append(f'({package} = {version} if kernel-core = {version})')
     return dependencies
 
 
