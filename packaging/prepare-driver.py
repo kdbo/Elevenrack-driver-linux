@@ -44,6 +44,18 @@ def implicit_feedback_capacity(card, endpoint):
     )
     if fixed:
         return card, endpoint, 'already present'
+    # Before 7.0 feedback only copied sizes into the fixed-size array and never
+    # resized ctx->packets, so the allocated descriptor count was never exceeded.
+    unaffected = (
+        'max_urb_packs' not in c and 'max_urb_packs' not in e
+        and 'ctx->packets=packet->packets;' not in e
+        and e.count('for(i=0;i<packet->packets;i++)'
+                    'ctx->packet_size[i]=packet->packet_size[i];') == 1
+        and c.count('intpacket_size[MAX_PACKS_HS];') == 1
+        and c.count('uint32_tpacket_size[MAX_PACKS_HS];') == 1
+    )
+    if unaffected:
+        return card, endpoint, 'not needed (feedback does not resize URBs)'
     if 'max_urb_packs' in c or 'max_urb_packs' in e:
         raise RuntimeError('Incomplete or unfamiliar implicit-feedback capacity fix; review kernel sources')
 
