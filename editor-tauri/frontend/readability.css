@@ -1,0 +1,33 @@
+/* Larger control captions for the native WebKit renderer. */
+body.studio .amp .ctrl-knob label,
+body.studio .pedal .ctrl-knob label,
+body.studio .pedal .ctrl-dd label,
+body.studio .kv > .label,
+body.studio .kv .ctrl-dd label,
+body.studio .kv .ctrl-tog label,
+body.studio .kv .sctrl label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1.35;
+  opacity: 1;
+  white-space: normal;
+}
+body.studio .amp .ctrl-knob label,
+body.studio .pedal .ctrl-knob label {
+  min-height: 17px;
+  text-align: center;
+}
+body.studio .amp .ctrl-knob label { color: #f5f2e9; }
+body.studio .amp.fam-plexi .ctrl-knob label { color: #2a1f08; }
+body.studio .kv > .label,
+body.studio .kv .ctrl-dd label,
+body.studio .kv .ctrl-tog label,
+body.studio .kv .sctrl label { color: #dce2ec; }
+body.studio .kv { grid-template-columns: 76px 1fr; }
+body.studio .pedal [id$="-knob-row"] div[style*="text-transform"] {
+  font-size: 11px !important;
+  letter-spacing: .02em !important;
+  font-weight: 700;
+  opacity: 1;
+}

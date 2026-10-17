@@ -423,10 +423,11 @@
       '<div class="vus">' +
         '<div class="vu"><canvas id="vu-l" width="200" height="118"></canvas><div class="label">Rig out L</div></div>' +
         '<div class="vu"><canvas id="vu-r" width="200" height="118"></canvas><div class="label">Rig out R</div></div>' +
-      '</div><div class="vu-source" id="vu-source">Needle at main volume · MIDI activity</div><div class="meter-row" id="meter-row"></div>');
+      '</div><div class="meter-status"><span class="vu-source" id="vu-source">Audio levels unavailable</span><span class="activity-label" title="Incoming MIDI activity"><i class="activity-led" id="midi-activity-led" aria-hidden="true"></i>MIDI IN</span></div><div class="meter-row" id="meter-row"></div>');
     master.appendChild(ms);
     $('meter-row').appendChild($('out-vol-group'));
     $('meter-row').appendChild($('tempo-wrap'));
+    $('tempo-label').appendChild(mk('i', { class: 'activity-led tempo-led', id: 'tempo-activity-led', 'aria-hidden': 'true', title: 'Pulse at the current tempo' }));
     const rs = mk('div', { class: 'glass strip rig' }, '<span class="label">Rig &amp; bank</span><div id="rig-buttons"></div>');
     master.appendChild(rs);
     const rb = $('rig-buttons');
@@ -620,8 +621,8 @@
   }
 
   // ════════════════════════════════════════════════════════════════
-  // VU METERS — Rig Out L/R. Until the audio driver feeds real level the
-  // needle sits at the main volume and twitches on incoming MIDI.
+  // VU METERS — Rig Out L/R. Without fresh audio levels, needles rest
+  // at the bottom of the scale. MIDI and volume settings are not levels.
   // window.studioVU.setLevels(dbL, dbR) is the hook for a real source.
   // ════════════════════════════════════════════════════════════════
   const SCALE = [[-20, -46], [-10, -26], [-7, -15], [-5, -7], [-3, 3], [-2, 8], [-1, 13], [0, 19], [1, 27], [2, 36], [3, 46]];
@@ -632,13 +633,25 @@
     }
     return SCALE[SCALE.length - 1][1];
   }
-  const VU = { l: { angle: -46, last: 0 }, r: { angle: -46, last: 0 }, kick: 0, peakUntil: 0, raf: null, ext: null, extAt: 0 };
-  function fallbackDb() {
-    const v = (typeof currentMasterVol === 'number') ? currentMasterVol : null;
-    if (v === null) return -20;
-    return -20 + 23 * Math.pow(v / 127, 0.55);
+  const VU = { l: { angle: -46, last: 0 }, r: { angle: -46, last: 0 }, raf: null, ext: null, extAt: 0 };
+  const activity = { midiUntil: 0, tempo: null, beatAt: 0 };
+  function updateActivity(now) {
+    const connected = typeof bridgeMidiReady !== 'undefined' && bridgeMidiReady;
+    const midi = $('midi-activity-led'), tempo = $('tempo-activity-led');
+    if (midi) midi.classList.toggle('on', connected && now < activity.midiUntil);
+    const bpm10 = connected && typeof currentTempoTenths === 'number' && currentTempoTenths > 0 ? currentTempoTenths : null;
+    if (activity.tempo !== bpm10) { activity.tempo = bpm10; activity.beatAt = now; }
+    const period = bpm10 ? 600000 / bpm10 : 0;
+    if (tempo) tempo.classList.toggle('on', !!period && (now - activity.beatAt) % period < Math.min(90, period * 0.2));
   }
-  function vuKick() { VU.kick = Math.min(4, VU.kick + 1.2); VU.peakUntil = performance.now() + 140; }
+  if (typeof handleBridgeMsg === 'function') {
+    const orig = handleBridgeMsg;
+    window.handleBridgeMsg = function (msg) {
+      if (msg && msg.type === 'midi_in') activity.midiUntil = performance.now() + 100;
+      return orig.apply(this, arguments);
+    };
+    try { handleBridgeMsg = window.handleBridgeMsg; } catch (e) {}
+  }
   function rad(deg) { return (deg - 90) * Math.PI / 180; }
 
   function drawMeter(canvas, m, db, now, label) {
@@ -679,19 +692,21 @@
     ctx.strokeStyle = '#111'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.stroke(); ctx.restore();
     ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.fillStyle = '#2b2e33'; ctx.fill();
     // peak lamp
-    const lit = now < VU.peakUntil || db >= 2;
+    const lit = db >= 2;
     ctx.beginPath(); ctx.arc(w - 14, 14, 3.5, 0, Math.PI * 2); ctx.fillStyle = lit ? '#ff3b30' : '#5a1a16'; ctx.fill();
     if (lit) { ctx.save(); ctx.shadowColor = '#ff3b30'; ctx.shadowBlur = 8; ctx.fill(); ctx.restore(); }
     ctx.font = '700 5.5px Manrope, Helvetica, Arial, sans-serif'; ctx.fillStyle = '#5a534a'; ctx.fillText('PEAK', w - 14, 23);
   }
   function vuLoop(now) {
+    updateActivity(now);
     const cl = $('vu-l'), cr = $('vu-r');
     if (!cl || !cr) { VU.raf = null; return; }
-    const dt = 1 / 60;
-    VU.kick *= Math.exp(-dt / 0.22);
     let dbL, dbR;
     if (VU.ext && now - VU.extAt < 400) { dbL = VU.ext.l; dbR = VU.ext.r; }
-    else { dbL = fallbackDb() + VU.kick; dbR = fallbackDb() + VU.kick * 0.8; }
+    else {
+      dbL = dbR = -Infinity;
+      if (VU.ext) vuSetState('stale', 'Audio levels unavailable');
+    }
     drawMeter(cl, VU.l, dbL, now, 'RIG OUT L');
     drawMeter(cr, VU.r, dbR, now, 'RIG OUT R');
     VU.raf = requestAnimationFrame(vuLoop);
@@ -700,23 +715,17 @@
   window.studioVU = {
     setLevels: function (dbL, dbR) { VU.ext = { l: dbL, r: dbR }; VU.extAt = performance.now(); },
     setSource: function (text) { const s = $('vu-source'); if (s) s.textContent = text; },
-    kick: vuKick,
   };
-  if (typeof handleBridgeMsg === 'function') {
-    const orig = handleBridgeMsg;
-    window.handleBridgeMsg = function (msg) { if (msg && msg.type === 'midi_in') vuKick(); return orig(msg); };
-    try { handleBridgeMsg = window.handleBridgeMsg; } catch (e) {}
-  }
   // Real level from the audio driver: main.js streams the engine's RMS meter
   // for Eleven Rig L/R (0..1 linear) ~30x/s. 0 VU is placed at -18 dBFS RMS.
-  const FALLBACK_TEXT = 'Needle at main volume';
+  const FALLBACK_TEXT = 'Audio levels unavailable';
   let vuState = '';
   function vuSetState(state, text) { if (vuState === state) return; vuState = state; VU.ext = null; window.studioVU.setSource(text); }
   function rmsToVu(x) { return 20 * Math.log10(Math.max(x, 1e-6)) + 18; }
   if (window.electronAPI && typeof window.electronAPI.onVuLevels === 'function') {
     window.electronAPI.onVuLevels(function (d) {
-      if (!d || d.available === false) { vuSetState('off', FALLBACK_TEXT + ' · MIDI activity · no audio driver'); return; }
-      if (!d.running) { vuSetState('idle', FALLBACK_TEXT + ' · driver ready, rack audio idle'); return; }
+      if (!d || d.available === false) { vuSetState('off', FALLBACK_TEXT + ' · no audio source'); return; }
+      if (!d.running) { vuSetState('idle', 'Rack audio idle'); return; }
       vuSetState('live', 'Rig out L / R · live' + (d.rate ? ' · ' + (d.rate / 1000).toFixed(1).replace(/\.0$/, '') + ' kHz' : ''));
       window.studioVU.setLevels(rmsToVu(d.l), rmsToVu(d.r));
     });

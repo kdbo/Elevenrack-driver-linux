@@ -112,7 +112,13 @@ function armStartupGate() {
 // (appRevealed guards re-entry); a mid-session reconnect doesn't re-gate.
 function checkInitialPopulateReady() {
   if (appRevealed) return;
-  if (!initialChainMapDone || !initialNavPullDone || !firmwareCheckDone) return;
+  if (!initialChainMapDone || !initialNavPullDone || !firmwareCheckDone) {
+    if (window.electronAPI && window.electronAPI.isTauri) {
+      if (initialNavPullDone && !firmwareCheckDone) splashSetProgress('Preset loaded — checking firmware...', .96);
+      else if (initialNavPullDone && !initialChainMapDone) splashSetProgress('Preset loaded — waiting for effect chain...', .95);
+    }
+    return;
+  }
   if (!firmwareOk) {
     if (typeof showFirmwareGate === 'function') showFirmwareGate(firmwareVersionSeen);
     return;
@@ -372,7 +378,10 @@ function populateLinuxRacks(devices) {
       setStatus('Select an Eleven Rack to connect');
     }
   }).catch(function(error) { setStatus('Device selection: ' + error.message); })
-    .finally(function() { rackPickerPending = false; });
+    .finally(function() {
+      rackPickerPending = false;
+      if (bridgePorts !== devices) populateLinuxRacks(bridgePorts);
+    });
 }
 async function switchLinuxRack(pair) {
   // A fresh renderer discards all old patch caches, timers and pending knob writes.
@@ -380,6 +389,7 @@ async function switchLinuxRack(pair) {
   setVolumeControlsEnabled(false);
   if (bridgeWs && bridgeWs.readyState === 1) bridgeWs.send(JSON.stringify({cmd:'disconnect'}));
   bridgeReady = false;
+  if (bridgeWs && typeof bridgeWs.drain === 'function') await bridgeWs.drain();
   await window.electronAPI.savePorts({deviceId:pair.id, inIndex:pair.ins[0].index,
     inName:pair.ins[0].name, outIndex:pair.outs[0].index, outName:pair.outs[0].name});
   window.location.reload();
@@ -1195,7 +1205,12 @@ async function sendCC(cc, val) {
   if (ok) monitorLog('OUT', 'CC ' + cc + ' → ' + val);
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms) {
+  // WebKit throttles timers in the hidden startup window. Native waits keep
+  // MIDI pacing intact without stretching every small query gap to a second.
+  if (window.electronAPI && typeof window.electronAPI.waitForMidi === 'function') return window.electronAPI.waitForMidi(ms);
+  return new Promise(r => setTimeout(r, ms));
+}
 
 // ── Manual "Capture Current Patch Now" — see the bulk TFX handler in
 // parseSysEx for where this actually gets saved to disk.
@@ -1520,6 +1535,10 @@ async function requestPatchStateAfterNav() {
   var startSlot = currentSlot;
   var tStart    = Date.now();
   var qCount    = 0;
+  function startupProgress(message, fraction) {
+    if (!appRevealed && !stale() && window.electronAPI && window.electronAPI.isTauri) splashSetProgress(message, fraction);
+  }
+  startupProgress('Reading preset name and effect chain...', .64);
 
   function stale() {
     if (mySeq !== navSeqId) return true;
@@ -1540,6 +1559,7 @@ async function requestPatchStateAfterNav() {
     if (typeof flushNavPaint === 'function') flushNavPaint();
     var ms = Date.now() - tStart;
     appLog('Nav pull complete: ' + qCount + ' param queries, ' + ms + ' ms');
+    startupProgress('Preset controls loaded — finishing startup...', .95);
     initialNavPullDone = true;
     checkInitialPopulateReady();
   }
@@ -1643,6 +1663,7 @@ async function requestPatchStateAfterNav() {
     // Bassguy 59 used lead800's knobs, leaving Vol Norm (0x08) unread and
     // 0x09 unroutable. Polling the receipt counter adapts to however long the
     // hardware actually takes; the timeout only bounds a lost reply.
+    startupProgress('Reading amplifier model...', .72);
     var seqBefore = ampSelectRxSeq;
     sendHex(paramQuery(hi, 0x0F));
     var waited = 0;
@@ -1661,6 +1682,7 @@ async function requestPatchStateAfterNav() {
     // List built by the shared builder (see ampBlockParamLos) so this path and
     // the amp-type-change path can never drift apart.
     var los = ampBlockParamLos('Nav pull');
+    startupProgress('Reading amplifier controls...', .78);
 
     // Arrival gate (2026-09-03) — finish()/the flush it triggers used to run
     // the instant this send loop finished SENDING, not once every reply had
@@ -1687,6 +1709,7 @@ async function requestPatchStateAfterNav() {
     }
   }
 
+  startupProgress('Reading preset levels, tempo and input settings...', .9);
   // PHASE 4 — rig level. Each has its own command, none needs the amp handle.
   if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
   sendHex(REQU_RIG_VOL);            await sleep(NAV_QUERY_GAP);

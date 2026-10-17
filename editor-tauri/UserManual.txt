@@ -1,0 +1,247 @@
+ELEVEN RACK EDITOR — TAURI / RUST USER MANUAL
+===================================================================
+
+Eleven Rack Editor is a Linux editor and librarian for the Avid Eleven
+Rack. Linux integration and updates: Koen de Boevé. It is based on
+Charles Wardick's Eleven Edit and Damilola Olalere's macOS fork.
+
+Project and issue tracker:
+https://github.com/kdbo/Elevenrack-driver-linux
+
+GETTING STARTED
+--------------------------------------------------
+
+Connect the Eleven Rack over USB and power it on. Close other editor
+instances before starting. This version uses a native Rust host with
+ALSA MIDI and a WebKitGTK interface.
+
+A prebuilt editor needs no Node.js, npm, Python bridge or Rust compiler
+to run. Its GTK, WebKitGTK and ALSA runtime libraries must be installed;
+the packaged build declares its runtime dependencies.
+
+From the root of a built source checkout, start the release version:
+
+  editor-tauri/tools/run-preview.sh --release
+
+Start the debug version by omitting --release:
+
+  editor-tauri/tools/run-preview.sh
+
+Close the running editor before switching versions. Debug and release
+share the same preferences and captures folder. For building from source,
+see editor-tauri/README.md; development dependencies are separate from
+what is needed to run the prebuilt application.
+
+If using a packaged build, launch the Tauri Preview from the application
+menu. The editor and Linux audio driver are separate; installing the
+editor does not install the DKMS driver. See the project README for
+driver installation and tested systems.
+
+The editor selects the Eleven Rack Rig MIDI ports automatically when
+there is a single matching input/output pair. If needed, select the Rig
+ports manually, rather than the external DIN MIDI ports.
+
+Startup checks the connection and firmware identity before showing the
+main window. Supported identity builds are 0157 and 0153. A rack already
+in tuner mode can open directly into the tuner; closing the tuner reads
+the normal rig again.
+
+TOP BAR AND PRESET LISTS
+--------------------------------------------------
+
+Bank and Patch buttons step through banks and presets. The amber display
+shows the current slot and patch name.
+
+Click User on the LEFT side of the display to open USER presets A1–Z4.
+Click Factory on the RIGHT side to open FACTORY presets a1–z4. If the
+popup is already open, selecting the other side changes its list. The
+popup also has User/Factory tabs and a search field. Click a preset to
+recall it. Factory slots are read-only save destinations.
+
+Click the patch NAME itself to rename it locally. Enter applies the
+name, Escape cancels. A rename becomes part of your unsaved edits and
+is written to a hardware slot only when you save.
+
+INPUT selects the source feeding the rig: Guitar, Mic, Line or Digital.
+
+TUNER
+--------------------------------------------------
+
+TUNER enables the Rack's hardware tuner and opens a live tuner panel in
+the editor. The panel shows:
+
+  - The detected note and octave, for example E2, A2 or D3.
+  - A traditional needle on a cream-colored analog meter face.
+  - A blinking red left arrow for a flat note, or right arrow for sharp.
+  - Both arrows green when the Rack reports the center tuning value.
+  - A signed numeric deviation, for example −2, +10 or 0, without a unit.
+
+The numeric deviation follows received tuner data. Its exact equivalence
+to the number on the Rack screen and a calibrated cents scale have not
+been verified. It is not labeled as cents.
+
+A=… Hz controls the hardware tuning reference. Enter a whole-number
+frequency or use −/+ for 1 Hz steps. The editor currently allows
+410–480 Hz; the controlled capture confirmed 438–440 Hz, and hardware
+reference changes from our editor have been confirmed working.
+
+The displayed reference follows replies from the Rack. If it starts
+blank, enter your desired reference explicitly; 440 is not assumed.
+Changing the reference affects the Rack's tuning calculation directly.
+
+Play one note at a time. No signal clears the reading and arrows. Close
+tuner switches the hardware tuner off. A preset change also closes it.
+Polling stops on tuner-off or a MIDI disconnect. Auto Advance pauses
+when tuning starts.
+
+SIGNAL PATH AND AMP / EFFECT CONTROLS
+--------------------------------------------------
+
+The signal path shows the rig's blocks in order. Click a tile to open its
+controls, click its name to bypass/enable it, or drag to change the order.
+
+The amp panel contains model-dependent tone controls. The adjacent card
+contains the amp model, cabinet, microphone, axis, Speaker Breakup and
+True-Z selections. Bright, Tremolo and Sync appear for applicable models.
+
+The lock, reset and # controls manage knob ordering and numeric readouts.
+An effect opens its own panel with the selected model's parameters; its
+footswitch bypasses/enables it. Return to the amp using the panel control.
+
+Rotary controls use simple round pointer knobs. Drag vertically or use
+the mouse wheel to adjust them. Double-click restores the loaded value.
+Settings lets you choose rotary controls or sliders.
+
+MASTER SECTION
+--------------------------------------------------
+
+The Master section contains Gate, To Amp 1/2 volume and source controls,
+Amp Out and Rig Volume, Phones and Main volume, Tempo and global settings.
+
+PHONES mute is below PHON VOL; MAIN mute is below MAIN VOL. Click to
+mute/unmute that output. Red indicates muted. These are separate output
+mutes and are not placed beside the tuner button.
+
+The two Master VU meters move only when fresh audio-level measurements
+are available. Without an audio-level source, or when measurements stop,
+the needles rest at the bottom of the scale and the peak lights stay off.
+MIDI traffic and the Main volume setting do not drive the meters. This
+Tauri preview currently has no audio-level backend. The tuner needle
+continues to follow live tuning data from the Rack.
+
+A small green MIDI IN indicator flashes on incoming MIDI messages.
+The amber indicator next to TEMPO pulses at the displayed BPM while
+connected. It is a visual tempo reference, not a hardware beat-phase
+or MIDI-clock synchronization indicator.
+
+Cab Always Off, Cabinet Resonance, FX Loop global routing and Digital
+Output Mode are hardware-wide settings, rather than individual preset
+edits.
+
+SAVING, IMPORTING AND BACKUP
+--------------------------------------------------
+
+Save / Export offers hardware and disk operations. Save to Rack commits
+edits to a user slot. Save to Disk exports a .tfx file to the computer.
+Import patch loads a .tfx for editing; explicitly save to a user slot to
+retain it on the Rack.
+
+TFX files are saved to the captures folder. The default location is:
+
+  ~/.local/share/io.github.kdbo.elevenrack.editor.tauri-preview/captures/
+
+Settings shows the current folder and offers Open Folder and Change
+Folder. Both Import patch and Import patches start in this folder;
+you can browse to another location. Bank export uses a folder you choose.
+
+Export all patches provides bank backup files. Import patches restores
+selected data; review its destination slots before committing. User and
+Factory lists each contain 104 slots. Factory presets can be recalled
+and used as a starting point, but saved changes must go to a user slot.
+
+Rig balancing provides a separate workflow for comparing and adjusting
+user-rig output levels. Review buffered changes before committing them.
+
+Disk presets, hardware slot writes, full bank backup/restore and rig
+balancing have not yet received complete end-to-end Linux validation.
+Keep existing backups before using operations that overwrite slots.
+
+AUTO ADVANCE
+--------------------------------------------------
+
+Choose FROM/TO slots and an interval, then START to audition presets
+in sequence. PAUSE and STOP control the sequence. Tuning and other
+interactive operations pause it to avoid unexpected preset changes.
+
+SETTINGS, ABOUT AND MANUAL
+--------------------------------------------------
+
+Settings contains control style, interface zoom, capture/export folder,
+log-folder access and additional global hardware controls. Lower the
+zoom or enlarge the window if controls do not fit.
+
+About identifies Koen de Boevé's Linux application and preserves the
+original authors, project ancestry and research credits. Manual opens
+this local document in your desktop's text viewer.
+
+To enable diagnostic session logs, from the checkout root run:
+
+  editor-tauri/tools/run-preview.sh --release --logs
+
+For the debug build, omit --release. Logs are stored at:
+
+  ~/.local/share/io.github.kdbo.elevenrack.editor.tauri-preview/logs/editor.log
+
+Settings has an Open Logs Folder button.
+
+TROUBLESHOOTING
+--------------------------------------------------
+
+Rack not found: check USB connection and power, close other editor
+instances and inspect the selected Rig MIDI ports. Restart after moving
+the Rack between computers. Other MIDI applications can interfere with
+communication; close them while troubleshooting.
+
+Startup in tuner mode: close the tuner to restore the normal rig display.
+If the connection fails, retry the connection or fully quit and relaunch.
+The inherited Restart Bridge button reconnects the native MIDI transport;
+this version does not run a separate bridge process.
+
+No tuner note: check that Rig Input matches the physical source, play a
+single sustained note and check whether the hardware tuner sees it.
+
+Blank A= reference: enter the desired value explicitly. If the display
+says Waiting for Rack, verify that the Rack accepted the change and that
+the MIDI connection is still active.
+
+Source changes do not appear: rebuild the selected debug or release
+binary. A packaged installation must also be rebuilt and reinstalled;
+restarting an older binary does not load changes from the source checkout.
+
+Automatic release updates are unavailable in this Tauri preview. Install
+an updated preview explicitly when one is provided.
+
+Missing audio: MIDI editing and USB audio are separate paths. Consult
+the driver and PipeWire/REAPER documentation in the project docs folder.
+
+CREDITS AND LICENSES
+--------------------------------------------------
+
+Koen de Boevé — Linux integration, Rust/ALSA transport and editor/tuner updates.
+Charles Wardick — original Eleven Edit, protocol research and patch tools.
+  https://github.com/CharlesWardick/Eleven-Edit
+Damilola Olalere (MrDees) — macOS fork and Studio interface ancestry.
+  https://github.com/damielolar-CODE/Eleven-Edit
+Guillaume Schmid — ElevenHack, earlier protocol research.
+Matt Housley — Core Audio driver reference for the Linux driver project.
+Paul Bender — R11 Audio, hardware monitoring and mixer explanations.
+
+This Linux manual replaces the inherited Windows/macOS installation
+instructions and retains the original project's ancestry. Editor code
+uses MIT licensing with upstream notices retained. Fonts have their own
+SIL Open Font License notices. The kernel driver has separate licensing;
+see the repository's LICENSE, LICENSING.md and CREDITS.md.
+
+Eleven Rack Editor is an independent project, not affiliated with Avid.
+Eleven Rack and model names remain trademarks of their respective owners.
+===================================================================
