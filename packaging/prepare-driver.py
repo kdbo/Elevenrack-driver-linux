@@ -95,23 +95,24 @@ def eleven_rack_attributes(text):
 
 
 def eleven_playback_lead(text):
-    """Optionally queue a bounded amount of silent playback at implicit-feedback start.
+    """Queue a bounded amount of silent playback at implicit-feedback start.
 
     Upstream submits no playback until capture returns, so the OUT ring holds only
     about one capture URB (0.5-1 ms). A late completion empties it (xHCI Ring
     Underrun) and shifts playback. QUIRK_FLAG_PLAYBACK_FIRST fixes that by queuing
-    every URB, costing up to ~14 ms. This queues only the requested milliseconds.
-    0 (the default) keeps the upstream behaviour.
+    every URB, costing up to ~14 ms. This queues only the requested milliseconds:
+    2 ms by default for the Rack, which removed the underruns in testing at a
+    cost of 0.3-1.4 ms latency. 0 keeps the upstream behaviour.
     """
     text = replace_once(text, '#include <linux/init.h>\n',
                         '#include <linux/init.h>\n#include <linux/moduleparam.h>\n')
     text = replace_once(text, '#include "quirks.h"\n', '''#include "quirks.h"
 
 /* Eleven Rack Linux package: bounded implicit-feedback playback lead. */
-static unsigned int eleven_playback_lead_ms;
+static unsigned int eleven_playback_lead_ms = 2;
 module_param(eleven_playback_lead_ms, uint, 0644);
 MODULE_PARM_DESC(eleven_playback_lead_ms,
-\t"Eleven Rack: ms of silent playback queued at implicit-feedback start (0 = upstream)");
+\t"Eleven Rack: ms of silent playback queued at implicit-feedback start (default 2, 0 = upstream)");
 
 static unsigned int eleven_lead_urbs(struct snd_usb_endpoint *ep)
 {

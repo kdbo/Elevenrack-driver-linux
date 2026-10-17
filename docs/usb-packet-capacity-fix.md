@@ -117,7 +117,10 @@ recordings, graphs, timestamps and traces remain locally under
 `white-matrix-post-bios-1.38.0-172801` and
 `white-balanced-48k-post-bios-1.38.0-200753`.
 
-## Open: 33–34-frame delay steps at 44.1 kHz (2026-10-16)
+## Investigation: delay steps at 44.1 kHz (2026-10-16)
+
+Superseded by the resolution below. Both candidates in this section were
+ruled out: neither capture errors nor PipeWire resyncs occurred at any step.
 
 With GNOME idle dimming disabled, no SMIs occurred in any regression run that
 day. One failure mode remains. With the same module (srcversion
@@ -233,6 +236,51 @@ Before relying on this, establish:
 Upstream ALSA already has `QUIRK_FLAG_IFB_SILENCE_ON_EMPTY` for devices that
 need an OUT packet even when the whole capture URB failed. That quirk still
 sends zero-size packets, so it would not prevent the frame loss.
+
+## Resolution: playback ring underruns and a 2 ms lead (2026-10-17)
+
+An xHCI event trace (`xhci_handle_event`, filtered to completion codes other
+than Success and Short Packet) found the cause. Every delay step was preceded
+by a `Ring Underrun` on the Rack's playback endpoint (EP 0x03): 13 of 13 steps
+in the two-minute 24-profile matrices, at all four sample rates. The steps
+were 25-81 frames, roughly the time the ring stayed empty.
+
+Upstream implicit feedback submits no playback until capture URBs return.
+Each capture completion then releases one playback URB of 0.5-1 ms, so the
+OUT ring holds very little. When a capture completion is handled late, the
+ring runs empty and the next playback is scheduled later, with no xrun or log
+message. Keeping the CPU out of deep C-states (`cpu_dma_latency` = 0) did not
+prevent it.
+
+`QUIRK_FLAG_PLAYBACK_FIRST` (0x10) removed the underruns but queued every URB,
+adding 2-14 ms of latency. The driver now queues a bounded lead instead:
+`eleven_playback_lead_ms`, 2 ms by default, for `0dba:b011` only. It is
+writable at runtime and read at each stream start. 0 restores upstream
+behaviour, for example with `options snd_usb_audio eleven_playback_lead_ms=0`.
+
+| Two-minute matrix, 24 profiles | Failures | Playback underruns | Extra latency |
+| --- | --- | --- | --- |
+| No lead | 7 | 13 | - |
+| `PLAYBACK_FIRST` | 4 | 0 | 2-14 ms |
+| 2 ms lead | 1 | 0 | 0.3-1.4 ms |
+
+Part of the lead does not add latency: PipeWire sees the queued audio and
+keeps correspondingly less in its own buffer. REAPER's latency compensation
+stays correct. The automated REAPER click test (`tools/reaper-click-test.py`)
+places recordings within about +/-0.2 ms of the played click after the
+correction retune in `config/52-eleven-rack-latency.conf`; those corrections
+were measured with the 2 ms lead.
+
+Remaining observations:
+
+- Rare small steps of about one USB packet (5-7 samples) without any USB,
+  ALSA or PipeWire event; the cause is not visible from the host.
+- Rare early steps at 88.2/96 kHz without an underrun (3 in 48 runs with a
+  lead, none in 24 without). Too few to attribute.
+- Occasional underruns still occur (1 in about 25 click-test runs, 1 in 4.5
+  nightly hours), mostly absorbed by the lead without a step.
+- Only the Ubuntu 7.0 source has been patched and built with the lead. Other
+  kernel series must pass the compatibility builds before a release.
 
 ## Local DKMS trial
 

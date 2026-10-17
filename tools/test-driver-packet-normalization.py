@@ -72,6 +72,7 @@ int main(void) {
                                    'linux-source-7.0.0/sound/usb/endpoint.c'],
                                   check=True, capture_output=True, text=True).stdout
         patched = prepare.eleven_playback_lead(endpoint)
+        self.assertIn('static unsigned int eleven_playback_lead_ms = 2;', patched)
         self.assertIn('module_param(eleven_playback_lead_ms, uint, 0644);', patched)
         self.assertIn('for (i = 0; i < (lead ? lead : ep->nurbs); i++) {', patched)
         self.assertIn('if (!i && !lead) {', patched)
