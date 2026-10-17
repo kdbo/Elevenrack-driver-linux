@@ -150,7 +150,9 @@ def main():
                     call('systemctl','--user','start','wireplumber.service')
                 time.sleep(2)
                 directory = OUT/f'{rate}-{quantum}-start-{repeat}'
-                env = dict(os.environ,ELEVEN_TEST_WARMUP_SECONDS='5')
+                # PipeWire sometimes applies the second playback configuration after
+                # a 5 s delay; a 6 s warmup keeps that reopen out of the recording.
+                env = dict(os.environ,ELEVEN_TEST_WARMUP_SECONDS='6')
                 subprocess.run([sys.executable,str(ROOT/'tools/record-latency-status.py'),'--binary',str(ROOT/'build/latency/jack-loopback-diagnostic'),'--output',str(directory),'--quanta',str(quantum),'--repeats','1'],check=True,env=env, stdout=subprocess.DEVNULL)
                 raw = directory/f'quantum-{quantum}-run-1.raw'
                 row = {'rate_hz':rate,'quantum':quantum,'start':repeat,'existing_correction':old.get((rate,quantum),0)}

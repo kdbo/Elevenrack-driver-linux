@@ -1,6 +1,6 @@
 # Long-duration loopback regression
 
-`tools/test-audio-regression.py` uses the existing JACK/PipeWire loopback tool. Each profile gets a fresh audio start, five seconds of silent warmup, and then a sine wave (997 Hz), deterministic white noise or pink noise. The default series covers all 24 sample-rate/buffer combinations, three signals, and 1, 5, 15 and 30 minutes per signal. That is 61.2 hours of signal, plus startup time. High sample rates with small buffers are included so that possible faults are recorded.
+`tools/test-audio-regression.py` uses the existing JACK/PipeWire loopback tool. Each profile gets a fresh audio start, six seconds of silent warmup, and then a sine wave (997 Hz), deterministic white noise or pink noise. The default series covers all 24 sample-rate/buffer combinations, three signals, and 1, 5, 15 and 30 minutes per signal. That is 61.2 hours of signal, plus startup time. High sample rates with small buffers are included so that possible faults are recorded.
 
 ## Connecting and starting
 
@@ -32,7 +32,9 @@ The full series stores about 122 GB of recorded and reference audio, plus logs. 
 
 Each run keeps the raw float32 audio, the reference signal, callback timestamps, reported latency, and passive ALSA status/hardware parameters. `matrix.json` holds the results per profile; `regression.json` records the progress of the series. `.regression.json` holds the analysis windows and the anomalies found. A failing profile does not stop the other profiles; an error during setup/start stops the series.
 
-The analysis checks reported recording xruns, the actual graph/ALSA settings, and restarts of the PCM streams. A scan of the signal after the first second looks for non-finite/clipped samples and runs of at least 64 near-zero or identical samples. Every 100 ms, a 512-sample window is correlated; insufficient similarity (<0.80) and sudden delay shifts (>1 ms, at least eight samples) are flagged. Sine has an ambiguous delay because it is periodic, so it is not used to prove absolute delay or drift.
+The analysis checks reported recording xruns, the actual graph/ALSA settings, and restarts of the PCM streams. A scan of the signal after the first second looks for non-finite/clipped samples and runs of at least 64 near-zero or identical samples. Every 100 ms, a 512-sample window is aligned with the reference. The match is judged with a mean-removed correlation at the found delay; below 0.80 is flagged. Removing the mean matters for pink noise: the AC-coupled analog input removes its slow drift, which lowered the plain correlation of the same windows in every run and made pink noise fail without any audio fault. Delay shifts above eight samples are flagged for white and pink noise, whose delay is stable to the sample; multitone keeps a limit of 1 ms. Sine has an ambiguous delay because it is periodic, so it is not used to prove absolute delay or drift.
+
+The warmup is six seconds because PipeWire sometimes applies its second playback configuration exactly five seconds after the start. With a five-second warmup, that reopen fell on the first moment of the recording and was reported as a PCM restart.
 
 This first detector is a screening, not a guarantee that every short glitch is found. Analog filtering/noise can also cause a correlation failure. Review suspicious recordings before concluding that the driver has regressed. Warmup xruns remain in the log, separate from recording xruns. The test does not change the correction table and does not set new buffering in the driver.
 
