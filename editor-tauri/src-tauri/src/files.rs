@@ -151,7 +151,7 @@ pub fn export_bank(folder: &Path, name: &str, entries: &[Value]) -> Result<Value
         return Err("Expected 1–104 bank entries".into());
     }
     let name = safe_name(name, 48);
-    safe_leaf(&name)?;
+    safe_leaf(&name).map_err(|e| format!("Bank name {name:?}: {e}"))?;
     let directory = folder.join(&name);
     // Refuse an existing export instead of partially replacing an older bank.
     if directory.exists() || folder.join(format!("{name}.zip")).exists() {
@@ -165,7 +165,7 @@ pub fn export_bank(folder: &Path, name: &str, entries: &[Value]) -> Result<Value
     for entry in entries {
         let bank = entry["bank"].as_str().ok_or("Missing bank slot")?;
         let filename = entry["filename"].as_str().ok_or("Missing filename")?;
-        safe_leaf(filename)?;
+        safe_leaf(filename).map_err(|e| format!("Slot {bank}, filename {filename:?}: {e}"))?;
         if !slot.is_match(bank) || !slots.insert(bank) || !names.insert(filename) {
             return Err("Duplicate or invalid bank entry".into());
         }
@@ -228,6 +228,35 @@ mod tests {
             assert_eq!(loaded["problems"].as_array().unwrap().len(), 0);
         }
         assert!(export_bank(&folder, "Test", &entries).is_err());
+        fs::remove_dir_all(folder).unwrap();
+    }
+    #[test]
+    fn full_bank_with_dotted_names_roundtrips() {
+        let folder = temporary();
+        let mut body = vec![0u8; 256];
+        body[..4].copy_from_slice(b"sld6");
+        let entries: Vec<Value> = (0..104)
+            .map(|i| {
+                json!({
+                    "bank": format!("{}{}", (b'A' + (i / 4) as u8) as char, i % 4 + 1),
+                    "filename": format!("Lead..{i}.tfx"),
+                    "bodyArray": body,
+                })
+            })
+            .collect();
+        let result = export_bank(&folder, "Bank..2026", &entries).unwrap();
+        assert_eq!(result["count"], 104);
+        for key in ["xmlPath", "zipPath"] {
+            let loaded = read_bank(Path::new(result[key].as_str().unwrap())).unwrap();
+            let valid = loaded["valid"].as_array().unwrap();
+            assert_eq!(valid.len(), 104);
+            assert!(loaded["problems"].as_array().unwrap().is_empty());
+            for (actual, expected) in valid.iter().zip(&entries) {
+                assert_eq!(actual["bank"], expected["bank"]);
+                assert_eq!(actual["filename"], expected["filename"]);
+                assert_eq!(actual["body"], json!(body));
+            }
+        }
         fs::remove_dir_all(folder).unwrap();
     }
     #[test]

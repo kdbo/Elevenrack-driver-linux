@@ -24,6 +24,20 @@ cargo build --locked --manifest-path editor-tauri/src-tauri/Cargo.toml
 editor-tauri/tools/run-preview.sh
 ```
 
+Build and run the optimized release alongside the debug build:
+
+```sh
+cargo build --release --locked --manifest-path editor-tauri/src-tauri/Cargo.toml
+editor-tauri/tools/run-preview.sh --release
+```
+
+Without `--release`, the launcher uses the debug build. Close the running editor
+before switching builds; both use the same preview preferences and instance lock.
+
+The in-app Manual opens this preview's `UserManual.txt`, with Tauri launch,
+logging and captures-folder instructions. Development commands below are for
+building the application; users of a prebuilt binary do not need npm or Cargo.
+
 The launcher removes incompatible VS Code Snap GTK/schema search paths when
 present. It applies only to the child application environment. A normal Tauri
 GUI starts immediately; the existing firmware/readiness gates remain in-page.

@@ -2,9 +2,16 @@
 # SPDX-License-Identifier: MIT
 set -euo pipefail
 project=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-binary="$project/src-tauri/target/debug/eleven-rack-editor-tauri"
+profile=debug
+build_args=()
+if [[ "${1:-}" == --release ]]; then
+    profile=release
+    build_args=(--release)
+    shift
+fi
+binary="$project/src-tauri/target/$profile/eleven-rack-editor-tauri"
 if [[ ! -x "$binary" ]]; then
-    echo 'Build first: cargo build --manifest-path editor-tauri/src-tauri/Cargo.toml' >&2
+    echo "Build first: cargo build ${build_args[*]} --locked --manifest-path editor-tauri/src-tauri/Cargo.toml" >&2
     exit 1
 fi
 # VS Code Snap exports GTK/schema paths belonging to its bundled desktop stack.

@@ -83,11 +83,7 @@ pub fn tfx_body(raw: &[u8]) -> Result<Vec<u8>, String> {
     Ok(body.to_vec())
 }
 pub fn safe_leaf(name: &str) -> Result<&str, String> {
-    if name.is_empty()
-        || name == "."
-        || name.contains("..")
-        || name.contains(['/', '\\', '\0', ':'])
-    {
+    if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', '\0', ':']) {
         return Err("Expected a plain filename".into());
     }
     Ok(name)
@@ -149,10 +145,15 @@ mod tests {
     }
     #[test]
     fn paths_cannot_escape_a_bank() {
-        for name in ["../a.tfx", "/a.tfx", "x\\a.tfx", "C:a.tfx", "..", ""] {
+        for name in [
+            "../a.tfx", "/a.tfx", "x\\a.tfx", "C:a.tfx", ".", "..", "", "a\0.tfx",
+        ] {
             assert!(safe_leaf(name).is_err());
         }
         assert!(safe_leaf("A Nice Rig.tfx").is_ok());
+        for name in ["Lead..tfx", "Lead...tfx", "..tfx", "Bank..2026"] {
+            assert!(safe_leaf(name).is_ok(), "{name}");
+        }
         assert_eq!(safe_name("a/b:c", 32), "a_b_c");
     }
 }

@@ -307,6 +307,7 @@ impl Host {
                     .dialog()
                     .file()
                     .set_title("Import bank XML or ZIP")
+                    .set_directory(self.captures()?)
                     .add_filter("Bank XML or ZIP", &["xml", "zip"])
                     .blocking_pick_file()
                 {
@@ -322,6 +323,7 @@ impl Host {
                     .dialog()
                     .file()
                     .set_title("Load TFX patch")
+                    .set_directory(self.captures()?)
                     .add_filter("TFX patch", &["tfx"])
                     .blocking_pick_file()
                 {
