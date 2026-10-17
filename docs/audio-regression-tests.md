@@ -147,6 +147,8 @@ original file state and the verified final state of the file, the hardware
 rate and the PipeWire metadata. Restore errors remain in the report and must
 not let the queue continue.
 
+An existing file that is exactly the matrix's own rule is a leftover of an aborted run, not user configuration. Restoring it would pin the Rack to that test's sample rate, so the panel could no longer change the rate. Such a file is saved as `stale-matrix-rate-override.conf` in the output directory and removed afterwards (`stale_matrix_rate_override_removed` in `matrix.json`). Any other content is preserved as described above.
+
 The module srcversion is recorded before and after a matrix; new nightly
 queue results take over the measured starting identity. Historical results
 without that metadata are therefore not retroactively assigned to a driver.

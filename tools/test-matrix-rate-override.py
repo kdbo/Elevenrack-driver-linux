@@ -52,6 +52,27 @@ class OverrideRestoration(unittest.TestCase):
             self.assertTrue(path.exists())
             self.assertEqual(path.read_bytes(), b'')
 
+    def test_leftover_matrix_rule_is_backed_up_and_removed(self):
+        for headroom in (None, 256):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                path = root/'override.conf'
+                leftover = matrix.matrix_rate_rule(88200, headroom).encode()
+                path.write_bytes(leftover)
+                override = matrix.RateOverride(path, root)
+                self.assertTrue(override.stale)
+                path.write_text(matrix.matrix_rate_rule(48000, headroom))
+                override.restore()
+                self.assertTrue(override.restored())
+                self.assertFalse(path.exists())
+                self.assertEqual((root/'stale-matrix-rate-override.conf').read_bytes(), leftover)
+                self.assertFalse((root/'original-rate-override.conf').exists())
+
+    def test_edited_or_user_rule_is_not_treated_as_leftover(self):
+        rule = matrix.matrix_rate_rule(88200)
+        for text in (rule.replace('"Rack"', '"Rack_1"'), '# mine\n' + rule, rule + '# extra\n'):
+            self.assertFalse(matrix.is_matrix_rate_rule(text.encode()))
+
     def test_symlink_is_rejected_without_changing_target(self):
         with tempfile.TemporaryDirectory() as tmp:
             target, path = Path(tmp)/'target', Path(tmp)/'override.conf'

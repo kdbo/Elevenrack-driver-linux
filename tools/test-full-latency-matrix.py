@@ -17,15 +17,47 @@ OUT = ROOT / 'build/latency/full-profile-matrix'
 PROFILES = [(r, q) for r in (44100, 48000) for q in (128,64,256,512,1024,2048)] + [(r,q) for r in (88200,96000) for q in (512,1024,2048)]
 UNITS = ['wireplumber.service','pipewire-pulse.service','pipewire-pulse.socket','pipewire.service','pipewire.socket']
 
+def matrix_rate_rule(rate, headroom=None):
+    """The temporary WirePlumber rule this matrix writes for one profile."""
+    text = ('monitor.alsa.rules = [ { matches = [\n'
+            '{ node.name = "~alsa_input.usb-Digidesign_Eleven_Rack.*" api.alsa.card.id = "Rack" }\n'
+            '{ node.name = "~alsa_output.usb-Digidesign_Eleven_Rack.*" api.alsa.card.id = "Rack" }\n'
+            '] actions = { update-props = { audio.rate = '+str(rate)+' } } } ]\n')
+    if headroom is not None:
+        text += ('monitor.alsa.rules = [ { matches = [ { node.name = "~alsa_output.usb-Digidesign_Eleven_Rack.*" '
+                 'api.alsa.card.id = "Rack" } ] actions = { update-props = { api.alsa.headroom = '+str(headroom)+' } } } ]\n')
+    return text
+
+def is_matrix_rate_rule(data):
+    """True only for an exact leftover of matrix_rate_rule, e.g. after an aborted run."""
+    try:
+        text = data.decode()
+    except UnicodeDecodeError:
+        return False
+    for template in (matrix_rate_rule('RATE'), matrix_rate_rule('RATE', 'HEADROOM')):
+        pattern = re.escape(template).replace('RATE', r'\d+').replace('HEADROOM', r'\d+')
+        if re.fullmatch(pattern, text):
+            return True
+    return False
+
 class RateOverride:
-    """Back up an existing rule before using its filename for a test."""
+    """Back up an existing rule before using its filename for a test.
+
+    A file that is exactly this matrix's own rule is a leftover of an aborted
+    run, not user configuration: keep a copy but remove it afterwards, so it
+    cannot pin the Rack's rate after the test.
+    """
     def __init__(self, path, backup_directory):
         self.path = path
         if path.is_symlink() or (path.exists() and not path.is_file()):
             raise RuntimeError('Rate override must be a regular file')
         self.original = path.read_bytes() if path.exists() else None
         self.mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else None
-        if self.original is not None:
+        self.stale = self.original is not None and is_matrix_rate_rule(self.original)
+        if self.stale:
+            (backup_directory/'stale-matrix-rate-override.conf').write_bytes(self.original)
+            self.original, self.mode = None, None
+        elif self.original is not None:
             (backup_directory/'original-rate-override.conf').write_bytes(self.original)
 
     def restore(self):
@@ -124,6 +156,9 @@ def main():
     rate_config = Path.home()/'.config/wireplumber/wireplumber.conf.d/99-eleven-matrix-rate.conf'
     override = RateOverride(rate_config, OUT)
     report['original_rate_override_existed'] = override.original is not None
+    report['stale_matrix_rate_override_removed'] = override.stale
+    if override.stale:
+        print('Removing a leftover matrix rate override from an earlier aborted run', flush=True)
     report['original_rate_override_mode'] = override.mode
     rate_config.parent.mkdir(parents=True,exist_ok=True)
     def save(): (OUT/'matrix.json').write_text(json.dumps(report,indent=2)+'\n')
@@ -134,13 +169,7 @@ def main():
         for repeat in args.starts:
             for rate,quantum in profiles:
                 stop()
-                rate_config.write_text('monitor.alsa.rules = [ { matches = [\n'
-                    '{ node.name = "~alsa_input.usb-Digidesign_Eleven_Rack.*" api.alsa.card.id = "Rack" }\n'
-                    '{ node.name = "~alsa_output.usb-Digidesign_Eleven_Rack.*" api.alsa.card.id = "Rack" }\n'
-                    '] actions = { update-props = { audio.rate = '+str(rate)+' } } } ]\n')
-                if headroom is not None:
-                    with rate_config.open('a') as override:
-                        override.write('monitor.alsa.rules = [ { matches = [ { node.name = \"~alsa_output.usb-Digidesign_Eleven_Rack.*\" api.alsa.card.id = \"Rack\" } ] actions = { update-props = { api.alsa.headroom = '+headroom+' } } } ]\n')
+                rate_config.write_text(matrix_rate_rule(rate, headroom))
                 subprocess.run(['arecord','-D','hw:Rack,0','-f','S32_LE','-r',str(rate),'-c','8','-d','1','-t','raw','/dev/null'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 call('systemctl','--user','start',*[u for u in active if u != 'wireplumber.service'])
                 time.sleep(1)
