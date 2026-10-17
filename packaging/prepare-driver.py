@@ -29,12 +29,19 @@ def implicit_feedback_capacity(card, endpoint):
         return re.sub(r'\s+', '', text)
 
     c, e = compact(card), compact(endpoint)
+    # Feedback sizes are copied with memcpy (7.0) or a loop (Ubuntu 6.8 backport).
+    bounded_copies = (
+        e.count('memcpy(ctx->packet_size,packet->packet_size,'
+                'ctx->packets*sizeof(packet->packet_size[0]));')
+        + e.count('for(i=0;i<ctx->packets;i++)ctx->packet_size[i]=packet->packet_size[i];'))
+    unbounded_copy = (
+        'packet->packets*sizeof(packet->packet_size[0])' in e
+        or 'for(i=0;i<packet->packets;i++)ctx->packet_size[i]=' in e)
     fixed = (
         c.count('unsignedintmax_urb_packs;') == 1
         and e.count('ep->max_urb_packs=urb_packs;') == 1
         and e.count('ctx->packets=min_t(int,packet->packets,ep->max_urb_packs);') == 1
-        and e.count('memcpy(ctx->packet_size,packet->packet_size,'
-                    'ctx->packets*sizeof(packet->packet_size[0]));') == 1
+        and bounded_copies == 1 and not unbounded_copy
         and e.count('u->urb=usb_alloc_urb(u->packets,GFP_KERNEL);') == 1
         and ('ep->max_urb_packs=urb_packs;'
              'for(i=0;i<ep->nurbs;i++){structsnd_urb_ctx*u=&ep->urb[i];'
@@ -66,9 +73,14 @@ def implicit_feedback_capacity(card, endpoint):
     endpoint = replace_once(endpoint, '\t\tctx->packets = packet->packets;',
         '\t\tctx->packets = min_t(int, packet->packets,\n'
         '\t\t\t\t     ep->max_urb_packs);')
-    endpoint = replace_once(endpoint,
-        '\t\t       packet->packets * sizeof(packet->packet_size[0]));',
-        '\t\t       ctx->packets * sizeof(packet->packet_size[0]));')
+    loop = re.compile(r'for \(i = 0; i < packet->packets; i\+\+\)(\n\t+ctx->packet_size\[i\] = '
+                      r'packet->packet_size\[i\];)')
+    if len(loop.findall(endpoint)) == 1:
+        endpoint = loop.sub(r'for (i = 0; i < ctx->packets; i++)\1', endpoint)
+    else:
+        endpoint = replace_once(endpoint,
+            '\t\t       packet->packets * sizeof(packet->packet_size[0]));',
+            '\t\t       ctx->packets * sizeof(packet->packet_size[0]));')
     endpoint = replace_once(endpoint,
         '\t\tif (fmt->fmt_type == UAC_FORMAT_TYPE_II)\n'
         '\t\t\tu->packets++; /* for transfer delimiter */\n', '')

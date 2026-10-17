@@ -83,10 +83,16 @@ class CapacityBackport(unittest.TestCase):
             '\t\t\tctx->packet_size[i] = packet->packet_size[i];\n')
         self.assertEqual(prepare.implicit_feedback_capacity(card, endpoint),
                          (card, endpoint, 'not needed (feedback does not resize URBs)'))
-        # The loop alone is not enough once feedback also resizes the URB.
+        # Ubuntu 6.8 also resizes the URB from feedback, so the loop needs the fix.
         resized = endpoint.replace('\t\tfor (i', '\t\tctx->packets = packet->packets;\n\t\tfor (i')
+        card, fixed, status = prepare.implicit_feedback_capacity(card, resized)
+        self.assertEqual(status, 'backported')
+        self.assertIn('for (i = 0; i < ctx->packets; i++)', fixed)
+        self.assertNotIn('i < packet->packets', fixed)
+        self.assertEqual(prepare.implicit_feedback_capacity(card, fixed)[2], 'already present')
         with self.assertRaises(RuntimeError):
-            prepare.implicit_feedback_capacity(card, resized)
+            prepare.implicit_feedback_capacity(card, fixed.replace(
+                'i < ctx->packets; i++)', 'i < packet->packets; i++)'))
 
     def test_comment_cannot_pretend_to_be_an_existing_fix(self):
         card, endpoint = self.fixed()
