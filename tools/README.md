@@ -54,6 +54,10 @@ selected profiles for 1, 5, 15 or 30 minutes. See
 [instructions and limitations](../docs/audio-regression-tests.md).
 `analyze-loopback-regression.py` analyzes the recorded audio;
 `test-regression-analysis.py` checks the detector using synthetic faults.
+`reaper-click-test.py` records a click track through the user's normal REAPER per
+rate/buffer (fully automated: a ReaScript records, saves and quits) and measures
+every recorded click against the played click, including small delay steps.
+`test-reaper-click-test.py` checks project generation and the measurement offline.
 `smi-counter.c` and `platform_noise.py` record firmware SMIs during each matrix
 and mark callback stalls and faults that coincide with them (`platform` in
 `matrix.json`); `test-platform-noise.py` checks that attribution. The counter
