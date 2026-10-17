@@ -29,12 +29,19 @@ def implicit_feedback_capacity(card, endpoint):
         return re.sub(r'\s+', '', text)
 
     c, e = compact(card), compact(endpoint)
+    # Feedback sizes are copied with memcpy (7.0) or a loop (Ubuntu 6.8 backport).
+    bounded_copies = (
+        e.count('memcpy(ctx->packet_size,packet->packet_size,'
+                'ctx->packets*sizeof(packet->packet_size[0]));')
+        + e.count('for(i=0;i<ctx->packets;i++)ctx->packet_size[i]=packet->packet_size[i];'))
+    unbounded_copy = (
+        'packet->packets*sizeof(packet->packet_size[0])' in e
+        or 'for(i=0;i<packet->packets;i++)ctx->packet_size[i]=' in e)
     fixed = (
         c.count('unsignedintmax_urb_packs;') == 1
         and e.count('ep->max_urb_packs=urb_packs;') == 1
         and e.count('ctx->packets=min_t(int,packet->packets,ep->max_urb_packs);') == 1
-        and e.count('memcpy(ctx->packet_size,packet->packet_size,'
-                    'ctx->packets*sizeof(packet->packet_size[0]));') == 1
+        and bounded_copies == 1 and not unbounded_copy
         and e.count('u->urb=usb_alloc_urb(u->packets,GFP_KERNEL);') == 1
         and ('ep->max_urb_packs=urb_packs;'
              'for(i=0;i<ep->nurbs;i++){structsnd_urb_ctx*u=&ep->urb[i];'
@@ -44,6 +51,18 @@ def implicit_feedback_capacity(card, endpoint):
     )
     if fixed:
         return card, endpoint, 'already present'
+    # Before 7.0 feedback only copied sizes into the fixed-size array and never
+    # resized ctx->packets, so the allocated descriptor count was never exceeded.
+    unaffected = (
+        'max_urb_packs' not in c and 'max_urb_packs' not in e
+        and 'ctx->packets=packet->packets;' not in e
+        and e.count('for(i=0;i<packet->packets;i++)'
+                    'ctx->packet_size[i]=packet->packet_size[i];') == 1
+        and c.count('intpacket_size[MAX_PACKS_HS];') == 1
+        and c.count('uint32_tpacket_size[MAX_PACKS_HS];') == 1
+    )
+    if unaffected:
+        return card, endpoint, 'not needed (feedback does not resize URBs)'
     if 'max_urb_packs' in c or 'max_urb_packs' in e:
         raise RuntimeError('Incomplete or unfamiliar implicit-feedback capacity fix; review kernel sources')
 
@@ -54,9 +73,14 @@ def implicit_feedback_capacity(card, endpoint):
     endpoint = replace_once(endpoint, '\t\tctx->packets = packet->packets;',
         '\t\tctx->packets = min_t(int, packet->packets,\n'
         '\t\t\t\t     ep->max_urb_packs);')
-    endpoint = replace_once(endpoint,
-        '\t\t       packet->packets * sizeof(packet->packet_size[0]));',
-        '\t\t       ctx->packets * sizeof(packet->packet_size[0]));')
+    loop = re.compile(r'for \(i = 0; i < packet->packets; i\+\+\)(\n\t+ctx->packet_size\[i\] = '
+                      r'packet->packet_size\[i\];)')
+    if len(loop.findall(endpoint)) == 1:
+        endpoint = loop.sub(r'for (i = 0; i < ctx->packets; i++)\1', endpoint)
+    else:
+        endpoint = replace_once(endpoint,
+            '\t\t       packet->packets * sizeof(packet->packet_size[0]));',
+            '\t\t       ctx->packets * sizeof(packet->packet_size[0]));')
     endpoint = replace_once(endpoint,
         '\t\tif (fmt->fmt_type == UAC_FORMAT_TYPE_II)\n'
         '\t\t\tu->packets++; /* for transfer delimiter */\n', '')
@@ -94,6 +118,78 @@ def eleven_rack_attributes(text):
 \t\tbreak;''' + text[end:]
 
 
+def eleven_playback_lead(text):
+    """Queue a bounded amount of silent playback at implicit-feedback start.
+
+    Upstream submits no playback until capture returns, so the OUT ring holds only
+    about one capture URB (0.5-1 ms). A late completion empties it (xHCI Ring
+    Underrun) and shifts playback. QUIRK_FLAG_PLAYBACK_FIRST fixes that by queuing
+    every URB, costing up to ~14 ms. This queues only the requested milliseconds:
+    2 ms by default for the Rack, which removed the underruns in testing at a
+    cost of 0.3-1.4 ms latency. 0 keeps the upstream behaviour.
+    """
+    text = replace_once(text, '#include <linux/init.h>\n',
+                        '#include <linux/init.h>\n#include <linux/moduleparam.h>\n')
+    text = replace_once(text, '#include "quirks.h"\n', '''#include "quirks.h"
+
+/* Eleven Rack Linux package: bounded implicit-feedback playback lead. */
+static unsigned int eleven_playback_lead_ms = 2;
+module_param(eleven_playback_lead_ms, uint, 0644);
+MODULE_PARM_DESC(eleven_playback_lead_ms,
+\t"Eleven Rack: ms of silent playback queued at implicit-feedback start (default 2, 0 = upstream)");
+
+static unsigned int eleven_lead_urbs(struct snd_usb_endpoint *ep)
+{
+\tunsigned int ms = min(READ_ONCE(eleven_playback_lead_ms), 20U);
+\tunsigned int packets;
+
+\tif (!ms || ep->chip->usb_id != USB_ID(0x0dba, 0xb011) ||
+\t    !ep->nurbs || !ep->urb[0].packets)
+\t\treturn 0;
+\tpackets = ms * (snd_usb_get_speed(ep->chip->dev) == USB_SPEED_FULL ?
+\t\t\t1 : 8 >> ep->datainterval);
+\treturn clamp(DIV_ROUND_UP(packets, ep->urb[0].packets), 1U, ep->nurbs);
+}
+''')
+    text = replace_once(text, '''int snd_usb_endpoint_start(struct snd_usb_endpoint *ep)
+{
+\tbool is_playback = usb_pipeout(ep->pipe);
+\tint err;
+\tunsigned int i;
+''', '''int snd_usb_endpoint_start(struct snd_usb_endpoint *ep)
+{
+\tbool is_playback = usb_pipeout(ep->pipe);
+\tint err;
+\tunsigned int i, lead;
+''')
+    text = replace_once(text, '''\tif (snd_usb_endpoint_implicit_feedback_sink(ep) &&
+\t    !(ep->chip->quirk_flags & QUIRK_FLAG_PLAYBACK_FIRST)) {
+\t\tusb_audio_dbg(ep->chip, "No URB submission due to implicit fb sync\\n");''',
+    '''\tlead = snd_usb_endpoint_implicit_feedback_sink(ep) &&
+\t       !(ep->chip->quirk_flags & QUIRK_FLAG_PLAYBACK_FIRST) ?
+\t       eleven_lead_urbs(ep) : 0;
+\tif (snd_usb_endpoint_implicit_feedback_sink(ep) && !lead &&
+\t    !(ep->chip->quirk_flags & QUIRK_FLAG_PLAYBACK_FIRST)) {
+\t\tusb_audio_dbg(ep->chip, "No URB submission due to implicit fb sync\\n");''')
+    # Without queued application data, fall back to waiting for capture.
+    text = replace_once(text, '''\tif (!i) {
+\t\tusb_audio_dbg(ep->chip, "XRUN at starting EP 0x%x\\n",''', '''\tif (!i && !lead) {
+\t\tusb_audio_dbg(ep->chip, "XRUN at starting EP 0x%x\\n",''')
+    return replace_once(text, '''\tfor (i = 0; i < ep->nurbs; i++) {
+\t\tstruct urb *urb = ep->urb[i].urb;
+
+\t\tif (snd_BUG_ON(!urb))
+\t\t\tgoto __error;
+
+\t\tif (is_playback)''', '''\tfor (i = 0; i < (lead ? lead : ep->nurbs); i++) {
+\t\tstruct urb *urb = ep->urb[i].urb;
+
+\t\tif (snd_BUG_ON(!urb))
+\t\t\tgoto __error;
+
+\t\tif (is_playback)''')
+
+
 def prepare(root):
     original = {name: (root / name).read_text() for name in
                 ('quirks-table.h', 'implicit.c', 'format.c', 'quirks.c',
@@ -105,6 +201,7 @@ def prepare(root):
     result = dict(original)
     result['card.h'], result['endpoint.c'], capacity_status = implicit_feedback_capacity(
         original['card.h'], original['endpoint.c'])
+    result['endpoint.c'] = eleven_playback_lead(result['endpoint.c'])
     # The explicit initializer also works before the newer QUIRK_DATA macros.
     entry = '''/* Eleven Rack Linux package: vendor interfaces with UAC2 descriptors. */
 {

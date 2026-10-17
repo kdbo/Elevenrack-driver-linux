@@ -72,6 +72,28 @@ class CapacityBackport(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             prepare.implicit_feedback_capacity(CARD, ENDPOINT.replace('ctx->packets =', 'ctx->other ='))
 
+    def test_pre_7_0_copy_loop_is_left_unchanged(self):
+        card = CARD.replace('};', '\tint packet_size[MAX_PACKS_HS];\n'
+                                  '\tuint32_t packet_size[MAX_PACKS_HS];\n};')
+        endpoint = ENDPOINT.replace(
+            '\t\tctx->packets = packet->packets;\n'
+            '\t\tmemcpy(ctx->packet_size, packet->packet_size,\n'
+            '\t\t       packet->packets * sizeof(packet->packet_size[0]));\n',
+            '\t\tfor (i = 0; i < packet->packets; i++)\n'
+            '\t\t\tctx->packet_size[i] = packet->packet_size[i];\n')
+        self.assertEqual(prepare.implicit_feedback_capacity(card, endpoint),
+                         (card, endpoint, 'not needed (feedback does not resize URBs)'))
+        # Ubuntu 6.8 also resizes the URB from feedback, so the loop needs the fix.
+        resized = endpoint.replace('\t\tfor (i', '\t\tctx->packets = packet->packets;\n\t\tfor (i')
+        card, fixed, status = prepare.implicit_feedback_capacity(card, resized)
+        self.assertEqual(status, 'backported')
+        self.assertIn('for (i = 0; i < ctx->packets; i++)', fixed)
+        self.assertNotIn('i < packet->packets', fixed)
+        self.assertEqual(prepare.implicit_feedback_capacity(card, fixed)[2], 'already present')
+        with self.assertRaises(RuntimeError):
+            prepare.implicit_feedback_capacity(card, fixed.replace(
+                'i < ctx->packets; i++)', 'i < packet->packets; i++)'))
+
     def test_comment_cannot_pretend_to_be_an_existing_fix(self):
         card, endpoint = self.fixed()
         assignment = 'ep->max_urb_packs = urb_packs;'

@@ -11,6 +11,15 @@ local rules = {
     apply_properties = { ["clock.name"] = "api.alsa.Rack" },
   },
   {
+    matches = {
+      { { "node.name", "matches", "alsa_input.usb-Digidesign_Eleven_Rack.*" },
+        { "api.alsa.card.id", "equals", "Rack_1" } },
+      { { "node.name", "matches", "alsa_output.usb-Digidesign_Eleven_Rack.*" },
+        { "api.alsa.card.id", "equals", "Rack_1" } },
+    },
+    apply_properties = { ["clock.name"] = "api.alsa.Rack_1" },
+  },
+  {
     matches = { { { "device.name", "matches", "alsa_card.usb-Digidesign_Eleven_Rack.*" } } },
     apply_properties = {
       ["api.alsa.use-acp"] = false,
@@ -43,6 +52,26 @@ local rules = {
       ["node.device-port-name-prefix"] = "",
       ["audio.allowed-rates"] = "[ 44100 48000 88200 96000 ]",
     },
+  },
+  {
+    matches = { { { "node.name", "matches", "alsa_input.usb-Digidesign_Eleven_Rack.*" },
+                  { "api.alsa.card.id", "equals", "Rack" } } },
+    apply_properties = { ["node.description"] = "Eleven Rack 1 Inputs" },
+  },
+  {
+    matches = { { { "node.name", "matches", "alsa_output.usb-Digidesign_Eleven_Rack.*" },
+                  { "api.alsa.card.id", "equals", "Rack" } } },
+    apply_properties = { ["node.description"] = "Eleven Rack 1 Outputs" },
+  },
+  {
+    matches = { { { "node.name", "matches", "alsa_input.usb-Digidesign_Eleven_Rack.*" },
+                  { "api.alsa.card.id", "equals", "Rack_1" } } },
+    apply_properties = { ["node.description"] = "Eleven Rack 2 Inputs" },
+  },
+  {
+    matches = { { { "node.name", "matches", "alsa_output.usb-Digidesign_Eleven_Rack.*" },
+                  { "api.alsa.card.id", "equals", "Rack_1" } } },
+    apply_properties = { ["node.description"] = "Eleven Rack 2 Outputs" },
   },
 }
 for _, rule in ipairs(rules) do

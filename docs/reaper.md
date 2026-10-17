@@ -34,13 +34,59 @@ The local launcher and wrapper are kept outside this repository in
 `~/.local/share/eleven-rack-local/reaper/`. They are not shipped in the driver
 package. The installed desktop launcher references that local wrapper.
 
-That launcher sets `PIPEWIRE_NODE=Eleven Rack` to filter JACK port
-enumeration to the Rack's node-name prefix, plus
+The local launcher now executes REAPER directly, without `pw-jack`. The user
+confirmed that a direct launch with REAPER's audio system set to **JACK** shares
+audio with system applications on this machine. This depends on the installed
+JACK library resolving to PipeWire's implementation; direct launch does not
+switch REAPER to ALSA. On systems where that library is not selected by default,
+use the `pw-jack` command above. The desktop entry checks the REAPER executable
+itself with `TryExec`, rather than requiring the `pw-jack` wrapper.
+
+The start method is configurable in
+`~/.local/share/eleven-rack-local/reaper/launch-mode`. Put exactly one value on
+the first line: `direct` (the current default) or `pw-jack`. Both modes clear
+`PIPEWIRE_NODE` and hide playback monitor ports. Keep REAPER's audio system set
+to JACK in either mode. Fully quit REAPER before relaunching after a change.
+An optional `REAPER_LAUNCH_MODE=direct` or `REAPER_LAUNCH_MODE=pw-jack`
+environment variable overrides the file for a launch. An invalid mode stops
+the launcher with an error; selecting `pw-jack` requires that command to be
+installed.
+
+The launcher unsets `PIPEWIRE_NODE` and sets
 `PIPEWIRE_PROPS='{ jack.show-monitor=false }'` to hide playback monitor ports.
-A JACK client test verified exactly eight named capture ports and six named
-playback ports. This only affects applications started through this launcher;
-desktop audio retains all its devices. Fully quit and relaunch REAPER to apply
-the filter. If the Rack is disconnected, this view has no hardware ports.
+It leaves JACK hardware port enumeration unrestricted so both audio and MIDI
+are available. Other audio devices may also appear; explicitly select/route the
+Eleven Rack ports. Fully quit and relaunch REAPER after changing the launcher.
+
+## MIDI ports and “Not Found”
+
+In REAPER 7.82, open Options → Preferences → Audio → MIDI Inputs and MIDI
+Outputs. Enable the desired ports on each page:
+
+- **Eleven Rack Rig** communicates with the internal rig.
+- **Eleven Rack External** accesses the physical MIDI IN/OUT connectors.
+
+ALSA exposes these USB MIDI ports. PipeWire's `Midi-Bridge` makes them available
+to JACK clients such as REAPER. This bridge is already provided by PipeWire;
+no additional bridge application is required for this setup.
+
+The previous local launcher set `PIPEWIRE_NODE='Eleven Rack'` to restrict audio
+port enumeration. MIDI ports belong to `Midi-Bridge`, so that filter also hid
+them. REAPER retained their cached names but displayed **Not Found**. On
+2026-10-14, the ports were confirmed present in ALSA (`aconnect -l`) and
+PipeWire (`pw-link -o` / `pw-link -i`); restarting REAPER without the filter
+made MIDI visible. The launcher now clears the filter, including an inherited
+value from the environment.
+
+To diagnose the same symptom with an older launcher, save your project, quit
+REAPER completely, and run:
+
+```bash
+env -u PIPEWIRE_NODE pw-jack /path/to/REAPER/reaper
+```
+
+Check the MIDI Inputs and MIDI Outputs pages again. Visibility verifies port
+discovery; it does not by itself verify MIDI recording, playback, or SysEx.
 
 [PipeWire pw-jack documentation](https://docs.pipewire.org/page_man_pw-jack_1.html)
 explains how the wrapper loads its JACK client libraries.

@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Persistence
   getSavedMode:   ()              => ipcRenderer.invoke('get-saved-mode'),
   saveMode:       (mode)          => ipcRenderer.invoke('save-mode', mode),
+  chooseRack:     (devices)       => ipcRenderer.invoke('choose-rack', devices),
   getSavedPorts:  ()              => ipcRenderer.invoke('get-saved-ports'),
   savePorts:      (ports)         => ipcRenderer.invoke('save-ports', ports),
   getBankCache:   ()              => ipcRenderer.invoke('get-bank-cache'),

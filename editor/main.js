@@ -1367,3 +1367,16 @@ app.on('before-quit', function(event) {
 app.on('activate', function() {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
+// Device choice is available before the editor is revealed behind its splash.
+ipcMain.handle('choose-rack', async function(_event, devices) {
+  if (!Array.isArray(devices) || devices.length < 1 || devices.length > 32 ||
+      devices.some(d => !d || typeof d.id !== 'string' || typeof d.label !== 'string')) return null;
+  const result = await dialog.showMessageBox(splashWindow || mainWindow, {
+    type: 'question', title: 'Select Eleven Rack',
+    message: 'Which Eleven Rack do you want to edit?',
+    buttons: devices.map(d => d.label).concat(['Cancel']),
+    cancelId: devices.length, noLink: true
+  });
+  return result.response < devices.length ? devices[result.response].id : null;
+});

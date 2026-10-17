@@ -8,6 +8,11 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import hashlib
+
+# Also works when loaded by importlib from the GTK panel.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import rack_devices
 
 RATES = (44100, 48000, 88200, 96000)
 BUFFERS = (0, 64, 128, 256, 512, 1024, 2048)
@@ -24,11 +29,12 @@ OUTPUTS = ("Main Out L", "Main Out R", "Re-Amp L", "Re-Amp R", "Digital Out L", 
 
 
 
+def selected_device():
+    return rack_devices.select(os.environ.get('ELEVEN_RACK_DEVICE'))
+
+
 def card():
-    for p in Path('/proc/asound').glob('card*/usbid'):
-        if p.read_text().strip().lower() == '0dba:b011':
-            return int(p.parent.name[4:])
-    raise RuntimeError('Eleven Rack is not registered with ALSA.')
+    return selected_device()['card']
 
 
 CLOCK_CONTROL = 'Eleven Rack Clock Source'
@@ -40,7 +46,7 @@ def reported_roundtrip(objects, rate, quantum):
     totals = [0.0, 0.0]
     for prefix, direction in (('alsa_input.', 'Output'), ('alsa_output.', 'Input')):
         nodes=[o for o in objects if o.get('type')=='PipeWire:Interface:Node'
-               and o.get('info',{}).get('props',{}).get('api.alsa.card.id')=='Rack'
+               and o.get('info',{}).get('props',{}).get('api.alsa.card.id')==selected_device()['card_id']
                and o['info']['props'].get('node.name','').startswith(prefix)]
         if len(nodes)!=1 or nodes[0]['info'].get('state')!='running':
             raise ValueError('Audio stream idle')
@@ -151,7 +157,8 @@ async def editor_rig_input(name):
     except OSError:
         return None
     try:
-        await socket.send(json.dumps({'cmd': 'rig_input',
+        await socket.send(json.dumps({'cmd': 'rig_input_for_device',
+                                      'deviceId': selected_device()['id'],
                                       'value': None if name is None else RIG_INPUTS.index(name)}))
         while True:
             event = json.loads(await asyncio.wait_for(socket.recv(), timeout=3))
@@ -171,7 +178,12 @@ async def editor_rig_input(name):
 
 
 def firmware_cache_path():
-    return Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'eleven-rack' / 'firmware.json'
+    directory = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'eleven-rack'
+    try:
+        key = hashlib.sha256(selected_device()['id'].encode()).hexdigest()[:20]
+    except RuntimeError:
+        return directory / 'unselected' / 'firmware.json'
+    return directory / 'devices' / key / 'firmware.json'
 
 
 def cached_firmware_version():
@@ -322,7 +334,9 @@ def set_sample_rate(hz):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--device', help='USB identity, ALSA card ID or card number; required with multiple Racks')
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('devices')
     commands.add_parser('channels')
     commands.add_parser('status')
     commands.add_parser('firmware')
@@ -333,7 +347,11 @@ def main():
     rig = commands.add_parser('rig-input'); rig.add_argument('source', nargs='?', choices=RIG_INPUTS)
     monitor = commands.add_parser('monitor'); monitor.add_argument('mode', nargs='?', choices=('hardware', 'daw-only'))
     args = parser.parse_args()
-    if args.command == 'gui':
+    if args.device:
+        os.environ['ELEVEN_RACK_DEVICE'] = rack_devices.select(args.device)['id']
+    if args.command == 'devices':
+        print(json.dumps(rack_devices.devices(), indent=2))
+    elif args.command == 'gui':
         subprocess.run([sys.executable, str(Path(__file__).with_name('eleven-rack-panel.py'))], check=True)
     elif args.command == 'firmware':
         print('Firmware:', firmware_version())

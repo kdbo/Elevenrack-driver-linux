@@ -2,6 +2,7 @@ import asyncio
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 import sys
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
@@ -26,10 +27,40 @@ class Midi:
 
 class BridgeTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        identities = patch.object(module.rack_devices, 'midi_identities', return_value={})
+        identities.start(); self.addCleanup(identities.stop)
+        inventory = patch.object(module.rack_devices, 'devices', return_value=[])
+        inventory.start(); self.addCleanup(inventory.stop)
         self.input = Midi(['Eleven Rack Rig input', 'External input'])
         self.output = Midi(['Eleven Rack Rig output', 'External output'])
         self.bridge = module.Bridge(self.input, self.output, asyncio.get_running_loop())
         self.owner = object()
+
+    async def test_two_racks_cannot_cross_connect(self):
+        identities = {20: {'id': 'usb:first', 'label': 'First'},
+                      24: {'id': 'usb:second', 'label': 'Second'}}
+        with patch.object(module.rack_devices, 'midi_identities', return_value=identities):
+            self.input.ports = self.output.ports = ['Eleven Rack Rig 20:0', 'Eleven Rack Rig 24:0']
+            self.bridge.refresh()
+        with self.assertRaisesRegex(ValueError, 'same Eleven Rack'):
+            self.bridge.connect(self.owner, 0, 3)
+        self.assertIsNone(self.input.opened)
+        event = self.bridge.connect(self.owner, 1, 3)
+        self.assertEqual('usb:second', event['deviceId'])
+        self.assertEqual(1, self.input.opened)
+        self.assertEqual(1, self.output.opened)
+
+    async def test_rig_request_for_other_device_never_sends(self):
+        self.bridge.connect(self.owner, 0, 2)
+        for device in self.bridge.connected:
+            device['deviceId'] = 'usb:first'
+        event = await self.bridge.command(object(), {'cmd': 'rig_input_for_device',
+                                                       'deviceId': 'usb:second', 'value': 4})
+        self.assertFalse(event['available'])
+        self.assertEqual([], self.output.sent)
+        with patch.object(module.rack_devices, 'devices', return_value=[{}, {}]):
+            with self.assertRaisesRegex(ValueError, 'multiple Racks'):
+                await self.bridge.command(object(), {'cmd': 'rig_input', 'value': 4})
 
     async def test_combined_indexes_map_to_local_ports(self):
         result = self.bridge.connect(self.owner, 0, 2)

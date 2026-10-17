@@ -127,7 +127,7 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
             copy('packaging/' + name, source_dir + '/' + name, True)
         text = (ROOT / 'packaging/dkms.conf').read_text().replace('@VERSION@', version)
         write(source_dir + '/dkms.conf', text)
-        for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py', 'eleven-rack-updates.py'):
+        for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py', 'eleven-rack-updates.py', 'rack_devices.py'):
             copy('tools/' + name, 'usr/lib/eleven-rack/tools/' + name, True)
         write('usr/lib/eleven-rack/VERSION', version + '\n')
         copy('tools/eleven-rack-meters.c', 'usr/lib/eleven-rack/tools/eleven-rack-meters.c')

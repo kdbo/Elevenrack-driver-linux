@@ -21,6 +21,22 @@ int latency_peak(const float *samples, const double *reference, int width,
     return peak;
 }
 
+/* Mean-removed correlation at a fixed alignment. Unlike latency_peak's score,
+ * it ignores the DC/very-low-frequency drift that the AC-coupled analog input
+ * removes, which otherwise lowers the score of pink-noise windows. */
+double centered_correlation(const float *samples, const double *reference, int width)
+{
+    double sample_mean = 0, reference_mean = 0, sxy = 0, sxx = 0, syy = 0;
+    for (int j = 0; j < width; j++) {sample_mean += samples[j]; reference_mean += reference[j];}
+    sample_mean /= width;
+    reference_mean /= width;
+    for (int j = 0; j < width; j++) {
+        double a = samples[j] - sample_mean, b = reference[j] - reference_mean;
+        sxy += a*b; sxx += a*a; syy += b*b;
+    }
+    return sxx && syy ? sxy / sqrt(sxx*syy) : 0;
+}
+
 /* Full-stream screening complements sparse correlation windows. */
 int regression_scan(const float *samples, int count)
 {

@@ -13,6 +13,17 @@ spec.loader.exec_module(fedora)
 
 
 class FedoraPackaging(unittest.TestCase):
+    def test_installed_kernel_requires_matching_headers_and_runtime_modules(self):
+        targets = [{'kernel_devel_version': '7.2.9-101.fc43'},
+                   {'kernel_devel_version': '6.19.10-300.fc44'}]
+        dependencies = fedora.driver_dependencies('1.4.11-1.fc43', targets)
+        for target in targets:
+            version = target['kernel_devel_version']
+            for package in ('kernel-devel', 'kernel-modules-core', 'kernel-modules',
+                            'kernel-modules-extra'):
+                self.assertIn(f'({package} = {version} if kernel-core = {version})', dependencies)
+                self.assertNotIn(f'{package} = {version}', dependencies)
+
     def test_bundled_rtmidi_uses_host_python_abi(self):
         import sys
         dependencies = fedora.editor_dependencies()

@@ -7,6 +7,14 @@ import asyncio
 import json
 import signal
 import sys
+from pathlib import Path
+import re
+
+try:
+    import rack_devices
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+    import rack_devices
 
 
 
@@ -39,10 +47,19 @@ class Bridge:
 
     def refresh(self):
         self.devices = []
+        try:
+            identities = rack_devices.midi_identities()
+        except (OSError, RuntimeError):
+            identities = {}
         for kind, midi in (('in', self.input), ('out', self.output)):
             for local_index, name in enumerate(midi.get_ports()):
+                device = rack_devices.port_device(name, identities)
+                address = re.search(r'(\d+):(\d+)\s*$', name)
                 self.devices.append({'index': len(self.devices), 'kind': kind,
-                                     'name': name, 'desc': 'ALSA MIDI', '_local': local_index})
+                                     'name': name, 'desc': device['label'] if device else 'ALSA MIDI',
+                                     'deviceId': device['id'] if device else None,
+                                     'alsaClient': int(address[1]) if address else None,
+                                     '_local': local_index})
         return self.ports()
 
     def ports(self):
@@ -84,6 +101,11 @@ class Bridge:
             if type(index) is not int or not 0 <= index < len(self.devices) or self.devices[index]['kind'] != kind:
                 raise ValueError(f'Invalid {kind} port index')
         selected = [self.devices[input_index], self.devices[output_index]]
+        left, right = selected
+        if (left.get('deviceId') != right.get('deviceId') or
+                (left.get('alsaClient') is not None and right.get('alsaClient') is not None
+                 and left['alsaClient'] != right['alsaClient'])):
+            raise ValueError('Select MIDI input and output from the same Eleven Rack')
         # Reject stale indexes rather than silently opening a different device.
         for device, midi in zip(selected, (self.input, self.output)):
             current = midi.get_ports()
@@ -101,13 +123,22 @@ class Bridge:
         except Exception:
             self.disconnect()
             raise
-        return {'type': 'connected', 'inPort': input_index, 'outPort': output_index}
+        return {'type': 'connected', 'inPort': input_index, 'outPort': output_index,
+                'deviceId': selected[0].get('deviceId'), 'deviceLabel': selected[0]['desc']}
 
     async def command(self, client, message):
         if not isinstance(message, dict):
             raise ValueError('Expected a JSON object')
         command = message.get('cmd')
-        if command == 'rig_input':
+        if command in ('rig_input', 'rig_input_for_device'):
+            if command == 'rig_input_for_device':
+                requested = message.get('deviceId')
+                if not isinstance(requested, str) or not requested:
+                    raise ValueError('A device identity is required')
+                if not self.connected or any(d.get('deviceId') != requested for d in self.connected):
+                    return {'type': 'rig_input', 'available': False}
+            elif len(rack_devices.devices()) > 1:
+                raise ValueError('Select a device for Rig Input with multiple Racks connected')
             value = message.get('value')
             if value is not None and (type(value) is not int or not 0 <= value < 9):
                 raise ValueError('Invalid Rig Input value')
@@ -168,7 +199,9 @@ class Bridge:
                 continue
             if self.connected:
                 for device, midi in zip(self.connected, (self.input, self.output)):
-                    if device['name'] not in midi.get_ports():
+                    if (device['name'] not in midi.get_ports() or not any(
+                            d['kind'] == device['kind'] and d['name'] == device['name']
+                            and d.get('deviceId') == device.get('deviceId') for d in self.devices)):
                         await self.emit({'type': 'disconnected'})
                         self.disconnect()
                         break

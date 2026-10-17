@@ -37,13 +37,16 @@ def check(directory):
     kernels = target.get('kernels', [target])
     for kernel in kernels:
         version = kernel['kernel_devel_version']
-        if f'(kernel-devel = {version} if kernel-core = {version})' not in dependencies:
-            raise RuntimeError('Missing conditional matching-header dependency')
+        for package in ('kernel-devel', 'kernel-modules-core', 'kernel-modules',
+                        'kernel-modules-extra'):
+            if f'({package} = {version} if kernel-core = {version})' not in dependencies:
+                raise RuntimeError('Missing conditional matching-kernel dependency: '+package)
     if any(d.startswith(('kernel-core ', 'kernel-devel ', 'kernel-devel-matched ')) for d in dependencies):
         raise RuntimeError('Driver must not force installation of bundled kernels')
     source = '/usr/src/eleven-rack-'+target['version']
     files = query(driver, '--list').splitlines()
-    for name in ('/usr/bin/eleven-rack-control', '/usr/lib/eleven-rack/tools/eleven-rack-settings.py',
+    for name in ('/usr/lib/depmod.d/90-eleven-rack.conf',
+                 '/usr/bin/eleven-rack-control', '/usr/lib/eleven-rack/tools/eleven-rack-settings.py',
                  '/usr/lib/eleven-rack/tools/eleven-rack-panel.py',
                  '/usr/lib/eleven-rack/tools/eleven-rack-updates.py',
                  '/usr/lib/eleven-rack/spa/alsa/libspa-alsa.so',
