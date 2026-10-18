@@ -4,7 +4,9 @@
   "version": "0.1.2-beta12",
   "identifier": "io.github.kdbo.elevenrack.editor.tauri-preview",
   "build": {
-    "frontendDist": "../.generated"
+    "frontendDist": "../.generated",
+    "beforeDevCommand": "npm run frontend-dir",
+    "beforeBuildCommand": "npm run frontend-dir"
   },
   "app": {
     "withGlobalTauri": true,
