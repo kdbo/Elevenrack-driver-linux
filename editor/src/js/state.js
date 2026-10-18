@@ -112,15 +112,6 @@ let lastNavTime   = null;
 // handleParamReadback's Format-A branch, sysex-handler.js.
 let paramSettleBaseline = {};
 
-// ── Gate CC table — per amp model (CC for Threshold, CC for Release) ──
-// NOTE (7/9/2026): sl100drive/crunch/clean's thresh/release CCs were
-// confirmed SWAPPED by direct testing — the SW Threshold knob was
-// actually moving the real hardware's Release, and vice versa. Fixed
-// below. Different amp families here use genuinely different CC pairs
-// (not one universal pair), so this swap is NOT assumed to apply to any
-// other entry — those remain as originally researched, unverified
-// against real hardware. If another amp shows the same crossed behavior,
-// fix that specific entry the same way, don't assume the whole table.
 // ── Chain map state (CMD 0x21) ──
 // Slot IDs are fixed per block type in every patch — Tech Ref Sec 4.
 const SLOT_AMP = 0x00, SLOT_LOOP = 0x01, SLOT_VOL = 0x02, SLOT_WAH = 0x03,
