@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 mod files;
 mod host;
+mod levels;
 mod midi;
 mod protocol;
 use serde_json::{json, Value};
@@ -90,7 +91,14 @@ fn main() {
             let host = Arc::new(host::Host::new(root, logs).map_err(std::io::Error::other)?);
             app.manage(host);
             let (events, receiver) = mpsc::channel::<Value>();
-            app.manage(midi::MidiService::start(events, disabled));
+            let card = midi::ConnectedCard::default();
+            app.manage(midi::MidiService::start(events, disabled, card.clone()));
+            if !disabled {
+                let handle = app.handle().clone();
+                levels::start(card, move |payload| {
+                    let _ = handle.emit("vu-levels", payload);
+                });
+            }
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 for event in receiver {

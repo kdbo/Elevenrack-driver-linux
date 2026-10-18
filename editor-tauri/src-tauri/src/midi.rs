@@ -3,7 +3,7 @@ use crate::protocol::parse_hex;
 use midir::{Ignore, MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use serde_json::{json, Value};
 use std::{
-    sync::mpsc,
+    sync::{mpsc, Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -18,6 +18,8 @@ struct Request {
 pub struct MidiService {
     requests: mpsc::Sender<Request>,
 }
+/// ALSA card of the Rack whose MIDI ports are connected, shared with the level meter.
+pub type ConnectedCard = Arc<Mutex<Option<i32>>>;
 #[derive(Clone)]
 struct Port {
     index: usize,
@@ -32,9 +34,8 @@ fn client_id(name: &str) -> Option<u32> {
     let _: u32 = port.parse().ok()?;
     client.parse().ok()
 }
-// Resolve the sequencer client to its physical USB location, not enumeration order.
-fn device_identity(client: Option<u32>) -> Option<(String, String)> {
-    let client = client?;
+// ALSA card number of a sequencer client, for matching the Rack's audio node.
+fn client_card(client: u32) -> Option<i32> {
     let card = unsafe {
         let mut seq = std::ptr::null_mut();
         if alsa_sys::snd_seq_open(&mut seq, c"default".as_ptr(), 3, 1) < 0 {
@@ -54,9 +55,11 @@ fn device_identity(client: Option<u32>) -> Option<(String, String)> {
         alsa_sys::snd_seq_close(seq);
         card
     };
-    if card < 0 {
-        return None;
-    }
+    (card >= 0).then_some(card)
+}
+// Resolve the sequencer client to its physical USB location, not enumeration order.
+fn device_identity(client: Option<u32>) -> Option<(String, String)> {
+    let card = client_card(client?)?;
     let proc = std::path::PathBuf::from(format!("/proc/asound/card{card}"));
     if std::fs::read_to_string(proc.join("usbid")).ok()?.trim() != "0dba:b011" {
         return None;
@@ -122,7 +125,7 @@ pub fn list_ports() -> Result<Value, String> {
 }
 pub fn probe_identity() -> Result<Value, String> {
     let (events, receiver) = mpsc::channel();
-    let service = MidiService::start(events, false);
+    let service = MidiService::start(events, false, Default::default());
     let session = "identity-probe".to_string();
     let result = (|| -> Result<Value, String> {
         let ports = service
@@ -182,7 +185,7 @@ pub fn probe_identity() -> Result<Value, String> {
     result
 }
 impl MidiService {
-    pub fn start(events: mpsc::Sender<Value>, disabled: bool) -> Self {
+    pub fn start(events: mpsc::Sender<Value>, disabled: bool, card: ConnectedCard) -> Self {
         let (requests, receiver) = mpsc::channel::<Request>();
         thread::spawn(move || {
             let mut actor = Actor {
@@ -194,6 +197,7 @@ impl MidiService {
                 output: None,
                 selected: None,
                 replies: None,
+                card,
             };
             let mut previous = Value::Null;
             loop {
@@ -242,6 +246,7 @@ struct Actor {
     output: Option<MidiOutputConnection>,
     selected: Option<(String, String)>,
     replies: Option<mpsc::Receiver<Vec<u8>>>,
+    card: ConnectedCard,
 }
 impl Actor {
     fn disconnect(&mut self) {
@@ -250,6 +255,7 @@ impl Actor {
         self.owner = None;
         self.selected = None;
         self.replies = None;
+        *self.card.lock().unwrap() = None;
     }
     fn refresh(&mut self) -> Result<Value, String> {
         let found = if self.disabled { Vec::new() } else { ports()? };
@@ -340,6 +346,7 @@ impl Actor {
                 self.owner = Some(session.into());
                 self.selected = Some((input.name.clone(), output.name.clone()));
                 self.replies = Some(rx);
+                *self.card.lock().unwrap() = input.client.and_then(client_card);
                 Ok(Some(
                     json!({"type":"connected","inPort":input.index,"outPort":output.index,"deviceId":input.device.as_ref().map(|d|&d.0),"deviceLabel":input.device.as_ref().map(|d|&d.1)}),
                 ))
@@ -454,7 +461,7 @@ mod tests {
     #[test]
     fn disabled_backend_never_opens_midi_and_rejects_unowned_writes() {
         let (events, _) = mpsc::channel();
-        let service = MidiService::start(events, true);
+        let service = MidiService::start(events, true, Default::default());
         let ports = service
             .command("test".into(), json!({"cmd":"list_ports"}))
             .unwrap()
