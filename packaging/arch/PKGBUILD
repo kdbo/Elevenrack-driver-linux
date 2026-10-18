@@ -7,15 +7,17 @@ arch=('x86_64')
 url='https://github.com/kdbo/Elevenrack-driver-linux'
 license=('MIT' 'GPL-2.0-or-later')
 options=('!strip' '!debug')
+# No exact kernel or PipeWire versions: DKMS fetches the sources of each installed
+# Arch kernel, and a pacman hook rebuilds the backend for the installed PipeWire.
 depends=('dkms' 'python' 'python-gobject' 'python-websockets' 'gtk3' 'alsa-utils'
-         'pipewire=@PIPEWIRE_VERSION@' 'pipewire-audio=@PIPEWIRE_VERSION@'
-         'pipewire-jack' 'wireplumber>=0.5' 'gcc' 'alsa-lib'
-         'linux=@LINUX_VERSION@' 'linux-headers=@LINUX_VERSION@')
+         'pipewire' 'pipewire-audio' 'pipewire-jack' 'wireplumber>=0.5' 'gcc' 'alsa-lib'
+         'linux-headers' 'patch' 'zstd')
 provides=("eleven-rack-control=$pkgver" "eleven-rack-driver-dkms=$pkgver" "eleven-rack-latency-backend=$pkgver")
 conflicts=('eleven-rack-control' 'eleven-rack-driver-dkms' 'eleven-rack-latency-backend')
 backup=('etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf'
         'etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf'
         'etc/modprobe.d/eleven-rack-latency.conf')
+install=eleven-rack-driver.install
 source=('eleven-rack-source.tar.gz' 'eleven-rack-kernel.tar.gz' 'eleven-rack-backend.tar.gz')
 sha256sums=('@PROJECT_SHA256@' '@KERNEL_SHA256@' '@BACKEND_SHA256@')
 
@@ -35,15 +37,15 @@ package() {
     install -Dm755 packaging/arch/eleven-rack-control "$pkgdir/usr/bin/eleven-rack-control"
     local destination="$pkgdir/usr/src/eleven-rack-$pkgver"
     install -dm755 "$destination"
-    for file in build-driver-common.sh prepare-driver.py mixer-eleven-rack.h; do
+    for file in build-driver-common.sh prepare-driver.py mixer-eleven-rack.h fetch-arch-kernel-source.py; do
         install -m644 "packaging/$file" "$destination/$file"
     done
     install -m644 packaging/arch/build-driver.sh "$destination/build-driver.sh"
     sed "s/@VERSION@/$pkgver/g" packaging/dkms.conf > "$destination/dkms.conf"
-    # Restrict DKMS to the exact prepared kernel; never build against other sources.
-    printf 'BUILD_EXCLUSIVE_KERNEL="^%s$"\n' '@KERNEL_REGEX@' >> "$destination/dkms.conf"
+    # Sources for the kernel this package was built with; other kernels are fetched.
     cp -a "$srcdir/eleven-rack-kernel" "$destination/prepared-kernel"
     install -Dm644 packaging/arch/95-eleven-rack-initramfs.hook "$pkgdir/usr/share/libalpm/hooks/95-eleven-rack-initramfs.hook"
+    install -Dm644 packaging/arch/96-eleven-rack-backend.hook "$pkgdir/usr/share/libalpm/hooks/96-eleven-rack-backend.hook"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     install -Dm644 LICENSES/GPL-2.0.txt "$pkgdir/usr/share/licenses/$pkgname/GPL-2.0.txt"
     install -Dm644 CREDITS.md "$pkgdir/usr/share/doc/$pkgname/CREDITS.md"

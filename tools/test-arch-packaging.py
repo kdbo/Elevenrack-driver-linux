@@ -34,28 +34,18 @@ class ArchPackageTests(unittest.TestCase):
         (source / 'version').write_text(release + '\n')
         (usb / 'Makefile').write_text('# fixture\n')
         (usb / 'quirks-table.h').write_text('/* clean source */\n')
-        build = root / 'backend'
-        build.mkdir()
-        library = build / 'libspa-eleven-latency.so'
-        library.write_bytes(b'fixture backend')
-        metadata = {'pipewire_version': '1.6.9', 'machine': 'x86_64',
-                    'spa_plugin_dir': '/usr/lib/spa-0.2',
-                    'system_alsa_plugin': '/usr/lib/spa-0.2/alsa/libspa-alsa.so',
-                    'library_sha256': hashlib.sha256(library.read_bytes()).hexdigest()}
-        for key, path in (('patch_sha256', ROOT / 'packaging/pipewire-eleven-latency.patch'),
-                          ('correction_config_sha256', ROOT / 'config/52-eleven-rack-latency.conf')):
-            metadata[key] = hashlib.sha256(path.read_bytes()).hexdigest()
-        (build / 'backend-build.json').write_text(json.dumps(metadata))
+        # A one-release catalog with a fixture archive stands in for the real downloads.
+        archives = root / 'archives'
+        archives.mkdir()
+        archive = archives / 'pipewire-1.6.9.tar.gz'
+        archive.write_bytes(b'fixture pipewire source')
+        catalog = root / 'pipewire-sources.json'
+        catalog.write_text(json.dumps({'1.6.9': {'url': 'https://example.invalid/1.6.9.tar.gz',
+                                                 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()}}))
         output = root / 'driver-inputs'
         argv = ['prepare', '--kernel-source', str(source), '--kernel-release', '7.2.9-arch1-1',
-                '--linux-package-version', '7.2.9.arch1-1', '--backend-build', str(build), '--output', str(output)]
-        def command(args, **kwargs):
-            if args == ('uname', '-m'):
-                return 'x86_64\n'
-            if args == ('pacman', '-Q', 'pipewire'):
-                return 'pipewire 1:1.6.9-1\n'
-            raise AssertionError(f'Unexpected command: {args}')
-        with patch.object(sys, 'argv', argv), patch.object(subprocess, 'check_output', side_effect=command):
+                '--backend-sources', str(archives), '--output', str(output)]
+        with patch.object(sys, 'argv', argv), patch.object(prepare_driver, 'CATALOG', catalog):
             prepare_driver.main()
         return output
 
@@ -86,6 +76,8 @@ pkgdir=$3
 package
 printf 'pkgname = %s\npkgver = %s-%s\narch = %s\n' "$pkgname" "$pkgver" "$pkgrel" "${arch[0]}" > "$pkgdir/.PKGINFO"
 printf 'depend = %s\n' "${depends[@]}" >> "$pkgdir/.PKGINFO"
+# makepkg stores the install script as .INSTALL.
+if [ -n "${install:-}" ]; then cp "$(dirname "$1")/$install" "$pkgdir/.INSTALL"; fi
 ''', 'stage', str(inputs / 'PKGBUILD'), str(sources), str(stage)], check=True)
         return stage
 
@@ -108,10 +100,21 @@ printf 'depend = %s\n' "${depends[@]}" >> "$pkgdir/.PKGINFO"
             checked = checker.check(root / 'set', target)
             self.assertEqual({'eleven-rack-driver', 'eleven-rack-editor-linux'}, set(checked))
             config = (driver_stage / ('usr/src/eleven-rack-' + target['version']) / 'dkms.conf').read_text()
-            self.assertIn('BUILD_EXCLUSIVE_KERNEL="^7\\.2\\.9\\-arch1\\-1$"', config)
+            self.assertIn(f'PACKAGE_VERSION="{target["version"]}"', config)
+            # Only the generic minimum-kernel rule remains; no exact-kernel restriction.
+            self.assertEqual(1, config.count('BUILD_EXCLUSIVE_KERNEL='))
+            self.assertEqual(['1.6.9'], target['pipewire_versions'])
             self.assertEqual(0o4755, (editor_stage / 'opt/eleven-rack-editor/chrome-sandbox').stat().st_mode & 0o7777)
-            # Missing the backend must invalidate a superficially complete driver/editor set.
-            (driver_stage / 'usr/lib/eleven-rack/spa/alsa/libspa-alsa.so').unlink()
+            # An exact kernel pin would block Arch kernel updates again.
+            info = driver_stage / '.PKGINFO'
+            original = info.read_text()
+            info.write_text(original + 'depend = linux=7.2.9.arch1-1\n')
+            self.archive(driver_stage, root / 'set/driver.pkg.tar.zst')
+            with self.assertRaisesRegex(RuntimeError, 'must not pin'):
+                checker.check(root / 'set', target)
+            info.write_text(original)
+            # Missing the kernel-source fetcher must invalidate a superficially complete set.
+            (driver_stage / ('usr/src/eleven-rack-' + target['version']) / 'fetch-arch-kernel-source.py').unlink()
             self.archive(driver_stage, root / 'set/driver.pkg.tar.zst')
             with self.assertRaises(subprocess.CalledProcessError):
                 checker.check(root / 'set', target)

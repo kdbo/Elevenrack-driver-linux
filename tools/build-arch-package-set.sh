@@ -41,10 +41,9 @@ if len(matches) != 1:
 print(matches[0].resolve())
 PY
 )
-python3 tools/build-latency-backend.py
-python3 tools/check-latency-backend.py
+python3 tools/fetch-latency-sources.py --output build/latency-sources
 python3 tools/prepare-arch-package.py --kernel-source "$prepared" --kernel-release "$kernel_release" \
-    --linux-package-version "$linux_version" --backend-build build/latency --output build/arch-driver
+    --backend-sources build/latency-sources --output build/arch-driver
 (
     cd build/arch-driver
     makepkg --nodeps --cleanbuild --noconfirm
@@ -61,6 +60,17 @@ python3 tools/prepare-arch-package.py --kernel-source "$prepared" --kernel-relea
     bash dkms-source/build-driver.sh "$kernel_release" "$headers"
     modinfo -F vermagic kernel-source/sound/usb/snd-usb-audio.ko > vermagic.txt
     grep -Fq "$kernel_release " vermagic.txt
+    # Other kernels get their sources from fetch-arch-kernel-source.py at DKMS time;
+    # for this kernel it must reproduce exactly what Arch's own prepare() made.
+    fetched=$(python3 eleven-rack-source/packaging/fetch-arch-kernel-source.py \
+        "$kernel_release" --cache "$PWD/fetch-cache")
+    diff -r "$prepared/sound/usb" "$fetched"
+    # The pacman hook builds the backend from the bundled sources for this PipeWire.
+    mkdir backend && tar -xzf ../arch-driver/eleven-rack-backend.tar.gz -C backend
+    python3 backend/eleven-rack-backend/usr/lib/eleven-rack/backend-source/tools/install-latency-backend.py \
+        --source-root "$PWD/backend/eleven-rack-backend/usr/lib/eleven-rack/backend-source" \
+        --destination "$PWD/backend-root"
+    test -s backend-root/usr/lib/eleven-rack/spa/alsa/libspa-alsa.so
 )
 (
     cd editor

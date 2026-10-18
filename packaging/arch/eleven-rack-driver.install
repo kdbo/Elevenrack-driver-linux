@@ -1,0 +1,5 @@
+# The backend is built by 96-eleven-rack-backend.hook; its generated files are
+# not owned by the package, so remove them before the package goes away.
+pre_remove() {
+    python3 /usr/lib/eleven-rack/backend-source/tools/install-latency-backend.py --remove
+}

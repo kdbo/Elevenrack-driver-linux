@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Verify the downloadable Arch set contains exactly one complete driver and one editor."""
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import re
 import subprocess
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def read_member(archive, name):
@@ -37,13 +38,16 @@ def check(directory, target):
     if set(packages) != {'eleven-rack-driver', 'eleven-rack-editor-linux'}:
         raise RuntimeError('Set must contain the complete driver and editor')
     driver, metadata = packages['eleven-rack-driver']
-    for dependency in ('linux=' + target['linux_package_version'],
-                       'linux-headers=' + target['linux_package_version'],
-                       'pipewire=' + target['pipewire_package_version'],
-                       'pipewire-audio=' + target['pipewire_package_version']):
-        if dependency not in metadata.get('depend', []):
-            raise RuntimeError(f'Missing exact dependency: {dependency}')
+    depends = metadata.get('depend', [])
+    # Exact pins block every Arch kernel/PipeWire update; sources follow the system instead.
+    pinned = [d for d in depends if re.match(r'(linux|linux-headers|pipewire|pipewire-audio)=', d)]
+    if pinned:
+        raise RuntimeError('Driver must not pin exact versions: ' + ', '.join(pinned))
+    for dependency in ('dkms', 'linux-headers', 'pipewire', 'pipewire-audio', 'patch', 'zstd'):
+        if dependency not in depends:
+            raise RuntimeError(f'Missing dependency: {dependency}')
     source = 'usr/src/eleven-rack-' + target['version']
+    bundle = 'usr/lib/eleven-rack/backend-source'
     for name in ('usr/bin/eleven-rack-control', 'usr/lib/eleven-rack/tools/eleven-rack-panel.py',
                  'usr/lib/eleven-rack/tools/eleven-rack-updates.py',
                  'usr/lib/eleven-rack/tools/eleven-rack-settings.py',
@@ -51,20 +55,20 @@ def check(directory, target):
                  'etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf',
                  'etc/modprobe.d/eleven-rack-latency.conf',
                  'usr/share/libalpm/hooks/95-eleven-rack-initramfs.hook',
-                 source + '/dkms.conf', source + '/prepared-kernel/sound/usb/Makefile'):
+                 'usr/share/libalpm/hooks/96-eleven-rack-backend.hook', '.INSTALL',
+                 source + '/fetch-arch-kernel-source.py', source + '/build-driver.sh',
+                 source + '/prepared-kernel/sound/usb/Makefile',
+                 bundle + '/tools/install-latency-backend.py', bundle + '/packaging/pipewire-sources.json',
+                 *(f'{bundle}/archives/pipewire-{v}.tar.gz' for v in target['pipewire_versions'])):
         read_member(driver, name)
+    if f'PACKAGE_VERSION="{target["version"]}"' not in read_member(driver, source + '/dkms.conf').decode():
+        raise RuntimeError('dkms.conf does not carry the package version')
     release = read_member(driver, source + '/prepared-kernel/kernel-release').decode().strip()
     if release != target['kernel_release']:
         raise RuntimeError('Packaged kernel sources do not match the target')
-    backend = json.loads(read_member(driver, 'usr/share/doc/eleven-rack-latency-backend/backend-build.json'))
-    expected_upstream = re.match(r'(?:\d+:)?(\d+\.\d+\.\d+)', target['pipewire_package_version'])[1]
-    if backend['pipewire_version'] != expected_upstream or backend['spa_plugin_dir'] != '/usr/lib/spa-0.2':
-        raise RuntimeError('Backend does not match Arch PipeWire')
-    for member, checksum in (
-            ('usr/lib/eleven-rack/spa/alsa/libspa-alsa.so', backend['library_sha256']),
-            ('etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf', backend['correction_config_sha256'])):
-        if hashlib.sha256(read_member(driver, member)).hexdigest() != checksum:
-            raise RuntimeError(f'Packaged backend/defaults changed: {member}')
+    config = ROOT / 'config/52-eleven-rack-latency.conf'
+    if read_member(driver, 'etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf') != config.read_bytes():
+        raise RuntimeError('Packaged latency defaults changed')
     editor, _ = packages['eleven-rack-editor-linux']
     for name in ('usr/bin/eleven-rack-editor-linux', 'usr/share/applications/eleven-rack-editor-linux.desktop',
                  'opt/eleven-rack-editor/eleven-rack-editor-linux', 'opt/eleven-rack-editor/chrome-sandbox',

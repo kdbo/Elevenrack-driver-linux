@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = eleven-rack-driver
+Target = pipewire
+
+[Action]
+Description = Building the Eleven Rack latency backend for the installed PipeWire...
+When = PostTransaction
+Depends = python
+Exec = /bin/sh -c "python3 /usr/lib/eleven-rack/backend-source/tools/install-latency-backend.py || echo '==> Eleven Rack latency backend disabled for this PipeWire version; the driver still works without its latency corrections.'"
