@@ -62,6 +62,24 @@ def reported_roundtrip(objects, rate, quantum):
     return totals
 
 
+def live_quantum(top, node):
+    """Quantum the graph is running `node` with, from `pw-top -b` output."""
+    rows=[]
+    for line in top.splitlines():
+        fields=line.split()
+        if len(fields)>3 and fields[0]=='S' and fields[2]=='QUANT':
+            rows=[]  # Each iteration starts with a header; keep only the last.
+        elif len(fields)>3 and fields[1].isdigit() and fields[2].isdigit():
+            rows.append((int(fields[2]),line.rstrip().endswith(' '+node) or line.rstrip()==node,
+                         ' + ' in line))
+    for i,(quantum,match,follower) in enumerate(rows):
+        if match:
+            # Followers show 0; their driver is the nearest row above that is not one.
+            driver=next((q for q,_,f in reversed(rows[:i+1]) if not f),0) if follower else quantum
+            return driver or None
+    return None
+
+
 def roundtrip_status(values):
     try:
         quantum=int(values.get('clock.force-quantum','0'))
@@ -73,11 +91,18 @@ def roundtrip_status(values):
             rates.add(int(match[1]))
         if len(rates)!=1: raise ValueError('Active graph timing unavailable')
         rate=rates.pop()
-        if quantum<=0:
-            quantum=None
         result=subprocess.run(['pw-dump'],capture_output=True,text=True,timeout=3)
         if result.returncode: raise ValueError('PipeWire unavailable')
-        low,high=reported_roundtrip(json.loads(result.stdout),rate,quantum)
+        objects=json.loads(result.stdout)
+        if quantum<=0:
+            # Automatic buffer size: use the quantum the Rack is running with now.
+            node=next((o['info']['props']['node.name'] for o in objects
+                       if o.get('type')=='PipeWire:Interface:Node'
+                       and o.get('info',{}).get('props',{}).get('api.alsa.card.id')==selected_device()['card_id']
+                       and o['info']['props'].get('node.name','').startswith('alsa_input.')),None)
+            top=subprocess.run(['pw-top','-b','-n','2'],capture_output=True,text=True,timeout=4)
+            quantum=live_quantum(top.stdout,node) if node and not top.returncode else None
+        low,high=reported_roundtrip(objects,rate,quantum)
         if abs(low-high)<.005: return 'Roundtrip latency · %.2f ms' % high
         return 'Roundtrip latency · %.2f–%.2f ms' % (low,high)
     except (OSError,RuntimeError,ValueError,KeyError,subprocess.TimeoutExpired):
