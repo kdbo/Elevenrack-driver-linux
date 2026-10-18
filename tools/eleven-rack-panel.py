@@ -1111,6 +1111,8 @@ class Panel(Gtk.Window):
                         self.buffer.set_active_id(value)
                     elif line.startswith('Current buffer: '):
                         self.live_buffer.set_text('Buffer: %s (Automatic)' % line.split(': ', 1)[1])
+                    elif line.startswith('Default buffer: '):
+                        self.live_buffer.set_text('Buffer: %s (Automatic, system default)' % line.split(': ', 1)[1])
                     elif line.startswith('Roundtrip latency: '):
                         self.buffer_status.set_text(line.split(': ', 1)[1])
                         self.buffer_status.set_tooltip_text('Current roundtrip latency reported by the audio backend, including configured corrections. No loopback measurement is performed.')

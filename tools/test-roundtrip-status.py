@@ -50,8 +50,20 @@ class RoundtripStatus(unittest.TestCase):
              patch.object(Path,'read_text',return_value='rate: 48000\n'), patch.object(s.subprocess,'run',side_effect=run):
             self.assertEqual(s.roundtrip_status({'clock.force-quantum':'0'}),'Roundtrip latency · %.2f ms' % (1000*(2*512+480)/48000))
             # The live quantum is reported for the status bar, not folded into "automatic".
-            self.assertEqual(s.roundtrip_report({'clock.force-quantum':'0'})[1],512)
+            self.assertEqual(s.roundtrip_report({'clock.force-quantum':'0'})[1],(512,'live'))
             self.assertIsNone(s.roundtrip_report({'clock.force-quantum':'128'})[1])
+
+    def test_automatic_without_live_value_uses_the_system_default(self):
+        import json
+        def run(args,**kwargs):
+            # pw-top fails, so no live quantum is known.
+            return types.SimpleNamespace(returncode=0 if args[0]=='pw-dump' else 1,stdout=json.dumps(nodes(1)))
+        with patch.object(s,'card',return_value=1), patch.object(Path,'read_text',return_value='rate: 48000\n'), \
+             patch.object(s.subprocess,'run',side_effect=run):
+            text,used=s.roundtrip_report({'clock.force-quantum':'0','clock.quantum':'1024'})
+            self.assertEqual(used,(1024,'default'))
+            self.assertEqual(text,'Roundtrip latency · %.2f ms' % (1000*(2*1024+480)/48000))
+            self.assertEqual(s.roundtrip_status({'clock.force-quantum':'0'}),'Roundtrip latency unavailable')
 
     def test_idle_stays_unavailable(self):
         with patch.object(s,'card',return_value=1), patch.object(Path,'read_text',return_value='closed\n'):
