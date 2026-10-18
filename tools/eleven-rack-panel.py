@@ -366,7 +366,7 @@ class Panel(Gtk.Window):
         self.status_stream_rate = '…'
         self.live_sample_rate = label('Sample Rate: … (hardware) / … (ALSA)', 'subtitle')
         self.live_sample_rate.set_tooltip_text('Hardware / active audio stream, in kHz')
-        self.live_buffer = label('Buffer · reading…', 'subtitle')
+        self.live_buffer = label('Buffer: reading…', 'subtitle')
         self.status_values = box(False, 20)
         status.pack_start(self.status_values, True, True, 0)
         status.pack_start(self.message, True, True, 0)
@@ -1106,18 +1106,18 @@ class Panel(Gtk.Window):
                 for line in text.splitlines():
                     if line.startswith('Buffer size: '):
                         value = line.split(': ', 1)[1]
-                        self.live_buffer.set_text('Buffer · ' + ('automatic' if value == '0' else value + ' samples'))
+                        self.live_buffer.set_text('Buffer: ' + ('Automatic' if value == '0' else value + ' samples'))
                         self.confirmed['buffer'] = value
                         self.buffer.set_active_id(value)
                     elif line.startswith('Current buffer: '):
-                        self.live_buffer.set_text('Buffer · %s (Automatic)' % line.split(': ', 1)[1])
+                        self.live_buffer.set_text('Buffer: %s (Automatic)' % line.split(': ', 1)[1])
                     elif line.startswith('Roundtrip latency: '):
                         self.buffer_status.set_text(line.split(': ', 1)[1])
                         self.buffer_status.set_tooltip_text('Current roundtrip latency reported by the audio backend, including configured corrections. No loopback measurement is performed.')
                 self.update_buffer_options()
                 if not text:
                     self.buffer_status.set_text('PipeWire buffer status unavailable')
-                    self.live_buffer.set_text('Buffer · unavailable')
+                    self.live_buffer.set_text('Buffer: unavailable')
             finally:
                 self.updating = False
         return False
