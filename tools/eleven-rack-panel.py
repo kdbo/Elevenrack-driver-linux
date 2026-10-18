@@ -1109,6 +1109,8 @@ class Panel(Gtk.Window):
                         self.live_buffer.set_text('Buffer · ' + ('automatic' if value == '0' else value + ' samples'))
                         self.confirmed['buffer'] = value
                         self.buffer.set_active_id(value)
+                    elif line.startswith('Current buffer: '):
+                        self.live_buffer.set_text('Buffer · %s samples (automatic)' % line.split(': ', 1)[1])
                     elif line.startswith('Roundtrip latency: '):
                         self.buffer_status.set_text(line.split(': ', 1)[1])
                         self.buffer_status.set_tooltip_text('Current roundtrip latency reported by the audio backend, including configured corrections. No loopback measurement is performed.')

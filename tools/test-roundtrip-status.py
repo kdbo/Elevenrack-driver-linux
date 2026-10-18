@@ -49,6 +49,9 @@ class RoundtripStatus(unittest.TestCase):
         with patch.object(s,'card',return_value=1), \
              patch.object(Path,'read_text',return_value='rate: 48000\n'), patch.object(s.subprocess,'run',side_effect=run):
             self.assertEqual(s.roundtrip_status({'clock.force-quantum':'0'}),'Roundtrip latency · %.2f ms' % (1000*(2*512+480)/48000))
+            # The live quantum is reported for the status bar, not folded into "automatic".
+            self.assertEqual(s.roundtrip_report({'clock.force-quantum':'0'})[1],512)
+            self.assertIsNone(s.roundtrip_report({'clock.force-quantum':'128'})[1])
 
     def test_idle_stays_unavailable(self):
         with patch.object(s,'card',return_value=1), patch.object(Path,'read_text',return_value='closed\n'):

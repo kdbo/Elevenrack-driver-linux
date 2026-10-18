@@ -81,6 +81,12 @@ def live_quantum(top, node):
 
 
 def roundtrip_status(values):
+    return roundtrip_report(values)[0]
+
+
+def roundtrip_report(values):
+    """Roundtrip status text, and the live quantum when the buffer size is automatic."""
+    live=None
     try:
         quantum=int(values.get('clock.force-quantum','0'))
         rates=set()
@@ -101,12 +107,12 @@ def roundtrip_status(values):
                        and o.get('info',{}).get('props',{}).get('api.alsa.card.id')==selected_device()['card_id']
                        and o['info']['props'].get('node.name','').startswith('alsa_input.')),None)
             top=subprocess.run(['pw-top','-b','-n','2'],capture_output=True,text=True,timeout=4)
-            quantum=live_quantum(top.stdout,node) if node and not top.returncode else None
+            quantum=live=live_quantum(top.stdout,node) if node and not top.returncode else None
         low,high=reported_roundtrip(objects,rate,quantum)
-        if abs(low-high)<.005: return 'Roundtrip latency · %.2f ms' % high
-        return 'Roundtrip latency · %.2f–%.2f ms' % (low,high)
+        if abs(low-high)<.005: return 'Roundtrip latency · %.2f ms' % high, live
+        return 'Roundtrip latency · %.2f–%.2f ms' % (low,high), live
     except (OSError,RuntimeError,ValueError,KeyError,subprocess.TimeoutExpired):
-        return 'Roundtrip latency unavailable'
+        return 'Roundtrip latency unavailable', live
 
 
 def hardware_sample_rate():
@@ -418,7 +424,11 @@ def main():
         effective = forced or int(values.get('clock.quantum', '0'))
         rate = int(values.get('clock.rate', '48000'))
         print('Buffer size:', forced)
-        print('Roundtrip latency:', roundtrip_status(values))
+        status, live = roundtrip_report(values)
+        if live:
+            # Automatic: the quantum PipeWire chose for the Rack at this moment.
+            print('Current buffer:', live)
+        print('Roundtrip latency:', status)
 
 
 if __name__ == '__main__':
