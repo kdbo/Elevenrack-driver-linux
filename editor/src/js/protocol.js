@@ -1411,9 +1411,10 @@ const DIST_MODELS = [
   { mid: 0x17, name: 'Tri-Knob Fuzz',
     paramLos: [0x02, 0x03, 0x04],
     rows: [
-      [ {label:'Volume',  lo:0x02},
-        {label:'Sustain', lo:0x03},
-        {label:'Tone',    lo:0x04} ]
+      // Corrected 10/18/2026 against the Rack's own display: Sustain 0x02, Tone 0x03, Volume 0x04.
+      [ {label:'Volume',  lo:0x04},
+        {label:'Sustain', lo:0x02},
+        {label:'Tone',    lo:0x03} ]
     ]
   },
   // ── 1 row · 3 knobs
