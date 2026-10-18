@@ -1,9 +1,10 @@
-# Eleven Rack Editor — Tauri/Rust preview
+# Eleven Rack Editor — Tauri/Rust
 
-Development migration on `feat/tauri-editor`. The existing HTML/CSS/JavaScript
-interface is reused from `../editor/src`; the native application host and MIDI
-transport are Rust. This is a Linux-first preview, not a replacement release.
-The Electron editor and kernel audio driver remain separate applications.
+The Linux editor shipped in the distribution packages since 0.1.2 beta13,
+replacing the Electron editor. The existing HTML/CSS/JavaScript interface is
+reused from `../editor/src`; the native application host, MIDI transport and
+VU-meter levels are Rust. The editor and kernel audio driver remain separate
+packages.
 
 ## Run
 
@@ -93,8 +94,9 @@ returning to the amp view. It does not exercise bypass buttons or send MIDI.
 
 ## Data and file behavior
 
-Preview data uses Tauri's application-data directory for identifier
-`io.github.kdbo.elevenrack.editor.tauri-preview`, normally:
+Data uses Tauri's application-data directory. The identifier keeps its original
+`io.github.kdbo.elevenrack.editor.tauri-preview` name so existing settings,
+captures and logs stay where they are, normally:
 
 ```text
 ~/.local/share/io.github.kdbo.elevenrack.editor.tauri-preview/
@@ -151,13 +153,13 @@ This preparation is not yet full hardware/UI parity certification. In particular
   the editor to clear patch caches. Save edits before switching. Moving a Rack to
   another USB port changes its saved identity. Hardware switching acceptance is
   still pending.
-- Automatic release updates are explicitly unavailable in the preview, avoiding
-  offers to install an Electron release over it. Windows/macOS-specific watchdog
-  and MIDI-stack hooks have Linux compatibility responses; no Windows/macOS port
-  or audio-meter backend is claimed here.
-- Review package dependencies and release-mode builds on each supported distro,
-  window-state persistence, optional startup flags and accessibility before
-  promoting the preview to the existing release pipeline.
+- Automatic release updates are unavailable, avoiding offers to install an
+  Electron release over it. Windows/macOS-specific watchdog and MIDI-stack hooks
+  have Linux compatibility responses; no Windows/macOS port is claimed here.
+- The VU meters show the connected Rack's Rig L/R capture channels through
+  `pw-record` (PipeWire). Computer playback and inputs that are not the Rig Input
+  do not move them. Without `pw-record` they report no audio source.
+- Review window-state persistence, optional startup flags and accessibility.
 
 Build a development package:
 
@@ -166,9 +168,9 @@ npm --prefix editor-tauri run build -- --debug --bundles deb
 ```
 
 Artifacts are under `editor-tauri/src-tauri/target/debug/bundle/deb/`. Debug builds
-are for review and testing; the stable Electron packaging/release pipeline is
-unchanged.
+are for review and testing; release packages for each distribution are built by
+the project's package pipeline.
 
 The shared frontend/assets retain their upstream MIT notices and attribution to
 Charles Wardick and the macOS port by Damilola Olalere. See `../editor/LICENSE`
-and `../editor/NOTICE`, also included with the preview bundle.
+and `../editor/NOTICE`, also included with the editor bundle.

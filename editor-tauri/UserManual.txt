@@ -32,7 +32,7 @@ share the same preferences and captures folder. For building from source,
 see editor-tauri/README.md; development dependencies are separate from
 what is needed to run the prebuilt application.
 
-If using a packaged build, launch the Tauri Preview from the application
+If using a packaged build, launch Eleven Rack Editor from the application
 menu. The editor and Linux audio driver are separate; installing the
 editor does not install the DKMS driver. See the project README for
 driver installation and tested systems.
@@ -125,8 +125,12 @@ mutes and are not placed beside the tuner button.
 The two Master VU meters move only when fresh audio-level measurements
 are available. Without an audio-level source, or when measurements stop,
 the needles rest at the bottom of the scale and the peak lights stay off.
-MIDI traffic and the Main volume setting do not drive the meters. This
-Tauri preview currently has no audio-level backend. The tuner needle
+MIDI traffic and the Main volume setting do not drive the meters. They
+show the connected Rack's Rig L/R signal, read through PipeWire
+(pw-record): your rig, including whichever input is set as Rig Input.
+Computer playback and inputs that are not the Rig Input do not move
+them. "Rack audio idle" means no audio is flowing; "no audio source"
+means no Rack is connected or pw-record is missing. The tuner needle
 continues to follow live tuning data from the Rack.
 
 A small green MIDI IN indicator flashes on incoming MIDI messages.
@@ -218,8 +222,8 @@ Source changes do not appear: rebuild the selected debug or release
 binary. A packaged installation must also be rebuilt and reinstalled;
 restarting an older binary does not load changes from the source checkout.
 
-Automatic release updates are unavailable in this Tauri preview. Install
-an updated preview explicitly when one is provided.
+Automatic release updates are unavailable. Install new release packages
+explicitly when they are published.
 
 Missing audio: MIDI editing and USB audio are separate paths. Consult
 the driver and PipeWire/REAPER documentation in the project docs folder.
