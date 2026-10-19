@@ -33,11 +33,14 @@ class SmiMonitor:
         self.helper = helper or helper_path()
         self.process, self.status = None, 'helper not installed'
 
+    def command(self):
+        return [str(self.helper), 'monitor', str(self.period_ms)]
+
     def __enter__(self):
         if self.helper is None:
             return self
         with self.path.open('w') as output:
-            self.process = subprocess.Popen([str(self.helper), 'monitor', str(self.period_ms)],
+            self.process = subprocess.Popen(self.command(),
                                             stdout=output, stderr=subprocess.PIPE, text=True)
         time.sleep(.2)
         if self.process.poll() is not None:

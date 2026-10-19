@@ -71,6 +71,8 @@ def main():
         output=storage/name
         print('Starting',name,flush=True)
         analysis_flags = ['--analog-white-noise'] if kind == 'white' else []
+        # Explains delay steps: xHCI Ring Underruns versus PipeWire resyncs.
+        analysis_flags += ['--transport-trace', '--usb-flight']
         # One SMI/stolen-time calibration per night, before the first audio task.
         if index == first_task: analysis_flags += ['--platform-calibration', '30']
         with (storage/(name+'.log')).open('w') as log:
@@ -92,13 +94,15 @@ def main():
         restored=False
         driver_srcversion=None
         platform=None
+        transport=None
         if matrices:
             report=json.loads(matrices[0].read_text())
             driver_srcversion=report.get('driver_srcversion')
             platform=next((row.get('platform',{}).get('classification') for row in report.get('results',[])),None)
+            transport=next((row.get('transport',{}).get('classification') for row in report.get('results',[])),None)
             restored=report.get('restored',False)
             complete=restored and len(report.get('results',[]))==1
-        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'driver_srcversion':driver_srcversion,'platform':platform,'output':str(output)})
+        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'driver_srcversion':driver_srcversion,'platform':platform,'transport':transport,'output':str(output)})
         if complete: state['next_task']=index+1
         save()
         if (storage / 'stop-after-current').exists():

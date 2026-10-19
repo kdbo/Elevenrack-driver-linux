@@ -23,6 +23,10 @@ def main():
                         help='Use fixed-response analog white-noise analysis; keep raw results and timing checks')
     parser.add_argument('--platform-calibration', type=int, default=0, metavar='SECONDS',
                         help='Before audio, busy-loop this long to measure SMI/stolen-time gaps (0: skip)')
+    parser.add_argument('--transport-trace', action='store_true',
+                        help='Record xHCI completion errors and PipeWire resyncs during each matrix')
+    parser.add_argument('--usb-flight', action='store_true',
+                        help='Dump a kernel flight recorder before each playback Ring Underrun')
     args=parser.parse_args()
     if not 0<=args.platform_calibration<=600: parser.error('platform calibration: 0..600 seconds')
     durations=[args.seconds] if args.seconds is not None else [m*60 for m in args.minutes]
@@ -48,6 +52,9 @@ def main():
                             '-o',str(ROOT/'build/latency/libloopback-filter.so'),'-lm'],check=True)
         # Unprivileged fallback; the installed cap_perfmon copy is preferred for SMI counts.
         subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror',str(ROOT/'tools/smi-counter.c'),'-o',str(ROOT/'build/latency/smi-counter')],check=True)
+        if args.transport_trace or args.usb_flight:
+            # Unprivileged build; only the installed cap_dac_override copy can trace.
+            subprocess.run(['cc','-O2','-Wall','-Wextra','-Werror',str(ROOT/'tools/xhci-trace.c'),'-o',str(ROOT/'build/latency/xhci-trace')],check=True)
         if args.platform_calibration:
             sys.path.insert(0,str(ROOT/'tools'))
             import platform_noise
@@ -61,6 +68,8 @@ def main():
                 out=args.output/f'cycle-{cycle}-{seconds}s-{kind}'
                 env=dict(os.environ,ELEVEN_TEST_SIGNAL=kind,ELEVEN_TEST_SECONDS=str(seconds))
                 analysis_flags = ['--analog-white-noise'] if args.analog_white_noise and kind == 'white' else []
+                if args.transport_trace: analysis_flags.append('--transport-trace')
+                if args.usb_flight: analysis_flags.append('--usb-flight')
                 child=subprocess.Popen([sys.executable,str(ROOT/'tools/test-full-latency-matrix.py'),'--regression',*analysis_flags,'--output',str(out),'--starts',str(cycle),'--profiles',*args.profiles],env=env)
                 try: code=child.wait()
                 except KeyboardInterrupt:

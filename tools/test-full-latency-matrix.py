@@ -121,12 +121,20 @@ def main():
     parser.add_argument('--regression', action='store_true', help='Analyze continuous regression signal instead of calibration bursts')
     parser.add_argument('--analog-white-noise', action='store_true',
                         help='Validate a fixed analog response for white-noise regression; retain timing faults')
+    parser.add_argument('--transport-trace', action='store_true',
+                        help='Record xHCI completion errors and PipeWire resyncs for attribution')
+    parser.add_argument('--usb-flight', action='store_true',
+                        help='Keep a kernel flight recorder that dumps the seconds before each playback Ring Underrun')
     parser.add_argument('--output', type=Path, default=OUT)
     parser.add_argument('--starts', type=int, nargs='+', default=[1,2])
     parser.add_argument('--profiles', nargs='+', help='Subset as rate:quantum, for invalid-run recovery')
     args = parser.parse_args()
     if args.analog_white_noise and (not args.regression or os.environ.get('ELEVEN_TEST_SIGNAL') != 'white'):
         parser.error('--analog-white-noise requires white-noise regression')
+    if args.transport_trace and not args.regression:
+        parser.error('--transport-trace requires --regression')
+    if args.usb_flight and not args.regression:
+        parser.error('--usb-flight requires --regression')
     headroom = os.environ.get('ELEVEN_TEST_PLAYBACK_HEADROOM')
     if headroom is not None and (not headroom.isdecimal() or not 0 <= int(headroom) <= 512):
         parser.error('Playback headroom must be 0..512 frames')
@@ -150,6 +158,10 @@ def main():
     analysis = importlib.util.module_from_spec(spec); spec.loader.exec_module(analysis)
     spec = importlib.util.spec_from_file_location('platform_noise', ROOT/'tools/platform_noise.py')
     platform = importlib.util.module_from_spec(spec); spec.loader.exec_module(platform)
+    spec = importlib.util.spec_from_file_location('transport_trace', ROOT/'tools/transport_trace.py')
+    transport = importlib.util.module_from_spec(spec); spec.loader.exec_module(transport)
+    spec = importlib.util.spec_from_file_location('usb_flight', ROOT/'tools/analyze-usb-flight.py')
+    usb_flight = importlib.util.module_from_spec(spec); spec.loader.exec_module(usb_flight)
     OUT.mkdir()
     report = {'original_settings':settings,'original_hardware_rate':original_rate,'results':[],'restored':False}
     report['driver_srcversion'] = Path('/sys/module/snd_usb_audio/srcversion').read_text().strip()
@@ -164,6 +176,10 @@ def main():
     def save(): (OUT/'matrix.json').write_text(json.dumps(report,indent=2)+'\n')
     smi = platform.SmiMonitor(OUT/'smi.csv').__enter__()
     report['smi_counter'] = smi.status
+    xhci = transport.XhciMonitor(OUT/'xhci.log').__enter__() if args.transport_trace else None
+    if xhci is not None: report['xhci_trace'] = xhci.status
+    flight = transport.FlightRecorder(OUT/'xhci-flight.log').__enter__() if args.usb_flight else None
+    if flight is not None: report['usb_flight'] = flight.status
     save()
     try:
         for repeat in args.starts:
@@ -171,7 +187,9 @@ def main():
                 stop()
                 rate_config.write_text(matrix_rate_rule(rate, headroom))
                 subprocess.run(['arecord','-D','hw:Rack,0','-f','S32_LE','-r',str(rate),'-c','8','-d','1','-t','raw','/dev/null'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                call('systemctl','--user','start',*[u for u in active if u != 'wireplumber.service'])
+                profile_started = time.time_ns()
+                with transport.pipewire_debug(args.transport_trace):
+                    call('systemctl','--user','start',*[u for u in active if u != 'wireplumber.service'])
                 time.sleep(1)
                 for k,v in [('clock.allowed-rates',f'[ {rate} ]'),('clock.rate',str(rate)),('clock.force-rate',str(rate)),('clock.force-quantum',str(quantum))]:
                     call('pw-metadata','-n','settings','0',k,v)
@@ -213,10 +231,27 @@ def main():
                             smi.status, platform.smi_events(OUT/'smi.csv'))
                     except (ValueError, OSError, KeyError, IndexError) as error:
                         row['platform'] = {'classification': 'error', 'error': str(error)}
+                if xhci is not None:
+                    try:
+                        status, resyncs = transport.pipewire_journal(profile_started, time.time_ns(),
+                                                                     directory/'pipewire.log')
+                        row['transport'] = transport.attribute(
+                            raw, rate, quantum, result.get('faults', []) + result.get('dense_faults', []),
+                            xhci.status, transport.xhci_events(OUT/'xhci.log'), status, resyncs)
+                    except (ValueError, OSError, KeyError, IndexError) as error:
+                        row['transport'] = {'classification': 'error', 'error': str(error)}
+                if flight is not None:
+                    try:
+                        # Dumps accumulate per matrix; keep the timelines in the log only.
+                        row['usb_flight'] = [{k: v for k, v in d.items() if k != 'timeline'}
+                                             for d in usb_flight.analyze(OUT/'xhci-flight.log')]
+                    except (ValueError, OSError, KeyError, IndexError) as error:
+                        row['usb_flight'] = {'error': str(error)}
                 report['results'].append(row); save()
                 if args.regression:
                     print('REGRESSION',rate,quantum,'START',repeat,'PASS' if row['valid'] else 'FAIL',
-                          'platform='+row.get('platform',{}).get('classification','none'),flush=True)
+                          'platform='+row.get('platform',{}).get('classification','none'),
+                          *(['transport='+row['transport']['classification']] if 'transport' in row else []),flush=True)
                 elif row['valid']:
                     values = [b['minus_live_reported_frames'] for b in row['bursts'] if b['stimulus_seconds']>=2.5]
                     print('PROFILE',rate,quantum,'START',repeat,'RESIDUAL',values,flush=True)
@@ -226,6 +261,8 @@ def main():
                     raise RuntimeError('First probe has no reliable signal; check loopback before continuing')
     finally:
         smi.__exit__(None, None, None)
+        if xhci is not None: xhci.__exit__(None, None, None)
+        if flight is not None: flight.__exit__(None, None, None)
         try:
             try:
                 stop()

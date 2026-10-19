@@ -62,6 +62,10 @@ every recorded click against the played click, including small delay steps.
 and mark callback stalls and faults that coincide with them (`platform` in
 `matrix.json`); `test-platform-noise.py` checks that attribution. The counter
 needs the helper installed with `cap_perfmon`; see the regression instructions.
+`xhci-trace.c` and `transport_trace.py` record xHCI completion errors and
+PipeWire resyncs and mark faults that coincide with them (`transport` in
+`matrix.json`); `test-transport-trace.py` checks that attribution. The xHCI
+trace needs the helper installed with `cap_dac_override`.
 
 For physical white-noise loopbacks, `analyze-white-noise-path.py RECORDING.raw`
 provides a separate offline diagnosis of stationary analog filtering and timing

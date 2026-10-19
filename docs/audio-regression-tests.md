@@ -125,6 +125,28 @@ On the test setup's Latitude 5490, the 20–30 ms stalls came from the keyboard-
 
 Reading `dell_smm_hwmon` sensors (fan/temperature, for example from a desktop widget or `sensors`) costs 1–3 ms in SMM per reading. That is shorter, but it can also matter with small buffers.
 
+## USB and PipeWire transport events
+
+A delay step without an xrun has two known transport causes: a `Ring Underrun` on the Rack's playback endpoint, after which the device plays silence and all later audio arrives later (see [USB packet capacity fix](usb-packet-capacity-fix.md)), or a PipeWire follower resync, which rewinds or inserts silence. Neither is logged by default. With `--transport-trace` (`test-audio-regression.py`, always on in the nightly run), each matrix records both:
+
+- `xhci.log` next to `matrix.json`: xHCI completion events other than Success and Short Packet, for the whole USB bus;
+- `pipewire.log` in each profile directory: PipeWire's journal for that profile. Only the PipeWire the test starts gets `PIPEWIRE_DEBUG=2,spa.alsa:3`; the previous user environment is restored straight after the start, so the restored session logs as before.
+
+For each profile, `matrix.json` contains a `transport` block with the xHCI events and resync/recover messages during the recording, and `fault_windows` (the same windows as the SMI attribution) with a `cause`: `xhci`, `pipewire_resync`, both, `unexplained`, or `unknown` when a source was unavailable. `classification` is `clean` without faults, the single cause, `mixed`, or `unavailable`. The nightly `queue.json` keeps it as `transport`. As with SMIs, this is coincidence in time and does not change PASS/FAIL. The trace covers every device on the bus; `slot` and `endpoint` (the Rack's playback is `0x03`) tell them apart.
+
+Tracing requires write access to tracefs. Install the small helper once; it can only create its own trace instance for `xhci_handle_event` with a fixed filter:
+
+```sh
+cc -O2 -Wall -Wextra tools/xhci-trace.c -o build/latency/xhci-trace
+sudo install -o root -g root -m 0755 build/latency/xhci-trace /usr/local/libexec/eleven-rack-xhci-trace
+sudo setcap cap_dac_override=ep /usr/local/libexec/eleven-rack-xhci-trace
+/usr/local/libexec/eleven-rack-xhci-trace check   # must print ok
+```
+
+`--usb-flight` (also always on in the nightly run) uses the same helper as a flight recorder: a 1 MiB-per-CPU kernel ring buffer keeps the Rack's isochronous EP 3 URB submissions and completions, xHCI errors, IRQs, softirqs, scheduler switches, ksoftirqd wakeups and C-state changes. A Ring Underrun on the playback endpoint freezes the buffer; the helper appends it to `xhci-flight.log` (at most five dumps per matrix) and re-arms. `tools/analyze-usb-flight.py xhci-flight.log` reports per underrun the capture completion intervals, the delay from capture completion to the playback submission it releases, empty capture URBs, and a timeline of the last 10 ms on the CPU that handled the capture completions; `matrix.json` keeps the summary as `usb_flight`. In implicit-feedback mode each capture completion releases one playback URB, so an underrun means that for longer than the lead (2 ms) no capture completion was turned into a submission: either completions were handled late, or capture URBs carried no data.
+
+Without this helper, the PipeWire part still runs and `xhci_trace` reads `unavailable`. Repeat `install` and `setcap` after changing `xhci-trace.c`. `python3 tools/test-transport-trace.py` checks the attribution without audio or root.
+
 ## Additional multitone test
 
 The separately selectable `multitone` signal combines 431, 997, 1871 and 2973 Hz at equal amplitude. The sum is divided by four, so the existing maximum output level is kept. The combined pattern repeats after one second; the latency search range stays below 200 ms. The analysis uses 100 ms windows for it, to recognize the frequency combination. This gives more information than a single sine wave, but analog phase shift/filtering can still affect the peak found and the similarity.

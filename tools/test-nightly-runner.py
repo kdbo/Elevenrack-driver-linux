@@ -22,7 +22,8 @@ class NightlyRunner(unittest.TestCase):
                 matrix = Path(argv[argv.index('--output')+1])/'cycle-1-white'
                 matrix.mkdir(parents=True)
                 (matrix/'matrix.json').write_text(json.dumps({
-                    'restored': True, 'results': [{'valid': False, 'platform': {'classification': 'smi_correlated'}}],
+                    'restored': True, 'results': [{'valid': False, 'platform': {'classification': 'smi_correlated'},
+                                                   'transport': {'classification': 'xhci'}}],
                     'driver_srcversion': 'test-driver-identity'}))
             return SimpleNamespace(returncode=0 if complete else 1, poll=lambda: 0 if complete else 1)
         with patch.object(nightly, 'ROOT', root), \
@@ -44,6 +45,9 @@ class NightlyRunner(unittest.TestCase):
             self.assertEqual(state['results'][0]['driver_srcversion'], 'test-driver-identity')
             self.assertTrue(state['results'][0]['restored'])
             self.assertEqual(state['results'][0]['platform'], 'smi_correlated')
+            self.assertIn('--transport-trace', commands[0])
+            self.assertIn('--usb-flight', commands[0])
+            self.assertEqual(state['results'][0]['transport'], 'xhci')
 
     def test_platform_calibration_runs_once_per_night(self):
         with tempfile.TemporaryDirectory() as tmp:
