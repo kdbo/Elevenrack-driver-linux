@@ -167,6 +167,10 @@ On a Dell Latitude 5490 (Ubuntu, kernel 7.0), 44.1 kHz and 256 frames:
 Moving the interrupt alone removed the network delays but not the
 `ksoftirqd` delays; both steps together were needed.
 
+Dropouts that the Monitor does not count as playback gaps can come from
+PipeWire's own priority or from desktop applications; see
+[dropouts from scheduling and desktop audio](desktop-audio-dropouts.md).
+
 ## USB ports and controllers
 
 Every port on one USB host controller shares the same interrupt. Moving the

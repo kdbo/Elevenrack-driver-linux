@@ -132,6 +132,64 @@ class Diagnostics(unittest.TestCase):
         lines, _ = self.records([self.data(100), self.data(102)], kernel=lambda *_: None)
         self.assertEqual([r['type'] for r in lines].count('note'), 1)
 
+    def stat(self, rt_priority, policy):
+        # Fields after the command name: state (3) ... rt_priority (40), policy (41).
+        rest = ['S'] + ['0'] * 36 + [str(rt_priority), str(policy)] + ['0'] * 3
+        return '123 (data-loop.0) ' + ' '.join(rest) + '\n'
+
+    def realtime_tree(self, root, policy, priority, nice_limit, irq_priority=50):
+        proc = root/'proc'
+        for pid, user, comm in ((10, 117, 'pipewire'), (20, os.getuid(), 'pipewire')):
+            write(proc/str(pid)/'comm', comm + '\n')
+            write(proc/str(pid)/'status', f'Name:\t{comm}\nUid:\t{user}\t{user}\t{user}\t{user}\n')
+            write(proc/str(pid)/'limits', f'Max nice priority         {nice_limit}   {nice_limit}\n'
+                                          'Max realtime priority     95   95\n')
+            write(proc/str(pid)/'task'/str(pid + 1)/'comm', 'data-loop.0\n')
+            # The login screen's PipeWire (uid 117) runs at RR 20 and must be ignored.
+            write(proc/str(pid)/'task'/str(pid + 1)/'stat',
+                  self.stat(20, 2) if pid == 10 else self.stat(priority, policy))
+        write(proc/'41'/'comm', 'irq/124-xhci_hcd\n')
+        write(proc/'41'/'stat', self.stat(85, 1))
+        write(proc/'42'/'comm', 'irq/9-acpi\n')
+        write(proc/'42'/'stat', self.stat(irq_priority, 1))
+        write(proc/'43'/'comm', 'irq/37-i2c\n')
+        write(proc/'43'/'stat', self.stat(irq_priority, 1))
+        return proc
+
+    def test_pipewire_realtime_ignores_other_users(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = self.realtime_tree(Path(tmp), 1, 88, 39)
+            realtime = diagnostics.pipewire_realtime(proc)
+            self.assertEqual((realtime['pid'], realtime['policy'], realtime['priority']), (20, 'FIFO', 88))
+            self.assertEqual((realtime['rtprio_limit'], realtime['nice_limit']), (95, 39))
+            self.assertEqual(diagnostics.irq_thread_priorities(proc)['irq/124-xhci_hcd'], 85)
+
+    def test_rtkit_fallback_below_irq_threads_warns_with_threadirqs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            proc, sys, scheduler = self.tree(root, ksoftirqd_policy=os.SCHED_FIFO)
+            self.realtime_tree(root, 2, 20, 0)
+            write(proc/'cmdline', 'ro quiet threadirqs\n')
+            with scheduler:
+                result = diagnostics.system_check('1-9', proc, sys)
+            warnings = [text for level, text in result['findings'] if level == 'warn']
+            self.assertEqual(len(warnings), 1)
+            self.assertIn('RR 20', warnings[0])
+            self.assertIn('nice -19', warnings[0])
+            write(proc/'20'/'task'/'21'/'stat', self.stat(88, 1))
+            with scheduler:
+                self.assertEqual(self.levels(diagnostics.system_check('1-9', proc, sys)), ['ok'])
+
+    def test_desktop_streams_and_node_names(self):
+        objects = [{'id': 179, 'type': 'PipeWire:Interface:Node', 'info': {'props': {
+                        'media.class': 'Stream/Output/Audio', 'application.name': 'Firefox',
+                        'node.latency': '2752/48000'}}},
+                   {'id': 180, 'type': 'PipeWire:Interface:Node', 'info': {'props': {
+                        'media.class': 'Stream/Output/Audio', 'client.api': 'jack', 'node.name': 'REAPER'}}}]
+        self.assertEqual(diagnostics.desktop_streams(objects),
+                         [{'id': 179, 'name': 'Firefox', 'latency_ms': 57.3}])
+        self.assertEqual(diagnostics.parse_top(TOP)[61]['name'], 'alsa_output.usb-Digidesign_Eleven_Rack-01.playback.0.0')
+
     def test_cpu_list(self):
         self.assertEqual(diagnostics.cpu_list('0-2,5\n'), {0, 1, 2, 5})
 

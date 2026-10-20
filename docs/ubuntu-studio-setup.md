@@ -58,6 +58,9 @@ If dropouts remain at irregular intervals on a Dell laptop, check
 further. Single clicks after which playback is about 1 ms later are not a
 buffer problem; see
 [clicks and shifted latency from delayed USB handling](usb-completion-delays.md).
+Ubuntu Studio enables `threadirqs` but does not allow PipeWire to lower its
+nice level, so PipeWire can end up below the interrupt threads; see
+[dropouts from scheduling and desktop audio](desktop-audio-dropouts.md).
 
 At 48 kHz, 128 frames represent 2.67 ms per buffer. That is only one component
 of roundtrip latency: USB scheduling, playback/capture queues, and the hardware

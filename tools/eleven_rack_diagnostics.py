@@ -80,20 +80,49 @@ def parse_top(text):
         if len(fields) > 2 and fields[0] == 'S' and fields[1] == 'ID':
             rows = {}
         elif len(fields) >= 9 and fields[1].isdigit():
+            # NAME is the last field; followers carry a "+" or "=" marker before it.
             rows[int(fields[1])] = {'quantum': fields[2], 'rate': fields[3], 'wait': fields[4],
                                     'busy': fields[5], 'wait_quantum': fields[6],
-                                    'busy_quantum': fields[7], 'errors': int(fields[8]) if fields[8].isdigit() else None}
+                                    'busy_quantum': fields[7], 'errors': int(fields[8]) if fields[8].isdigit() else None,
+                                    'name': fields[-1] if len(fields) > 9 else ''}
     return rows
 
 
-def pipewire_nodes(card_id, run=subprocess.run):
+def latency_ms(value):
+    """node.latency such as "2048/48000" in milliseconds, or None."""
+    match = re.fullmatch(r'\s*(\d+)\s*/\s*(\d+)\s*', str(value or ''))
+    return round(int(match[1]) * 1000 / int(match[2]), 1) if match and int(match[2]) else None
+
+
+def desktop_streams(objects):
+    """Playback streams of desktop applications (not JACK clients) and their buffer."""
+    streams = []
+    for o in objects:
+        props = o.get('info', {}).get('props', {})
+        if (o.get('type') == 'PipeWire:Interface:Node' and props.get('media.class') == 'Stream/Output/Audio'
+                and props.get('client.api') != 'jack'):
+            streams.append({'id': o['id'], 'name': props.get('application.name') or props.get('node.name', ''),
+                            'latency_ms': latency_ms(props.get('node.latency'))})
+    return streams
+
+
+def pipewire_state(card_id, run=subprocess.run):
+    """The Rack nodes, every node with xruns, and desktop playback streams."""
     try:
         objects = json.loads(run(['pw-dump'], capture_output=True, text=True, timeout=3, check=True).stdout)
         top = run(['pw-top', '-b', '-n', '2'], capture_output=True, text=True, timeout=4).stdout
     except (OSError, ValueError, subprocess.SubprocessError):
-        return None
+        return None, None
     rows = parse_top(top)
-    return {direction: dict(rows.get(node, {}), id=node) for node, direction in rack_node_ids(objects, card_id).items()}
+    rack = {direction: dict(rows.get(node, {}), id=node) for node, direction in rack_node_ids(objects, card_id).items()}
+    graph = {'nodes_with_xruns': [{'id': node, 'name': row['name'], 'errors': row['errors']}
+                                  for node, row in sorted(rows.items()) if row.get('errors')],
+             'desktop_streams': desktop_streams(objects)}
+    return rack, graph
+
+
+def pipewire_nodes(card_id, run=subprocess.run):
+    return pipewire_state(card_id, run)[0]
 
 
 def cpu_list(text):
@@ -183,6 +212,62 @@ def ksoftirqd(cpu, proc=PROC):
     return None
 
 
+SCHED_POLICY = {0: 'normal', 1: 'FIFO', 2: 'RR', 3: 'batch', 5: 'idle', 6: 'deadline'}
+
+
+def thread_sched(stat_text):
+    """(policy, rt_priority) from a /proc/<pid>/task/<tid>/stat line."""
+    fields = stat_text.rsplit(')', 1)[1].split()
+    # Field 40 is rt_priority and 41 policy; the list after ")" starts at field 3.
+    return SCHED_POLICY.get(int(fields[38]), fields[38]), int(fields[37])
+
+
+def limit(text, name):
+    for line in text.splitlines():
+        if line.startswith(name):
+            value = line[len(name):].split()[0]
+            return int(value) if value.isdigit() else value
+    return None
+
+
+def pipewire_realtime(proc=PROC, uid=None):
+    """Scheduling of the user's PipeWire audio thread and the limits it got.
+
+    Only the caller's own processes count: display managers such as SDDM run
+    their own PipeWire for the login screen.
+    """
+    uid = os.getuid() if uid is None else uid
+    for entry in sorted(proc.glob('[0-9]*'), key=lambda p: int(p.name)):
+        try:
+            if (entry/'comm').read_text().strip() != 'pipewire':
+                continue
+            if int(key_values((entry/'status').read_text())['Uid'].split()[0]) != uid:
+                continue
+            for task in sorted(entry.glob('task/*')):
+                if (task/'comm').read_text().strip() == 'data-loop.0':
+                    policy, priority = thread_sched((task/'stat').read_text())
+                    limits = (entry/'limits').read_text()
+                    return {'pid': int(entry.name), 'policy': policy, 'priority': priority,
+                            'rtprio_limit': limit(limits, 'Max realtime priority'),
+                            'nice_limit': limit(limits, 'Max nice priority')}
+        except (OSError, ValueError, KeyError, IndexError):
+            continue
+    return None
+
+
+def irq_thread_priorities(proc=PROC):
+    """Real-time priority of each threaded interrupt handler, by name (with threadirqs)."""
+    found = {}
+    for entry in proc.glob('[0-9]*'):
+        try:
+            name = (entry/'comm').read_text().strip()
+            if name.startswith('irq/'):
+                found[name] = thread_sched((entry/'stat').read_text())[1]
+        except (OSError, ValueError, IndexError):
+            continue
+    return found
+
+
 def system_check(location, proc=PROC, sys=SYS):
     """Where USB completions for the Rack run, and what can delay them there."""
     result = {'findings': []}
@@ -216,6 +301,22 @@ def system_check(location, proc=PROC, sys=SYS):
     except OSError:
         threaded = False
     result['threadirqs'] = threaded
+    realtime = pipewire_realtime(proc)
+    result['pipewire_realtime'] = realtime
+    if threaded:
+        irq_threads = irq_thread_priorities(proc)
+        result['irq_thread_priority'] = max(irq_threads.values(), default=None)
+        usb = [p for n, p in irq_threads.items() if any(n.startswith(f'irq/{i}-') for i in irqs)]
+        result['usb_irq_thread_priority'] = usb[0] if usb else None
+        common = sorted(irq_threads.values())[len(irq_threads)//2] if irq_threads else None
+        if realtime and common is not None and realtime['priority'] < common:
+            why = (' PipeWire could not lower its nice level (nice limit 0), so it fell back to RTKit;'
+                   ' allow it with "@audio - nice -19" in /etc/security/limits.d/ and log in again.'
+                   if realtime['nice_limit'] == 0 else '')
+            result['findings'].append(('warn', f"PipeWire's audio thread runs at {realtime['policy']} "
+                                               f"{realtime['priority']}, below the interrupt threads "
+                                               f'({common}). Interrupts from any device can then delay '
+                                               f'audio cycles and cause xruns.{why}'))
     normal = [cpu for cpu, t in threads.items() if t and t['policy'] == 'normal']
     if normal and not threaded:
         result['findings'].append(('warn', f'ksoftirqd/{",".join(map(str, normal))} runs at normal priority. '
@@ -226,13 +327,26 @@ def system_check(location, proc=PROC, sys=SYS):
     return result
 
 
+DESKTOP_BUFFER_MS = 40
+
+
 def snapshot(device):
     """All diagnostics for one entry of rack_devices.devices()."""
+    rack, graph = pipewire_state(device['card_id'])
+    system = system_check(device['location'])
+    small = [s for s in (graph or {}).get('desktop_streams', [])
+             if s['latency_ms'] is not None and s['latency_ms'] < DESKTOP_BUFFER_MS]
+    if small and (os.cpu_count() or 0) <= 4:
+        names = ', '.join(sorted({f"{s['name']} ({s['latency_ms']:g} ms)" for s in small}))
+        system['findings'].insert(0, ('info', f'Desktop playback streams have small buffers: {names}. On a '
+                                              f'{os.cpu_count()}-core CPU a short full load can make them '
+                                              'deliver audio late; that is heard as a dropout but is not '
+                                              'counted as an xrun. A larger pipewire-pulse buffer helps.'))
     return {'time': time.time(), 'device': device['label'], 'location': device['location'],
             'driver': driver_stats(device['card']),
             'alsa': alsa_streams(device['card']),
-            'pipewire': pipewire_nodes(device['card_id']),
-            'system': system_check(device['location'])}
+            'pipewire': rack, 'graph': graph,
+            'system': system}
 
 
 def log_directory():
@@ -266,8 +380,12 @@ def watched(data):
     for direction, stream in (data.get('alsa') or {}).items():
         for key in ('state', 'rate', 'period_size'):
             values[f'alsa.{direction}.{key}'] = stream.get(key)
+    for node in (data.get('graph') or {}).get('nodes_with_xruns', []):
+        values[f"graph.{node['name'] or node['id']}.errors"] = node['errors']
     system = data.get('system') or {}
     values['system.irqs'] = system.get('irqs')
+    realtime = system.get('pipewire_realtime') or {}
+    values['system.pipewire_realtime'] = f"{realtime.get('policy')} {realtime.get('priority')}" if realtime else None
     values['system.cpus'] = system.get('cpus')
     values['system.findings'] = [level + ': ' + text for level, text in system.get('findings', [])]
     return values
@@ -387,6 +505,12 @@ def report(data):
     for direction, node in sorted((data['pipewire'] or {}).items()):
         lines.append(f"  {direction:<8} node {node['id']}  quantum {node.get('quantum', '-')}  rate {node.get('rate', '-')}  "
                      f"wait {node.get('wait', '-')}  busy {node.get('busy', '-')}  xruns {node.get('errors', '-')}")
+    graph = data.get('graph') or {}
+    if graph.get('nodes_with_xruns'):
+        lines.append('  nodes with xruns: ' + ', '.join(f"{n['name'] or n['id']} {n['errors']}"
+                                                         for n in graph['nodes_with_xruns']))
+    for stream in graph.get('desktop_streams', []):
+        lines.append(f"  desktop stream {stream['name']}: buffer {stream['latency_ms']} ms")
     system = data['system']
     lines += ['', 'System']
     if 'controller' in system:
@@ -394,6 +518,10 @@ def report(data):
                      f"on CPU {','.join(map(str, system['cpus'])) or '?'}  threadirqs {'yes' if system['threadirqs'] else 'no'}")
         for cpu, t in system['ksoftirqd'].items():
             lines.append(f"  ksoftirqd/{cpu}: {t['policy']} {t['priority']}" if t else f'  ksoftirqd/{cpu}: not found')
+        realtime = system.get('pipewire_realtime')
+        if realtime:
+            lines.append(f"  PipeWire audio thread: {realtime['policy']} {realtime['priority']} "
+                         f"(limits: rtprio {realtime['rtprio_limit']}, nice {realtime['nice_limit']})")
     for level, text in system['findings']:
         lines.append(f'  [{level}] {text}')
     return '\n'.join(lines)

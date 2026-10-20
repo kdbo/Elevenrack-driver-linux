@@ -85,6 +85,10 @@ Stop audio applications before changing hardware clock source or internal rate.
   buffer:** the firmware may be pausing the whole computer. On Dell laptops,
   keyboard-backlight dimming is a known trigger; see
   [dropouts from firmware pauses](system-pauses.md).
+- **Dropouts while programs start, or a browser or streaming app dropping
+  out:** PipeWire may run at too low a priority, or desktop applications may
+  need a larger buffer; see
+  [dropouts from scheduling and desktop audio](desktop-audio-dropouts.md).
 - **A single click, after which playback is about 1 ms later:** USB handling
   was delayed in the kernel. The control panel's Monitor window counts these
   events; see [clicks and shifted latency from delayed USB handling](usb-completion-delays.md).

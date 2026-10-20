@@ -212,7 +212,8 @@ class Diagnostics(Gtk.Window):
         self.values = {}
         for key, title, note in (
                 ('driver', 'Driver', diagnostics.DRIVER_HELP),
-                ('pipewire', 'PipeWire', 'Graph timing of the Rack nodes; xruns are counted by PipeWire.'),
+                ('pipewire', 'PipeWire', 'Graph timing of the Rack nodes; xruns are counted by PipeWire. '
+                                         'Desktop apps that deliver audio late are not counted as xruns.'),
                 ('alsa', 'ALSA streams', None),
                 ('system', 'System check', 'Where USB completions for the Rack are handled.')):
             card = panel.card(title)
@@ -361,6 +362,16 @@ class Diagnostics(Gtk.Window):
             lines.append('%-9s %s  wait %s  busy %s\n          xruns %s' % (
                 direction.capitalize(), timing, node.get('wait', '-'), node.get('busy', '-'),
                 self.since_reset(node.get('errors'), old_nodes.get(direction, {}).get('errors'))))
+        graph = data.get('graph') or {}
+        others = [n for n in graph.get('nodes_with_xruns', []) if n['id'] not in
+                  {node.get('id') for node in (data['pipewire'] or {}).values()}]
+        if others:
+            lines.append('Other nodes with xruns: ' + ', '.join(
+                '%s %s' % (n['name'] or n['id'], n['errors']) for n in others))
+        if graph.get('desktop_streams'):
+            lines.append('Desktop streams: ' + ', '.join(
+                '%s %s' % (s['name'], ('%g ms buffer' % s['latency_ms']) if s['latency_ms'] is not None else '')
+                for s in graph['desktop_streams']))
         self.values['pipewire'].set_text('\n'.join(lines) if lines else
                                          'Not available' if data['pipewire'] is None else 'No Rack nodes')
         lines = []
@@ -384,6 +395,10 @@ class Diagnostics(Gtk.Window):
                 lines.append('ksoftirqd/%d     %s' % (cpu, '%s %d' % (thread['policy'], thread['priority'])
                                                        if thread else 'not found'))
             lines.append('threadirqs      %s' % ('yes' if system['threadirqs'] else 'no'))
+            realtime = system.get('pipewire_realtime')
+            if realtime:
+                lines.append('PipeWire        %s %s (rtprio limit %s, nice limit %s)' % (
+                    realtime['policy'], realtime['priority'], realtime['rtprio_limit'], realtime['nice_limit']))
             self.values['system'].set_text('\n'.join(lines))
         else:
             self.values['system'].set_text('-')
