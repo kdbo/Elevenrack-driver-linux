@@ -190,6 +190,27 @@ static unsigned int eleven_lead_urbs(struct snd_usb_endpoint *ep)
 \t\tif (is_playback)''')
 
 
+def count_xruns(endpoint):
+    """Count the Rack's driver-reported xruns inside notify_xrun().
+
+    Only its single snd_pcm_stop_xrun() call is replaced: kernels 6.12-6.17
+    guard it without braces, so no statement may be inserted next to it.
+    """
+    match = re.search(r'static (?:bool|void) notify_xrun\(struct snd_usb_endpoint \*ep\)\n\{.*?\n\}\n',
+                      endpoint, re.S)
+    if not match or match[0].count('snd_pcm_stop_xrun(') != 1:
+        raise RuntimeError('Unsupported kernel source layout: notify_xrun')
+    return (endpoint[:match.start()] + '''/* Eleven Rack Linux package: count driver-reported xruns per direction. */
+static void eleven_stop_xrun(struct snd_usb_endpoint *ep, struct snd_pcm_substream *psubs)
+{
+\tif (ep->chip->usb_id == USB_ID(0x0dba, 0xb011))
+\t\tatomic_inc(&ep->chip->eleven_xruns[!usb_pipeout(ep->pipe)]);
+\tsnd_pcm_stop_xrun(psubs);
+}
+
+''' + match[0].replace('snd_pcm_stop_xrun(', 'eleven_stop_xrun(ep, ') + endpoint[match.end():])
+
+
 def eleven_stats(usbaudio, card, endpoint, proc):
     """Count playback gaps, xruns, starts and capture errors for the Rack.
 
@@ -305,23 +326,26 @@ static void eleven_count_capture(struct snd_usb_endpoint *ep, struct urb *urb)
 
 static void push_back_to_ready_list(struct snd_usb_endpoint *ep,
 ''')
-    endpoint = replace_once(endpoint, '''\t\t\tif (atomic_dec_and_test(&ep->submitted_urbs) &&
-\t\t\t    !snd_usb_endpoint_implicit_feedback_sink(ep))
-\t\t\t\tnotify_xrun(ep);
-\t\t\treturn;''', '''\t\t\tif (atomic_dec_and_test(&ep->submitted_urbs) &&
-\t\t\t    !snd_usb_endpoint_implicit_feedback_sink(ep))
-\t\t\t\tnotify_xrun(ep);
-\t\t\tif (snd_usb_endpoint_implicit_feedback_sink(ep))
-\t\t\t\televen_track_level(ep, ctx->packets);
-\t\t\treturn;''')
+    # Sample the queue level where an implicit-feedback playback completion
+    # returns, after its decrement. Kernels before 6.12 decrement without the
+    # xrun check, so anchor on the block's queue call and its return instead.
+    start = endpoint.index('static void snd_complete_urb(struct urb *urb)\n{')
+    end = endpoint.index('\n}\n', start)
+    body = endpoint[start:end]
+    queue = '\t\t\tsnd_usb_queue_pending_output_urbs(ep, false);\n'
+    if body.count(queue) != 1:
+        raise RuntimeError('Unsupported kernel source layout: implicit-feedback completion')
+    ret = body.index('\n\t\t\treturn;\n', body.index(queue))
+    if 'submitted_urbs' not in body[body.index(queue):ret]:
+        raise RuntimeError('Unsupported kernel source layout: implicit-feedback completion return')
+    body = (body[:ret] + '\n\t\t\tif (snd_usb_endpoint_implicit_feedback_sink(ep))'
+            '\n\t\t\t\televen_track_level(ep, ctx->packets);' + body[ret:])
+    endpoint = endpoint[:start] + body + endpoint[end:]
     endpoint = replace_once(endpoint, '\tep->sample_accum = 0;\n',
                             '\tep->sample_accum = 0;\n'
                             '\tep->eleven_samples = ep->eleven_windows = 0;\n'
                             '\tep->eleven_capture_urbs = 0;\n')
-    endpoint = replace_once(endpoint, '\t\tsnd_pcm_stop_xrun(psubs);\n',
-                            '\t\tif (ep->chip->usb_id == USB_ID(0x0dba, 0xb011))\n'
-                            '\t\t\tatomic_inc(&ep->chip->eleven_xruns[!usb_pipeout(ep->pipe)]);\n'
-                            '\t\tsnd_pcm_stop_xrun(psubs);\n')
+    endpoint = count_xruns(endpoint)
     endpoint = replace_once(endpoint, '\tif (atomic_inc_return(&ep->running) != 1)\n\t\treturn 0;\n',
                             '\tif (atomic_inc_return(&ep->running) != 1)\n\t\treturn 0;\n'
                             '\tif (ep->chip->usb_id == USB_ID(0x0dba, 0xb011) &&\n'

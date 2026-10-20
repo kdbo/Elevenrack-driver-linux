@@ -94,7 +94,8 @@ int main(void) {
         new_usbaudio, new_card, new_endpoint, new_proc = prepare.eleven_stats(
             usbaudio, card, prepare.eleven_playback_lead(endpoint), proc)
         self.assertIn('atomic_t eleven_playback_gaps;', new_usbaudio)
-        self.assertIn('atomic_inc(&ep->chip->eleven_xruns[!usb_pipeout(ep->pipe)]);\n\t\tsnd_pcm_stop_xrun(psubs);', new_endpoint)
+        self.assertIn('\t\televen_stop_xrun(ep, psubs);\n', new_endpoint)
+        self.assertEqual(new_endpoint.count('snd_pcm_stop_xrun('), 1)  # only inside the wrapper
         self.assertIn('atomic_inc(&ep->chip->eleven_starts[!is_playback]);', new_endpoint)
         self.assertIn('\t} else {\n\t\televen_count_capture(ep, urb);\n\t\tretire_inbound_urb(ep, ctx);', new_endpoint)
         self.assertIn('int eleven_level_min;', new_card)
@@ -112,6 +113,30 @@ int main(void) {
         with self.assertRaises(RuntimeError):
             prepare.eleven_stats(usbaudio, card, endpoint.replace(
                 'snd_pcm_stop_xrun(psubs);', 'stop_for_xrun(psubs);'), proc)
+
+    def test_notify_xrun_without_braces_keeps_its_guard(self):
+        # Kernels 6.12-6.17 guard the stop call without braces.
+        braceless = '''static void notify_xrun(struct snd_usb_endpoint *ep)
+{
+\tstruct snd_usb_substream *data_subs;
+\tstruct snd_pcm_substream *psubs;
+
+\tdata_subs = READ_ONCE(ep->data_subs);
+\tif (!data_subs)
+\t\treturn;
+\tpsubs = data_subs->pcm_substream;
+\tif (psubs && psubs->runtime &&
+\t    psubs->runtime->state == SNDRV_PCM_STATE_RUNNING)
+\t\tsnd_pcm_stop_xrun(psubs);
+}
+'''
+        patched = prepare.count_xruns(braceless)
+        self.assertIn('== SNDRV_PCM_STATE_RUNNING)\n\t\televen_stop_xrun(ep, psubs);\n}', patched)
+        # 6.8-6.11: a void notify_xrun with the stop call on a substream field.
+        older = braceless.replace('\tif (psubs && psubs->runtime &&\n\t    psubs->runtime->state == SNDRV_PCM_STATE_RUNNING)\n'
+                                  '\t\tsnd_pcm_stop_xrun(psubs);', '\tif (data_subs->pcm_substream)\n'
+                                  '\t\tsnd_pcm_stop_xrun(data_subs->pcm_substream);')
+        self.assertIn('\t\televen_stop_xrun(ep, data_subs->pcm_substream);', prepare.count_xruns(older))
 
     def test_unrecognized_function_layout_is_rejected(self):
         with self.assertRaises(ValueError):
