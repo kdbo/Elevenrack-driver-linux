@@ -5,6 +5,7 @@ Everything here works without root: driver counters and ALSA stream state from
 /proc/asound, PipeWire graph timing and xruns from pw-dump/pw-top, and a check
 of the CPU placement that decides how quickly USB completions are handled.
 Run directly for a text report: python3 eleven_rack_diagnostics.py [--device ID]
+or record to a log file until Ctrl+C: python3 eleven_rack_diagnostics.py --log [FILE]
 """
 import argparse
 import json
@@ -227,11 +228,136 @@ def system_check(location, proc=PROC, sys=SYS):
 
 def snapshot(device):
     """All diagnostics for one entry of rack_devices.devices()."""
-    return {'time': time.time(), 'device': device['label'],
+    return {'time': time.time(), 'device': device['label'], 'location': device['location'],
             'driver': driver_stats(device['card']),
             'alsa': alsa_streams(device['card']),
             'pipewire': pipewire_nodes(device['card_id']),
             'system': system_check(device['location'])}
+
+
+def log_directory():
+    state = os.environ.get('XDG_STATE_HOME') or str(Path.home()/'.local/state')
+    return Path(state)/'eleven-rack'
+
+
+def environment():
+    """What a bug report needs to know about the system, read once per log."""
+    info = {'kernel': os.uname().release}
+    for key, path in (('driver_srcversion', SYS/'module/snd_usb_audio/srcversion'),
+                      ('playback_lead_ms', SYS/'module/snd_usb_audio/parameters/eleven_playback_lead_ms'),
+                      ('package_version', Path(__file__).resolve().parents[1]/'VERSION'),
+                      ('cmdline', PROC/'cmdline')):
+        try:
+            info[key] = path.read_text().strip()
+        except OSError:
+            pass
+    return info
+
+
+def watched(data):
+    """The values whose change is logged as an event."""
+    values = {}
+    for key, value in (data.get('driver') or {}).items():
+        if key != 'last_gap_seconds_ago':
+            values['driver.' + key] = value
+    for direction, node in (data.get('pipewire') or {}).items():
+        for key in ('errors', 'quantum', 'rate'):
+            values[f'pipewire.{direction}.{key}'] = node.get(key)
+    for direction, stream in (data.get('alsa') or {}).items():
+        for key in ('state', 'rate', 'period_size'):
+            values[f'alsa.{direction}.{key}'] = stream.get(key)
+    system = data.get('system') or {}
+    values['system.irqs'] = system.get('irqs')
+    values['system.cpus'] = system.get('cpus')
+    values['system.findings'] = [level + ': ' + text for level, text in system.get('findings', [])]
+    return values
+
+
+def kernel_messages(location, since, until, run=subprocess.run):
+    """Kernel log lines about the Rack between two realtime seconds, or None if unreadable."""
+    try:
+        result = run(['journalctl', '-k', '--no-pager', '-o', 'json', '--since', f'@{since:.6f}',
+                      '--until', f'@{until:.6f}'], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode:
+        return None
+    pattern = re.compile(r'Eleven Rack|usb %s\b|usb %s:' % (re.escape(location), re.escape(location)))
+    messages = []
+    for line in result.stdout.splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        message = entry.get('MESSAGE')
+        if isinstance(message, str) and pattern.search(message):
+            messages.append({'time': int(entry['__REALTIME_TIMESTAMP'])/1e6, 'message': message})
+    return messages
+
+
+class Recorder:
+    """Append diagnostics to a JSON Lines file: changes as events, periodic snapshots.
+
+    The first line holds the full snapshot and the environment. Afterwards a line
+    is written only when a watched value changes, when the Rack's kernel messages
+    appear, and every SNAPSHOT_SECONDS, so an idle hour stays small.
+    """
+    SNAPSHOT_SECONDS = 60
+
+    def __init__(self, path=None, kernel=kernel_messages):
+        if path is None:
+            path = log_directory()/time.strftime('monitor-%Y%m%d-%H%M%S.jsonl')
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.stream = self.path.open('a')
+        self.kernel = kernel
+        self.last = None
+        self.last_snapshot = 0.0
+        self.kernel_since = time.time()
+        self.kernel_note = False
+        self.events = 0
+
+    def write(self, record):
+        self.stream.write(json.dumps(record, default=str) + '\n')
+        self.stream.flush()
+
+    def update(self, data):
+        now = data['time']
+        values = watched(data)
+        if self.last is None:
+            self.write({'type': 'start', 'time': now, 'environment': environment(), 'snapshot': data})
+            self.last_snapshot = now
+        else:
+            changes = {key: [self.last.get(key), value] for key, value in values.items()
+                       if self.last.get(key) != value}
+            if changes:
+                self.events += 1
+                self.write({'type': 'event', 'time': now, 'device': data['device'], 'changes': changes})
+            if now - self.last_snapshot >= self.SNAPSHOT_SECONDS:
+                self.write({'type': 'snapshot', 'time': now, 'snapshot': data})
+                self.last_snapshot = now
+        self.last = values
+        messages = self.kernel(data['location'], self.kernel_since, now)
+        if messages is None:
+            if not self.kernel_note:
+                self.write({'type': 'note', 'time': now,
+                            'message': 'Kernel log not readable; add the user to the systemd-journal or adm group.'})
+                self.kernel_note = True
+        else:
+            for message in messages:
+                self.events += 1
+                self.write(dict(message, type='kernel'))
+            self.kernel_since = now
+
+    def close(self):
+        if self.stream.closed:
+            return
+        try:
+            self.write({'type': 'stop', 'time': time.time()})
+        except OSError:
+            pass
+        finally:
+            self.stream.close()
 
 
 def report(data):
@@ -278,10 +404,26 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--device', help='Device id, ALSA card id or card number (default: the only Rack)')
     parser.add_argument('--json', action='store_true')
+    parser.add_argument('--log', nargs='?', const='', metavar='FILE',
+                        help='Record until Ctrl+C; default file in ~/.local/state/eleven-rack/')
+    parser.add_argument('--interval', type=float, default=2.0, help='Seconds between readings when logging')
     args = parser.parse_args()
     device = rack_devices.select(args.device)
-    data = snapshot(device)
-    print(json.dumps(data, indent=2) if args.json else report(data))
+    if args.log is None:
+        data = snapshot(device)
+        print(json.dumps(data, indent=2) if args.json else report(data))
+        return
+    recorder = Recorder(args.log or None)
+    print(f'Recording {device["label"]} to {recorder.path}; stop with Ctrl+C.', flush=True)
+    try:
+        while True:
+            recorder.update(snapshot(rack_devices.select(device['id'])))
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        recorder.close()
+        print(f'{recorder.events} events recorded in {recorder.path}')
 
 
 if __name__ == '__main__':

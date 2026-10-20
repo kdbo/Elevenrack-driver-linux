@@ -126,6 +126,7 @@ window.eleven-rack-about { background-color: #101010; background-image: none; }
 .eleven-rack-panel .mono { font-family: monospace; }
 .eleven-rack-panel .notice.ok { border-left-color: #56d681; }
 .eleven-rack-panel .notice.info { border-left-color: #706a63; }
+.eleven-rack-panel button:checked { background: #f07820; color: #160c04; border-color: #f07820; font-weight: bold; }
 '''
 
 
@@ -162,6 +163,8 @@ class Diagnostics(Gtk.Window):
         self.latest = None
         self.reading = False
         self.closed = False
+        self.recorder = None
+        self.recorder_lock = threading.Lock()
         scroll = Gtk.ScrolledWindow()
         layout = box(spacing=12)
         layout.get_style_context().add_class('eleven-rack-panel')
@@ -181,9 +184,22 @@ class Diagnostics(Gtk.Window):
         copy = Gtk.Button(label='Copy')
         copy.set_tooltip_text('Copy all values as text, for example for a bug report')
         copy.connect('clicked', self.copy)
+        self.record = Gtk.ToggleButton(label='Record')
+        self.record.set_tooltip_text('Write changes, kernel messages and periodic snapshots to a log file')
+        self.record.connect('toggled', self.toggle_recording)
+        logs = Gtk.Button(label='Show logs')
+        logs.set_tooltip_text('Open the folder with Monitor log files')
+        logs.connect('clicked', self.show_logs)
+        header.pack_end(logs, False, False, 0)
+        header.pack_end(self.record, False, False, 0)
         header.pack_end(copy, False, False, 0)
         header.pack_end(reset, False, False, 0)
         layout.pack_start(header, False, False, 0)
+        self.record_status = label('', 'subtitle')
+        self.record_status.set_selectable(True)
+        self.record_status.set_line_wrap(True)
+        self.record_status.set_no_show_all(True)
+        layout.pack_start(self.record_status, False, False, 0)
         self.values = {}
         for key, title, note in (
                 ('driver', 'Driver', diagnostics.DRIVER_HELP),
@@ -210,6 +226,40 @@ class Diagnostics(Gtk.Window):
     def stop(self, *_):
         self.closed = True
         self.panel.diagnostics_window = None
+        self.stop_recording()
+
+    def toggle_recording(self, button):
+        if button.get_active():
+            try:
+                recorder = diagnostics.Recorder()
+            except OSError as error:
+                self.record_status.set_text('Cannot create log file: %s' % error)
+                self.record_status.show()
+                button.set_active(False)
+                return
+            with self.recorder_lock:
+                self.recorder = recorder
+            button.set_label('Recording')
+            self.record_status.set_text('Recording to %s' % recorder.path)
+            self.record_status.show()
+        else:
+            button.set_label('Record')
+            path, events = self.stop_recording()
+            if path:
+                self.record_status.set_text('Saved %s (%d events)' % (path, events))
+
+    def stop_recording(self):
+        with self.recorder_lock:
+            recorder, self.recorder = self.recorder, None
+            if recorder is None:
+                return None, 0
+            recorder.close()
+            return recorder.path, recorder.events
+
+    def show_logs(self, _button):
+        folder = diagnostics.log_directory()
+        folder.mkdir(parents=True, exist_ok=True)
+        Gtk.show_uri_on_window(self, folder.as_uri(), Gdk.CURRENT_TIME)
 
     def read(self):
         if self.closed:
@@ -224,6 +274,13 @@ class Diagnostics(Gtk.Window):
                 data = diagnostics.snapshot(settings.rack_devices.select(selected))
             except (RuntimeError, OSError) as error:
                 data = {'error': str(error)}
+            if 'error' not in data:
+                with self.recorder_lock:
+                    if self.recorder is not None:
+                        try:
+                            self.recorder.update(data)
+                        except OSError as error:
+                            data['record_error'] = str(error)
             GLib.idle_add(self.show, data)
         threading.Thread(target=worker, daemon=True).start()
         return True
@@ -246,6 +303,11 @@ class Diagnostics(Gtk.Window):
         if self.closed:
             return False
         self.latest = data
+        if 'record_error' in data:
+            self.record_status.set_text('Recording stopped: %s' % data['record_error'])
+            self.record.set_active(False)
+        elif self.recorder is not None:
+            self.record_status.set_text('Recording to %s · %d events' % (self.recorder.path, self.recorder.events))
         if 'error' in data:
             self.device.set_text(data['error'])
             for value in self.values.values():
@@ -274,7 +336,11 @@ class Diagnostics(Gtk.Window):
         lines = []
         old_nodes = old.get('pipewire') or {}
         for direction, node in sorted((data['pipewire'] or {}).items()):
-            # A follower node runs on its driver's clock; pw-top shows it as 0/0.
+            # pw-top shows 0/0 for an idle node and for a follower on its driver's clock.
+            if node.get('wait') in (None, '---'):
+                lines.append('%-9s idle  xruns %s' % (direction.capitalize(), self.since_reset(
+                    node.get('errors'), old_nodes.get(direction, {}).get('errors'))))
+                continue
             timing = ('follows the graph driver' if node.get('quantum') == '0' and node.get('rate') == '0'
                       else 'quantum %s  rate %s' % (node.get('quantum', '-'), node.get('rate', '-')))
             lines.append('%-9s %s  wait %s  busy %s\n          xruns %s' % (

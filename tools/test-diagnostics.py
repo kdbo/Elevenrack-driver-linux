@@ -91,6 +91,42 @@ class Diagnostics(unittest.TestCase):
                               stats['playback_starts'], stats['capture_packet_errors']), (2, 1500, 1, 4, 3))
             self.assertIn('last_gap_seconds_ago', stats)
 
+    def data(self, when, gaps=0, xruns=0):
+        return {'time': when, 'device': 'Eleven Rack 1 · USB 1-9', 'location': '1-9',
+                'driver': {'playback_gaps': gaps, 'last_gap_seconds_ago': when},
+                'alsa': {'playback': {'state': 'RUNNING', 'rate': '44100'}},
+                'pipewire': {'capture': {'id': 62, 'errors': xruns, 'quantum': '256', 'rate': '44100'}},
+                'system': {'irqs': [123], 'cpus': [2], 'findings': [('ok', 'fine')]}}
+
+    def records(self, updates, kernel=lambda *_: []):
+        with tempfile.TemporaryDirectory() as tmp:
+            recorder = diagnostics.Recorder(Path(tmp)/'log.jsonl', kernel=kernel)
+            for data in updates:
+                recorder.update(data)
+            recorder.close()
+            recorder.close()   # closing twice is harmless
+            return [__import__('json').loads(line) for line in recorder.path.read_text().splitlines()], recorder
+
+    def test_recorder_logs_changes_not_repeats(self):
+        # Seconds-ago changes every reading and must not count as a change.
+        lines, recorder = self.records([self.data(100), self.data(102), self.data(104, gaps=1), self.data(106, gaps=1)])
+        self.assertEqual([r['type'] for r in lines], ['start', 'event', 'stop'])
+        self.assertEqual(lines[1]['changes'], {'driver.playback_gaps': [0, 1]})
+        self.assertEqual(recorder.events, 1)
+        self.assertIn('kernel', lines[0]['environment'])
+
+    def test_recorder_snapshots_and_kernel_messages(self):
+        kernel = lambda location, since, until: [{'time': until, 'message': 'Eleven Rack: playback ran dry'}]
+        lines, _ = self.records([self.data(100), self.data(130), self.data(161, xruns=2)], kernel=kernel)
+        types = [r['type'] for r in lines]
+        self.assertEqual(types.count('kernel'), 3)
+        self.assertEqual(types.count('snapshot'), 1)
+        self.assertIn({'pipewire.capture.errors': [0, 2]}, [r.get('changes') for r in lines])
+
+    def test_recorder_notes_unreadable_kernel_log_once(self):
+        lines, _ = self.records([self.data(100), self.data(102)], kernel=lambda *_: None)
+        self.assertEqual([r['type'] for r in lines].count('note'), 1)
+
     def test_cpu_list(self):
         self.assertEqual(diagnostics.cpu_list('0-2,5\n'), {0, 1, 2, 5})
 

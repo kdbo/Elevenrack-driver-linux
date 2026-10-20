@@ -41,6 +41,26 @@ Driver versions newer than 0.1.2~beta14 count these events.
 The counter starts at 0 when the Rack is connected or the driver is loaded. A
 count that keeps rising during normal use means your system is affected.
 
+To keep a record, for example over a long session or for a bug report, click
+**Record** in the Monitor window. Until you click it again, a log file in
+`~/.local/state/eleven-rack/` collects:
+
+- once at the start: all values, the kernel and driver version;
+- a line with the time whenever a counter or stream setting changes;
+- the Rack's kernel messages, such as playback gaps and USB disconnects;
+- all values again every minute.
+
+**Show logs** opens that folder. Without the control panel, the same log is
+written by
+
+```sh
+python3 /usr/lib/eleven-rack/tools/eleven_rack_diagnostics.py --log
+```
+
+until you press Ctrl+C. The kernel messages need permission to read the
+system journal; on most distributions members of the `adm` or
+`systemd-journal` group have it. The log notes it when they are missing.
+
 ## Cause
 
 Each finished USB transfer is handed to the driver in a *softirq*: kernel work
