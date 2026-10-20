@@ -190,10 +190,179 @@ static unsigned int eleven_lead_urbs(struct snd_usb_endpoint *ep)
 \t\tif (is_playback)''')
 
 
+def eleven_stats(usbaudio, card, endpoint, proc):
+    """Count playback gaps, xruns, starts and capture errors for the Rack.
+
+    Each capture completion releases one playback URB. When the USB giveback
+    softirq is delayed for longer than the queued playback (for example behind
+    another driver's softirq, or deferred to ksoftirqd), the OUT ring runs empty:
+    the Rack plays silence and all later audio is shifted, without an xrun.
+    URB completions are handled in hardware order however late the softirq
+    runs, so the number of playback URBs still queued when one completes is
+    fixed by the hardware schedule: constant while playback is contiguous, and
+    one URB higher for good after each gap. For the Rack only, track the
+    minimum of that level per window of completions; a lasting rise is counted
+    as a gap of that many URBs, logged rate-limited and exposed in
+    /proc/asound/<card>/eleven_stats. This needs no host controller support
+    and does not depend on softirq timing. The same file counts driver-reported
+    xruns and data endpoint starts per direction, and capture packets with a USB
+    error status and capture URBs without data once a stream has settled (the
+    first IN transaction after a start often fails harmlessly). Audio handling
+    is unchanged.
+    """
+    usbaudio = replace_once(usbaudio, '\tatomic_t shutdown;\n',
+                            '\tatomic_t shutdown;\n'
+                            '\t/* Eleven Rack Linux package: /proc/asound/<card>/eleven_stats */\n'
+                            '\tatomic_t eleven_playback_gaps;\t/* playback schedule gaps */\n'
+                            '\tatomic64_t eleven_gap_us;\t/* their total length */\n'
+                            '\tunsigned int eleven_last_gap;\t/* last length in us */\n'
+                            '\tu64 eleven_last_gap_ns;\t\t/* boottime of the last one */\n'
+                            '\tatomic_t eleven_xruns[2];\t/* driver-reported, by direction */\n'
+                            '\tatomic_t eleven_starts[2];\t/* data endpoint starts */\n'
+                            '\tatomic_t eleven_capture_packet_errors;\n'
+                            '\tatomic_t eleven_capture_empty_urbs;\n')
+    card = replace_once(card, '\tunsigned int maxframesize;      /* max packet size in frames */\n',
+                        '\tunsigned int maxframesize;      /* max packet size in frames */\n'
+                        '\t/* Eleven Rack: queued playback URBs at each playback completion */\n'
+                        '\tint eleven_level_min;\t\t/* minimum in the current window */\n'
+                        '\tint eleven_level_base;\t\t/* minimum of the last window */\n'
+                        '\tunsigned int eleven_samples;\t/* completions in the current window */\n'
+                        '\tunsigned int eleven_windows;\t/* windows since start */\n'
+                        '\tunsigned int eleven_capture_urbs;\t/* capture URBs since start */\n')
+    endpoint = replace_once(endpoint, 'static void push_back_to_ready_list(struct snd_usb_endpoint *ep,\n', '''/*
+ * Eleven Rack Linux package: detect gaps in the implicit-feedback playback
+ * stream. Completions arrive in hardware order, so the number of playback URBs
+ * still queued when one completes is constant while playback is contiguous and
+ * rises by one URB for good after each gap. Compare per-window minimums, after
+ * the first windows of a stream have settled. Called from the completion
+ * handler only, which runs serialized for an endpoint.
+ */
+#define ELEVEN_LEVEL_WINDOW 64
+#define ELEVEN_SETTLE_WINDOWS 2
+
+static void eleven_track_level(struct snd_usb_endpoint *ep, unsigned int packets)
+{
+\tstruct snd_usb_audio *chip = ep->chip;
+\tint level, steps;
+\tunsigned int gap;
+
+\tif (chip->usb_id != USB_ID(0x0dba, 0xb011) || !ep_state_running(ep))
+\t\treturn;
+\tlevel = atomic_read(&ep->submitted_urbs);
+\tif (!ep->eleven_samples++ || level < ep->eleven_level_min)
+\t\tep->eleven_level_min = level;
+\tif (ep->eleven_samples < ELEVEN_LEVEL_WINDOW)
+\t\treturn;
+\tep->eleven_samples = 0;
+\tsteps = ep->eleven_level_min - ep->eleven_level_base;
+\tep->eleven_level_base = ep->eleven_level_min;
+\tif (ep->eleven_windows < ELEVEN_SETTLE_WINDOWS) {
+\t\tep->eleven_windows++;
+\t\treturn;
+\t}
+\tif (steps <= 0)
+\t\treturn;
+\t/* One packet per microframe for the Rack's high-speed endpoint. */
+\tgap = steps * packets * 125;
+\tatomic_add(steps, &chip->eleven_playback_gaps);
+\tatomic64_add(gap, &chip->eleven_gap_us);
+\tWRITE_ONCE(chip->eleven_last_gap, gap);
+\tWRITE_ONCE(chip->eleven_last_gap_ns, ktime_get_boottime_ns());
+\tdev_warn_ratelimited(&chip->dev->dev,
+\t\t\t     "Eleven Rack: playback ran dry, output shifted by about %u us; USB completion handling was delayed (see /proc/asound/%s/eleven_stats)\\n",
+\t\t\t     gap, chip->card->id);
+}
+
+/*
+ * Eleven Rack Linux package: capture packets with a USB error, and empty URBs.
+ * The first IN transaction after a capture start often fails (USB Transaction
+ * Error) before any audio flows; count only once the stream has settled.
+ */
+#define ELEVEN_CAPTURE_SETTLE_URBS 8
+
+static void eleven_count_capture(struct snd_usb_endpoint *ep, struct urb *urb)
+{
+\tunsigned int i, errors = 0, bytes = 0;
+
+\tif (ep->chip->usb_id != USB_ID(0x0dba, 0xb011) || usb_pipeout(ep->pipe) ||
+\t    ep->type != SND_USB_ENDPOINT_TYPE_DATA)
+\t\treturn;
+\tif (ep->eleven_capture_urbs < ELEVEN_CAPTURE_SETTLE_URBS) {
+\t\tep->eleven_capture_urbs++;
+\t\treturn;
+\t}
+\tfor (i = 0; i < urb->number_of_packets; i++) {
+\t\tif (urb->iso_frame_desc[i].status)
+\t\t\terrors++;
+\t\telse
+\t\t\tbytes += urb->iso_frame_desc[i].actual_length;
+\t}
+\tif (errors)
+\t\tatomic_add(errors, &ep->chip->eleven_capture_packet_errors);
+\tif (!bytes)
+\t\tatomic_inc(&ep->chip->eleven_capture_empty_urbs);
+}
+
+static void push_back_to_ready_list(struct snd_usb_endpoint *ep,
+''')
+    endpoint = replace_once(endpoint, '''\t\t\tif (atomic_dec_and_test(&ep->submitted_urbs) &&
+\t\t\t    !snd_usb_endpoint_implicit_feedback_sink(ep))
+\t\t\t\tnotify_xrun(ep);
+\t\t\treturn;''', '''\t\t\tif (atomic_dec_and_test(&ep->submitted_urbs) &&
+\t\t\t    !snd_usb_endpoint_implicit_feedback_sink(ep))
+\t\t\t\tnotify_xrun(ep);
+\t\t\tif (snd_usb_endpoint_implicit_feedback_sink(ep))
+\t\t\t\televen_track_level(ep, ctx->packets);
+\t\t\treturn;''')
+    endpoint = replace_once(endpoint, '\tep->sample_accum = 0;\n',
+                            '\tep->sample_accum = 0;\n'
+                            '\tep->eleven_samples = ep->eleven_windows = 0;\n'
+                            '\tep->eleven_capture_urbs = 0;\n')
+    endpoint = replace_once(endpoint, '\t\tsnd_pcm_stop_xrun(psubs);\n',
+                            '\t\tif (ep->chip->usb_id == USB_ID(0x0dba, 0xb011))\n'
+                            '\t\t\tatomic_inc(&ep->chip->eleven_xruns[!usb_pipeout(ep->pipe)]);\n'
+                            '\t\tsnd_pcm_stop_xrun(psubs);\n')
+    endpoint = replace_once(endpoint, '\tif (atomic_inc_return(&ep->running) != 1)\n\t\treturn 0;\n',
+                            '\tif (atomic_inc_return(&ep->running) != 1)\n\t\treturn 0;\n'
+                            '\tif (ep->chip->usb_id == USB_ID(0x0dba, 0xb011) &&\n'
+                            '\t    ep->type == SND_USB_ENDPOINT_TYPE_DATA)\n'
+                            '\t\tatomic_inc(&ep->chip->eleven_starts[!is_playback]);\n')
+    endpoint = replace_once(endpoint, '\t} else {\n\t\tretire_inbound_urb(ep, ctx);\n',
+                            '\t} else {\n\t\televen_count_capture(ep, urb);\n'
+                            '\t\tretire_inbound_urb(ep, ctx);\n')
+    proc = replace_once(proc, 'void snd_usb_audio_create_proc(struct snd_usb_audio *chip)\n{', '''/* Eleven Rack Linux package: playback gaps, xruns, starts and capture errors. */
+static void proc_eleven_stats_read(struct snd_info_entry *entry,
+\t\t\t\t   struct snd_info_buffer *buffer)
+{
+\tstruct snd_usb_audio *chip = entry->private_data;
+
+\tsnd_iprintf(buffer, "playback_gaps %d\\n", atomic_read(&chip->eleven_playback_gaps));
+\tsnd_iprintf(buffer, "gap_total_us %lld\\n",
+\t\t    (long long)atomic64_read(&chip->eleven_gap_us));
+\tsnd_iprintf(buffer, "last_gap_us %u\\n", READ_ONCE(chip->eleven_last_gap));
+\tsnd_iprintf(buffer, "last_gap_boottime_ns %llu\\n",
+\t\t    (unsigned long long)READ_ONCE(chip->eleven_last_gap_ns));
+\tsnd_iprintf(buffer, "playback_xruns %d\\ncapture_xruns %d\\n",
+\t\t    atomic_read(&chip->eleven_xruns[0]), atomic_read(&chip->eleven_xruns[1]));
+\tsnd_iprintf(buffer, "playback_starts %d\\ncapture_starts %d\\n",
+\t\t    atomic_read(&chip->eleven_starts[0]), atomic_read(&chip->eleven_starts[1]));
+\tsnd_iprintf(buffer, "capture_packet_errors %d\\ncapture_empty_urbs %d\\n",
+\t\t    atomic_read(&chip->eleven_capture_packet_errors),
+\t\t    atomic_read(&chip->eleven_capture_empty_urbs));
+}
+
+void snd_usb_audio_create_proc(struct snd_usb_audio *chip)
+{
+\tif (chip->usb_id == USB_ID(0x0dba, 0xb011))
+\t\tsnd_card_ro_proc_new(chip->card, "eleven_stats", chip, proc_eleven_stats_read);''')
+    return usbaudio, card, endpoint, proc
+
+
 def prepare(root):
     original = {name: (root / name).read_text() for name in
                 ('quirks-table.h', 'implicit.c', 'format.c', 'quirks.c',
-                 'mixer_maps.c', 'mixer.c', 'mixer_quirks.c', 'Makefile', 'pcm.c', 'card.h', 'endpoint.c')}
+                 'mixer_maps.c', 'mixer.c', 'mixer_quirks.c', 'Makefile', 'pcm.c', 'card.h', 'endpoint.c',
+                 'usbaudio.h', 'proc.c')}
     if 'Eleven Rack Linux package' in original['quirks-table.h']:
         raise RuntimeError('Source already patched; extract a clean source tree first.')
     if re.search(r'0x0dba,\s*0xb011', original['quirks-table.h']):
@@ -202,6 +371,8 @@ def prepare(root):
     result['card.h'], result['endpoint.c'], capacity_status = implicit_feedback_capacity(
         original['card.h'], original['endpoint.c'])
     result['endpoint.c'] = eleven_playback_lead(result['endpoint.c'])
+    result['usbaudio.h'], result['card.h'], result['endpoint.c'], result['proc.c'] = eleven_stats(
+        original['usbaudio.h'], result['card.h'], result['endpoint.c'], original['proc.c'])
     # The explicit initializer also works before the newer QUIRK_DATA macros.
     entry = '''/* Eleven Rack Linux package: vendor interfaces with UAC2 descriptors. */
 {

@@ -81,6 +81,38 @@ int main(void) {
             prepare.eleven_playback_lead(endpoint.replace('No URB submission due to implicit fb sync',
                                                           'Changed upstream message'))
 
+    def test_eleven_stats_apply_to_clean_source_and_reject_unknown_layout(self):
+        archive = Path('/usr/src/linux-source-7.0.0.tar.bz2')
+        if not archive.exists():
+            self.skipTest('Ubuntu 7.0 kernel source archive not installed')
+        names = ('usbaudio.h', 'card.h', 'endpoint.c', 'proc.c')
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(['tar', '-xjf', str(archive), '-C', tmp,
+                            *[f'linux-source-7.0.0/sound/usb/{n}' for n in names]], check=True)
+            usbaudio, card, endpoint, proc = (
+                (Path(tmp)/'linux-source-7.0.0/sound/usb'/n).read_text() for n in names)
+        new_usbaudio, new_card, new_endpoint, new_proc = prepare.eleven_stats(
+            usbaudio, card, prepare.eleven_playback_lead(endpoint), proc)
+        self.assertIn('atomic_t eleven_playback_gaps;', new_usbaudio)
+        self.assertIn('atomic_inc(&ep->chip->eleven_xruns[!usb_pipeout(ep->pipe)]);\n\t\tsnd_pcm_stop_xrun(psubs);', new_endpoint)
+        self.assertIn('atomic_inc(&ep->chip->eleven_starts[!is_playback]);', new_endpoint)
+        self.assertIn('\t} else {\n\t\televen_count_capture(ep, urb);\n\t\tretire_inbound_urb(ep, ctx);', new_endpoint)
+        self.assertIn('int eleven_level_min;', new_card)
+        # The queue level is sampled at each implicit-feedback playback completion.
+        self.assertIn('\t\t\t\tnotify_xrun(ep);\n\t\t\tif (snd_usb_endpoint_implicit_feedback_sink(ep))\n'
+                      '\t\t\t\televen_track_level(ep, ctx->packets);\n\t\t\treturn;', new_endpoint)
+        self.assertIn('\tep->sample_accum = 0;\n\tep->eleven_samples = ep->eleven_windows = 0;\n'
+                      '\tep->eleven_capture_urbs = 0;', new_endpoint)
+        self.assertIn('if (ep->eleven_capture_urbs < ELEVEN_CAPTURE_SETTLE_URBS) {', new_endpoint)
+        self.assertIn('if (chip->usb_id != USB_ID(0x0dba, 0xb011) || !ep_state_running(ep))', new_endpoint)
+        # The upstream xrun path for other devices is untouched.
+        self.assertIn('if (atomic_dec_and_test(&ep->submitted_urbs) &&\n\t\t\t    !snd_usb_endpoint_implicit_feedback_sink(ep))', new_endpoint)
+        self.assertIn('"eleven_stats"', new_proc)
+        self.assertIn('if (chip->usb_id == USB_ID(0x0dba, 0xb011))', new_proc)
+        with self.assertRaises(RuntimeError):
+            prepare.eleven_stats(usbaudio, card, endpoint.replace(
+                'snd_pcm_stop_xrun(psubs);', 'stop_for_xrun(psubs);'), proc)
+
     def test_unrecognized_function_layout_is_rejected(self):
         with self.assertRaises(ValueError):
             prepare.eleven_rack_attributes(QUIRK.replace('snd_usb_audioformat_attributes_quirk', 'other'))
