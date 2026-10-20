@@ -45,6 +45,14 @@ then reads the newly selected Rack. Save any unsaved edits before switching.
 The native driver UI's shared Rig Input requests include a device identity; a
 request for another Rack is never forwarded through the editor's connected unit.
 
+## USB handling with two Racks
+
+Two Racks on the same USB host controller share its interrupt, so delays in
+the kernel's USB handling can affect both at the same moment. Each Rack counts
+such events in its own `/proc/asound/<card>/eleven_stats`. The recommended
+interrupt and `ksoftirqd` settings protect both; see
+[clicks and shifted latency from delayed USB handling](usb-completion-delays.md#two-racks).
+
 ## Command line
 
 List devices and select explicitly when more than one unit is connected:

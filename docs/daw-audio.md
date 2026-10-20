@@ -85,6 +85,9 @@ Stop audio applications before changing hardware clock source or internal rate.
   buffer:** the firmware may be pausing the whole computer. On Dell laptops,
   keyboard-backlight dimming is a known trigger; see
   [dropouts from firmware pauses](system-pauses.md).
+- **A single click, after which playback is about 1 ms later:** USB handling
+  was delayed in the kernel. The control panel's Monitor window counts these
+  events; see [clicks and shifted latency from delayed USB handling](usb-completion-delays.md).
 
 Direct ALSA remains an option for a dedicated setup that deliberately manages
 exclusive hardware access. The PipeWire/JACK approach is intended for sharing

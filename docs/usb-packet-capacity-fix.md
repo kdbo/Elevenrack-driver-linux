@@ -278,9 +278,82 @@ Remaining observations:
 - Rare early steps at 88.2/96 kHz without an underrun (3 in 48 runs with a
   lead, none in 24 without). Too few to attribute.
 - Occasional underruns still occur (1 in about 25 click-test runs, 1 in 4.5
-  nightly hours), mostly absorbed by the lead without a step.
+  nightly hours), mostly absorbed by the lead without a step. Their cause is
+  in the next section.
 - Only the Ubuntu 7.0 source has been patched and built with the lead. Other
   kernel series must pass the compatibility builds before a release.
+
+## Remaining underruns: delayed USB giveback (2026-10-19/20)
+
+The 2 ms lead left about one underrun per hour at 44.1 kHz / 256 frames. Some
+were absorbed; the others caused a lasting delay step of 35-47 frames. A kernel flight recorder
+(`tools/xhci-trace.c flight`, `tools/analyze-usb-flight.py`) kept the Rack's
+EP 3 URB submissions and completions, IRQs, softirqs, scheduler switches and
+C-state changes in a ring buffer and froze it on each Ring Underrun.
+
+Capture completions arrived on time (at most 1.2 ms apart). The last two
+before each underrun released no playback URB until more than 1 ms later:
+the giveback BH (`HI` softirq, `system_bh_highpri_wq`) waited. Normally
+capture completion to playback submission took 11-43 us (p99 under 75 us).
+With the lead, the OUT ring holds two 1 ms URBs, one of which is already
+playing at each refill, so the real slack is about one URB.
+
+Two causes:
+
+1. **NET_RX on the same CPU.** `xhci_hcd` (IRQ 123) and `iwlwifi` (IRQ 133)
+   both had effective affinity CPU 0, without `irqbalance`. A NET_RX pass in
+   the iwlwifi IRQ thread lasted up to 1158 us (`netdev_budget_usecs` allows
+   2000); every BH delay over 300 us in a 21.6 s dump fell inside one.
+2. **Deferral to ksoftirqd.** With the xHCI IRQ on CPU 2, a softirq pass
+   ending with `need_resched` set handed the pending `HI` softirq to
+   `ksoftirqd/2` (SCHED_OTHER). Under `PREEMPT_DYNAMIC` lazy mode it did not
+   preempt the running fair task (an Electron compositor thread, kworkers) for
+   over 1 ms. Usually ksoftirqd ran within 50-250 us.
+
+| 44100:256 pink, 3 x 30 min | Rack underruns while recording | Delay steps |
+| --- | --- | --- |
+| xHCI and wifi IRQ on CPU 0 | 1 | 0 |
+| xHCI IRQ on CPU 2 | 2 | 1 |
+| xHCI IRQ on CPU 2, `ksoftirqd/2` SCHED_FIFO 51 | 0 | 0 |
+
+With the last setting the following nightly runs (4.5 hours) also had no
+Rack underrun. Even without a playback lead, 10 minutes had none during
+recording. Moving the xHCI IRQ back next to the wifi IRQ during a 3.3 GB
+download produced underruns within seconds again.
+
+These are system settings and are documented for users in
+[delayed USB handling](usb-completion-delays.md); the driver does not change
+them. A larger lead was rejected because it would only hide the delay.
+
+### Detection counter
+
+`packaging/prepare-driver.py` adds `/proc/asound/<card>/eleven_stats` for the
+Rack. Two detectors were tried and rejected before the current one:
+
+- `submitted_urbs` reaching 0 at a playback completion: URBs the hardware has
+  finished stay counted until the delayed BH runs, so it never fired in the
+  delayed-BH case.
+- Gaps in `urb->start_frame`: xHCI places a URB directly after the previous
+  one only with Contiguous Frame ID support (HCCPARAMS1 bit 11). The Latitude
+  5490's Sunrise Point-LP controller (`0x200077c1`) lacks it, so every
+  `start_frame` is recomputed.
+
+The counter now uses the queue level. Completions are given back in hardware
+order however late the BH runs, so the number of playback URBs still queued
+at each playback completion is fixed by the hardware schedule. In four
+flight-recorder dumps (about 7,500 completions) it never changed before an
+underrun. After a gap every later playback completion follows one more
+capture completion, and the level rises by one URB for good. Per window of 64
+completions the minimum is compared. With the 2 ms lead, a playback URB
+completes just before the capture URB of the same microframe, so any gap is
+seen. Without a lead it completes about 1.5 microframes after it, and gaps
+shorter than about 0.8 ms are missed.
+
+Under load (2 ms lead, xHCI IRQ next to wifi, download) a 5-minute loopback had
+two delay steps of 43 frames (975 us). Both were counted as 1000 us gaps; a Ring
+Underrun that shifted nothing was not. Capture packet errors are counted only
+after the first 8 URBs of a stream: the first IN transaction after each start
+regularly fails with a USB Transaction Error before any audio flows.
 
 ## Local DKMS trial
 
