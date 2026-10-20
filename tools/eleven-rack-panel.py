@@ -27,6 +27,10 @@ from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, Pango
 
 ROOT = Path(__file__).resolve().parent
 BACKEND = ROOT / 'eleven-rack-settings.py'
+WEBSITE = 'https://r11linux.eu'
+FAQ = WEBSITE + '/faq.html'
+PROJECT = 'https://github.com/kdbo/Elevenrack-driver-linux'
+USB_DELAYS_GUIDE = PROJECT + '/blob/main/docs/usb-completion-delays.md'
 DRIVER_LOGO = ROOT.parent / 'assets' / 'eleven-rack-control-logo-v2.png'
 GLib.set_prgname('eleven-rack-control')
 GLib.set_application_name('Eleven Rack Control')
@@ -127,6 +131,11 @@ window.eleven-rack-about { background-color: #101010; background-image: none; }
 .eleven-rack-panel .notice.ok { border-left-color: #56d681; }
 .eleven-rack-panel .notice.info { border-left-color: #706a63; }
 .eleven-rack-panel button:checked { background: #f07820; color: #160c04; border-color: #f07820; font-weight: bold; }
+.eleven-rack-panel button.link { background: none; border: none; box-shadow: none; padding: 2px 4px; color: #ff8a28; }
+.eleven-rack-panel button.link:hover { background: none; color: #ffac65; }
+.eleven-rack-panel button.link label { color: #ff8a28; }
+.eleven-rack-panel button.link:hover label { color: #ffac65; }
+.eleven-rack-panel *:link, .eleven-rack-panel *:visited { color: #ff8a28; }
 '''
 
 
@@ -219,6 +228,12 @@ class Diagnostics(Gtk.Window):
             layout.pack_start(card, False, False, 0)
         self.findings = box(spacing=6)
         layout.pack_start(self.findings, False, False, 0)
+        help_links = box(False, 4)
+        for text, uri in (('What these values mean and how to fix delays', USB_DELAYS_GUIDE), ('FAQ', FAQ)):
+            link = Gtk.LinkButton.new_with_label(uri, text)
+            link.set_halign(Gtk.Align.START)
+            help_links.pack_start(link, False, False, 0)
+        layout.pack_start(help_links, False, False, 0)
         self.connect('destroy', self.stop)
         self.read()
         GLib.timeout_add_seconds(2, self.read)
@@ -939,13 +954,19 @@ class Panel(Gtk.Window):
         # Keep the update action in the always-visible content instead.
         dialog.get_content_area().pack_end(check, False, False, 8)
         check.show()
+        links = box(False, 4)
+        links.set_halign(Gtk.Align.CENTER)
+        for text, uri in (('FAQ', FAQ), ('Source, documentation and full credits', PROJECT)):
+            links.pack_start(Gtk.LinkButton.new_with_label(uri, text), False, False, 0)
+        dialog.get_content_area().pack_end(links, False, False, 0)
+        links.show_all()
         dialog.set_version(version)
         dialog.set_logo(self.get_icon())
         dialog.set_comments('Linux audio routing and hardware settings for the Eleven Rack.')
         dialog.set_copyright('Copyright © 2026 Koen de Boevé')
         dialog.set_authors(['Koen de Boevé — development and Linux integration'])
-        dialog.set_website('https://github.com/kdbo/Elevenrack-driver-linux')
-        dialog.set_website_label('Project, documentation and full credits')
+        dialog.set_website(WEBSITE)
+        dialog.set_website_label('Website and downloads')
         dialog.set_license('Original tools and control panel: MIT.\n'
                            'Original kernel patches and patch helper: GPL-2.0-or-later.\n'
                            'Upstream kernel code and dependencies retain their own licenses.\n'

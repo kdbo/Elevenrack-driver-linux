@@ -6,6 +6,9 @@ be used for recording and playback, alongside its USB MIDI connections.
 It also provides **Eleven Rack Control** for interface settings and a separate
 **Eleven Rack Editor** for editing rigs.
 
+**Website:** [r11linux.eu](https://r11linux.eu), with downloads and
+[frequently asked questions](https://r11linux.eu/faq.html).
+
 ## Driver: standard ALSA behavior
 
 Linux normally handles USB audio and MIDI devices through the ALSA
@@ -55,7 +58,8 @@ and [the patches](patches/) for implementation details and hardware findings.
 
 Start with the [installation guide](INSTALLATION.md) for downloading
 release packages, installing the driver and editor, first-use checks, and
-troubleshooting.
+troubleshooting. Short answers to common questions are in the
+[FAQ](https://r11linux.eu/faq.html).
 
 Optional audio setup is covered in the [Ubuntu Studio configuration guide](docs/ubuntu-studio-setup.md).
 
@@ -104,6 +108,12 @@ choose their streaming rate when opening the device.
 The monitoring selector applies Hardware or DAW Only through ALSA. Its state
 is read from the Rack and refreshed every five seconds. See [interface settings](docs/interface-settings.md) for control
 behavior and limitations, and [REAPER setup](docs/reaper.md) for DAW routing.
+
+**Monitor** opens a second window with the driver's counters (playback gaps,
+xruns, stream starts, capture errors), PipeWire timing of the Rack and a check
+of where the system handles the Rack's USB interrupts. **Record** writes these
+to a log file for a bug report. See
+[delayed USB handling](docs/usb-completion-delays.md) for what the counters mean.
 
 ### DAWs and system audio
 
