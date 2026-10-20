@@ -32,7 +32,10 @@ def check(package, version, with_backend=False, universal_backend=False):
             depends = subprocess.check_output(['dpkg-deb', '-f', str(package), 'Depends'], text=True)
             assert 'pipewire (=' not in depends and 'libspa-0.2-modules (=' not in depends
             assert 'libasound2-dev' in depends and 'patch' in depends
-            assert 'install-latency-backend.py' in (control / 'postinst').read_text()
+            postinst = (control / 'postinst').read_text()
+            assert 'install-latency-backend.py' in postinst
+            # A failed optional backend build must not abort the driver installation.
+            assert postinst.count('install-latency-backend.py || echo') == 2
             assert 'triggered)' in (control / 'postinst').read_text()
             assert 'interest-noawait /usr/bin/pipewire' in (control / 'triggers').read_text()
             config = root / 'etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf'

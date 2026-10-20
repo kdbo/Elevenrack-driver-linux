@@ -112,7 +112,11 @@ Description: Eleven Rack Linux audio driver and control panel (experimental)
             if backend_sources is not None:
                 installer = '/usr/lib/eleven-rack/backend-source/tools/install-latency-backend.py'
                 if name == 'postinst':
-                    text = text.replace('    configure)\n', f'    triggered)\n        python3 {installer}\n        ;;\n    configure)\n        python3 {installer}\n')
+                    # The backend is optional: a failure must not stop the DKMS
+                    # driver build below it under the script's set -e.
+                    backend = (f'python3 {installer} || echo "Eleven Rack latency backend not installed; '
+                               'the driver still works without its latency corrections." >&2')
+                    text = text.replace('    configure)\n', f'    triggered)\n        {backend}\n        ;;\n    configure)\n        {backend}\n')
                 elif name == 'postrm':
                     # postrm survives unpacked-file removal, so cleanup is self-contained.
                     cleanup = '\n'.join('        rm -f /' + path for path in (
