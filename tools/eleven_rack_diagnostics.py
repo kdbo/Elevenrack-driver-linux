@@ -275,6 +275,9 @@ def watched(data):
 
 def kernel_messages(location, since, until, run=subprocess.run):
     """Kernel log lines about the Rack between two realtime seconds, or None if unreadable."""
+    if until <= since:
+        # A reading taken just before recording started; journalctl rejects the window.
+        return []
     try:
         result = run(['journalctl', '-k', '--no-pager', '-o', 'json', '--since', f'@{since:.6f}',
                       '--until', f'@{until:.6f}'], capture_output=True, text=True, timeout=5)

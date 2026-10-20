@@ -123,6 +123,11 @@ class Diagnostics(unittest.TestCase):
         self.assertEqual(types.count('snapshot'), 1)
         self.assertIn({'pipewire.capture.errors': [0, 2]}, [r.get('changes') for r in lines])
 
+    def test_kernel_messages_with_empty_window_are_not_an_error(self):
+        def fail(*_args, **_kwargs):
+            raise AssertionError('journalctl must not run for an empty window')
+        self.assertEqual(diagnostics.kernel_messages('1-9', 100.0, 99.5, run=fail), [])
+
     def test_recorder_notes_unreadable_kernel_log_once(self):
         lines, _ = self.records([self.data(100), self.data(102)], kernel=lambda *_: None)
         self.assertEqual([r['type'] for r in lines].count('note'), 1)

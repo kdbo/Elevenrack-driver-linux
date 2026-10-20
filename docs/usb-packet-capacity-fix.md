@@ -351,7 +351,18 @@ shorter than about 0.8 ms are missed.
 
 Under load (2 ms lead, xHCI IRQ next to wifi, download) a 5-minute loopback had
 two delay steps of 43 frames (975 us). Both were counted as 1000 us gaps; a Ring
-Underrun that shifted nothing was not. Capture packet errors are counted only
+Underrun that shifted nothing was not.
+
+At 48000:64 the URBs hold two packets and the 2 ms lead uses most of the
+12-URB pool. During a delayed BH, capture packets then wait in `next_packet`
+until an OUT URB is free, and their late submission raised `submitted_urbs`
+without any shift: a counted gap with a constant loopback delay. The level now
+also counts waiting packets, so it changes only with IN (+1) and OUT (-1)
+completions in hardware order. In an A/B run at 48000:256 under load the
+previous detector counted 4 of 5 delay steps, the fixed one 1 of 1. Gap
+lengths are whole URBs and therefore upper bounds (0.65-0.8 ms steps reported
+as up to 1000 us). Without load both 48000:64 and 48000:256 ran 5 minutes with
+no underrun and no counted gap. Capture packet errors are counted only
 after the first 8 URBs of a stream: the first IN transaction after each start
 regularly fails with a USB Transaction Error before any audio flows.
 

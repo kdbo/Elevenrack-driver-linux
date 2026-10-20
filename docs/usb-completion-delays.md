@@ -30,7 +30,9 @@ Driver versions newer than 0.1.2~beta14 count these events.
   ```
 
   `playback_gaps` is the count, `gap_total_us` the total shift in
-  microseconds. A second Rack is `/proc/asound/Rack_1/eleven_stats`.
+  microseconds. The driver measures in whole USB transfers, so both lengths
+  are upper bounds: a shift of 0.7 ms shows as up to 1000 us at 256 frames.
+  A second Rack is `/proc/asound/Rack_1/eleven_stats`.
 - **Kernel log:** each event is also logged, limited so that the log does not
   fill up:
 

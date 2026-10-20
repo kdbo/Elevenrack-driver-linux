@@ -219,11 +219,13 @@ def eleven_stats(usbaudio, card, endpoint, proc):
     another driver's softirq, or deferred to ksoftirqd), the OUT ring runs empty:
     the Rack plays silence and all later audio is shifted, without an xrun.
     URB completions are handled in hardware order however late the softirq
-    runs, so the number of playback URBs still queued when one completes is
-    fixed by the hardware schedule: constant while playback is contiguous, and
-    one URB higher for good after each gap. For the Rack only, track the
-    minimum of that level per window of completions; a lasting rise is counted
-    as a gap of that many URBs, logged rate-limited and exposed in
+    runs, so the number of playback URBs queued or waiting for a free URB when
+    one completes is fixed by the hardware schedule: constant while playback is
+    contiguous, and one URB higher for good after each gap. Waiting packets
+    count, because with small URBs a delayed softirq can use up the URB pool.
+    For the Rack only, track the minimum of that level per window of
+    completions; a lasting rise is counted as a gap of that many URBs (so its
+    length is an upper bound), logged rate-limited and exposed in
     /proc/asound/<card>/eleven_stats. This needs no host controller support
     and does not depend on softirq timing. The same file counts driver-reported
     xruns and data endpoint starts per direction, and capture packets with a USB
@@ -253,10 +255,14 @@ def eleven_stats(usbaudio, card, endpoint, proc):
     endpoint = replace_once(endpoint, 'static void push_back_to_ready_list(struct snd_usb_endpoint *ep,\n', '''/*
  * Eleven Rack Linux package: detect gaps in the implicit-feedback playback
  * stream. Completions arrive in hardware order, so the number of playback URBs
- * still queued when one completes is constant while playback is contiguous and
- * rises by one URB for good after each gap. Compare per-window minimums, after
- * the first windows of a stream have settled. Called from the completion
- * handler only, which runs serialized for an endpoint.
+ * queued or waiting for a free URB when one completes is constant while
+ * playback is contiguous and rises by one URB for good after each gap. Packets
+ * waiting in next_packet count too: with small URBs a delayed softirq can use
+ * up the URB pool, and their later submission must not look like a gap.
+ * Compare per-window minimums, after the first windows of a stream have
+ * settled. A gap is reported in whole URBs, so its length is an upper bound.
+ * Called from the completion handler only, which runs serialized for an
+ * endpoint.
  */
 #define ELEVEN_LEVEL_WINDOW 64
 #define ELEVEN_SETTLE_WINDOWS 2
@@ -266,10 +272,13 @@ static void eleven_track_level(struct snd_usb_endpoint *ep, unsigned int packets
 \tstruct snd_usb_audio *chip = ep->chip;
 \tint level, steps;
 \tunsigned int gap;
+\tunsigned long flags;
 
 \tif (chip->usb_id != USB_ID(0x0dba, 0xb011) || !ep_state_running(ep))
 \t\treturn;
-\tlevel = atomic_read(&ep->submitted_urbs);
+\tspin_lock_irqsave(&ep->lock, flags);
+\tlevel = atomic_read(&ep->submitted_urbs) + ep->next_packet_queued;
+\tspin_unlock_irqrestore(&ep->lock, flags);
 \tif (!ep->eleven_samples++ || level < ep->eleven_level_min)
 \t\tep->eleven_level_min = level;
 \tif (ep->eleven_samples < ELEVEN_LEVEL_WINDOW)
@@ -290,7 +299,7 @@ static void eleven_track_level(struct snd_usb_endpoint *ep, unsigned int packets
 \tWRITE_ONCE(chip->eleven_last_gap, gap);
 \tWRITE_ONCE(chip->eleven_last_gap_ns, ktime_get_boottime_ns());
 \tdev_warn_ratelimited(&chip->dev->dev,
-\t\t\t     "Eleven Rack: playback ran dry, output shifted by about %u us; USB completion handling was delayed (see /proc/asound/%s/eleven_stats)\\n",
+\t\t\t     "Eleven Rack: playback ran dry, output shifted by up to %u us; USB completion handling was delayed (see /proc/asound/%s/eleven_stats)\\n",
 \t\t\t     gap, chip->card->id);
 }
 
