@@ -45,7 +45,9 @@ def main():
         env=dict(os.environ)
         env.pop('ELEVEN_TEST_PLAYBACK_HEADROOM',None)
         if headroom!='default': env['ELEVEN_TEST_PLAYBACK_HEADROOM']=str(headroom)
-        command=[sys.executable,str(ROOT/'tools/test-audio-regression.py'),'--output',str(folder),'--profiles','48000:128','--minutes',*map(str,minutes),'--cycles',str(cycles)]
+        # White noise needs the fixed analog-response analysis; raw correlation
+        # fails on the AC-coupled analog input regardless of the candidate.
+        command=[sys.executable,str(ROOT/'tools/test-audio-regression.py'),'--analog-white-noise','--output',str(folder),'--profiles','48000:128','--minutes',*map(str,minutes),'--cycles',str(cycles)]
         with folder.with_suffix('.log').open('w') as log:
             child=subprocess.Popen(command,env=env,stdout=log,stderr=subprocess.STDOUT)
             try: child.wait()
