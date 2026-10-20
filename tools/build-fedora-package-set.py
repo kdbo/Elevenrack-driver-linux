@@ -84,7 +84,8 @@ def driver_payload(stage, version, kernel, source, backend_build, backend, extra
     # when a distribution kernel-modules transaction regenerates modules.dep.
     write(stage, 'usr/lib/depmod.d/90-eleven-rack.conf',
           'override snd-usb-audio * extra\n')
-    for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py', 'eleven-rack-updates.py', 'rack_devices.py'):
+    for name in ('eleven-rack-panel.py', 'eleven-rack-settings.py', 'eleven-rack-updates.py', 'rack_devices.py',
+                 'eleven_rack_diagnostics.py'):
         copy(stage, ROOT/'tools'/name, 'usr/lib/eleven-rack/tools/'+name, True)
     copy(stage, ROOT/'tools/eleven-rack-meters.c', 'usr/lib/eleven-rack/tools/eleven-rack-meters.c')
     write(stage, 'usr/lib/eleven-rack/VERSION', version+'\n')

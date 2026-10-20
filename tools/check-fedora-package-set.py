@@ -49,6 +49,7 @@ def check(directory):
                  '/usr/bin/eleven-rack-control', '/usr/lib/eleven-rack/tools/eleven-rack-settings.py',
                  '/usr/lib/eleven-rack/tools/eleven-rack-panel.py',
                  '/usr/lib/eleven-rack/tools/eleven-rack-updates.py',
+                 '/usr/lib/eleven-rack/tools/eleven_rack_diagnostics.py',
                  '/usr/lib/eleven-rack/spa/alsa/libspa-alsa.so',
                  '/etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf',
                  '/etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf',

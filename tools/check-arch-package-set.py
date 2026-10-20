@@ -50,6 +50,7 @@ def check(directory, target):
     bundle = 'usr/lib/eleven-rack/backend-source'
     for name in ('usr/bin/eleven-rack-control', 'usr/lib/eleven-rack/tools/eleven-rack-panel.py',
                  'usr/lib/eleven-rack/tools/eleven-rack-updates.py',
+                 'usr/lib/eleven-rack/tools/eleven_rack_diagnostics.py',
                  'usr/lib/eleven-rack/tools/eleven-rack-settings.py',
                  'usr/lib/eleven-rack/tools/eleven-rack-meters.c',
                  'etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf',

@@ -36,6 +36,9 @@ spec.loader.exec_module(settings)
 update_spec = importlib.util.spec_from_file_location('updates', ROOT / 'eleven-rack-updates.py')
 updates = importlib.util.module_from_spec(update_spec)
 update_spec.loader.exec_module(updates)
+diagnostics_spec = importlib.util.spec_from_file_location('diagnostics', ROOT / 'eleven_rack_diagnostics.py')
+diagnostics = importlib.util.module_from_spec(diagnostics_spec)
+diagnostics_spec.loader.exec_module(diagnostics)
 
 
 def control_preferences():
@@ -120,6 +123,9 @@ window.eleven-rack-about { background-color: #101010; background-image: none; }
     font-family: sans-serif; font-size: 12px;
 }
 .eleven-rack-about-content label.section { font-size: 15px; font-weight: bold; }
+.eleven-rack-panel .mono { font-family: monospace; }
+.eleven-rack-panel .notice.ok { border-left-color: #56d681; }
+.eleven-rack-panel .notice.info { border-left-color: #706a63; }
 '''
 
 
@@ -142,6 +148,174 @@ def about_markup(markup):
                   lambda match: match[1] + re.sub(
                       r'\s+(?:size|font|font_desc|font_family|face|scale)\s*=\s*(?:"[^"]*"|\x27[^\x27]*\x27)',
                       '', match[2]) + match[3], markup)
+
+
+class Diagnostics(Gtk.Window):
+    """Monitor window: driver counters, streams, PipeWire timing and system checks."""
+    def __init__(self, panel):
+        super().__init__(title='Eleven Rack Monitor')
+        self.panel = panel
+        self.set_transient_for(panel)
+        self.set_default_size(640, 560)
+        self.get_style_context().add_class('eleven-rack-surface')
+        self.baseline = None
+        self.latest = None
+        self.reading = False
+        self.closed = False
+        scroll = Gtk.ScrolledWindow()
+        layout = box(spacing=12)
+        layout.get_style_context().add_class('eleven-rack-panel')
+        for edge in ('top', 'bottom', 'start', 'end'):
+            getattr(layout, 'set_margin_' + edge)(16)
+        scroll.add(layout)
+        outer = box(spacing=0)
+        outer.get_style_context().add_class('eleven-rack-panel')
+        outer.pack_start(scroll, True, True, 0)
+        self.add(outer)
+        header = box(False, 8)
+        self.device = label('Reading…', 'subtitle')
+        header.pack_start(self.device, True, True, 0)
+        reset = Gtk.Button(label='Reset')
+        reset.set_tooltip_text('Count from now on, for example during one recording')
+        reset.connect('clicked', self.reset)
+        copy = Gtk.Button(label='Copy')
+        copy.set_tooltip_text('Copy all values as text, for example for a bug report')
+        copy.connect('clicked', self.copy)
+        header.pack_end(copy, False, False, 0)
+        header.pack_end(reset, False, False, 0)
+        layout.pack_start(header, False, False, 0)
+        self.values = {}
+        for key, title, note in (
+                ('driver', 'Driver', diagnostics.DRIVER_HELP),
+                ('pipewire', 'PipeWire', 'Graph timing of the Rack nodes; xruns are counted by PipeWire.'),
+                ('alsa', 'ALSA streams', None),
+                ('system', 'System check', 'Where USB completions for the Rack are handled.')):
+            card = panel.card(title)
+            if note:
+                hint = label(note, 'subtitle')
+                hint.set_line_wrap(True)
+                card.pack_start(hint, False, False, 0)
+            value = label('Reading…', 'mono')
+            value.set_selectable(True)
+            value.set_line_wrap(True)
+            card.pack_start(value, False, False, 0)
+            self.values[key] = value
+            layout.pack_start(card, False, False, 0)
+        self.findings = box(spacing=6)
+        layout.pack_start(self.findings, False, False, 0)
+        self.connect('destroy', self.stop)
+        self.read()
+        GLib.timeout_add_seconds(2, self.read)
+
+    def stop(self, *_):
+        self.closed = True
+        self.panel.diagnostics_window = None
+
+    def read(self):
+        if self.closed:
+            return False
+        if self.reading:
+            return True
+        self.reading = True
+        selected = self.panel.selected_device
+
+        def worker():
+            try:
+                data = diagnostics.snapshot(settings.rack_devices.select(selected))
+            except (RuntimeError, OSError) as error:
+                data = {'error': str(error)}
+            GLib.idle_add(self.show, data)
+        threading.Thread(target=worker, daemon=True).start()
+        return True
+
+    def reset(self, _button):
+        if self.latest and 'error' not in self.latest:
+            self.baseline = self.latest
+
+    def copy(self, _button):
+        if self.latest and 'error' not in self.latest:
+            Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(diagnostics.report(self.latest), -1)
+
+    def since_reset(self, value, old):
+        if self.baseline is None or value is None or old is None:
+            return str(value if value is not None else '-')
+        return '%s (+%s since reset)' % (value, value - old)
+
+    def show(self, data):
+        self.reading = False
+        if self.closed:
+            return False
+        self.latest = data
+        if 'error' in data:
+            self.device.set_text(data['error'])
+            for value in self.values.values():
+                value.set_text('-')
+            return False
+        if self.baseline and self.baseline['device'] != data['device']:
+            self.baseline = None
+        old = self.baseline or {}
+        self.device.set_text(data['device'] + ('  ·  counting since reset ' +
+                             time.strftime('%H:%M:%S', time.localtime(old['time'])) if old else ''))
+        stats, old_stats = data['driver'], old.get('driver') or {}
+        if stats is None:
+            self.values['driver'].set_text('Not available: the installed driver has no counters.')
+        else:
+            def count(key):
+                return self.since_reset(stats.get(key, 0), old_stats.get(key))
+            ago = ('%.0f s ago' % stats['last_gap_seconds_ago']) if 'last_gap_seconds_ago' in stats else 'never'
+            self.values['driver'].set_text('\n'.join((
+                'Playback gaps          %s' % count('playback_gaps'),
+                '  total                %s us' % count('gap_total_us'),
+                '  last                 %s us (%s)' % (stats.get('last_gap_us', 0), ago),
+                'Xruns                  playback %s, capture %s' % (count('playback_xruns'), count('capture_xruns')),
+                'Stream starts          playback %s, capture %s' % (count('playback_starts'), count('capture_starts')),
+                'Capture packet errors  %s' % count('capture_packet_errors'),
+                'Empty capture URBs     %s' % count('capture_empty_urbs'))))
+        lines = []
+        old_nodes = old.get('pipewire') or {}
+        for direction, node in sorted((data['pipewire'] or {}).items()):
+            # A follower node runs on its driver's clock; pw-top shows it as 0/0.
+            timing = ('follows the graph driver' if node.get('quantum') == '0' and node.get('rate') == '0'
+                      else 'quantum %s  rate %s' % (node.get('quantum', '-'), node.get('rate', '-')))
+            lines.append('%-9s %s  wait %s  busy %s\n          xruns %s' % (
+                direction.capitalize(), timing, node.get('wait', '-'), node.get('busy', '-'),
+                self.since_reset(node.get('errors'), old_nodes.get(direction, {}).get('errors'))))
+        self.values['pipewire'].set_text('\n'.join(lines) if lines else
+                                         'Not available' if data['pipewire'] is None else 'No Rack nodes')
+        lines = []
+        for direction in ('playback', 'capture'):
+            stream = data['alsa'].get(direction)
+            if not stream:
+                lines.append('%-9s not present' % direction.capitalize())
+            elif stream['state'] == 'closed':
+                lines.append('%-9s closed' % direction.capitalize())
+            else:
+                lines.append('%-9s %s  %s Hz  period %s  buffer %s' % (
+                    direction.capitalize(), stream['state'].lower(), stream.get('rate', '-').split()[0],
+                    stream.get('period_size', '-'), stream.get('buffer_size', '-')))
+        self.values['alsa'].set_text('\n'.join(lines))
+        system = data['system']
+        if 'controller' in system:
+            lines = ['USB controller  %s, IRQ %s on CPU %s' % (
+                system['controller'], ', '.join(map(str, system['irqs'])) or '?',
+                ', '.join(map(str, system['cpus'])) or '?')]
+            for cpu, thread in system['ksoftirqd'].items():
+                lines.append('ksoftirqd/%d     %s' % (cpu, '%s %d' % (thread['policy'], thread['priority'])
+                                                       if thread else 'not found'))
+            lines.append('threadirqs      %s' % ('yes' if system['threadirqs'] else 'no'))
+            self.values['system'].set_text('\n'.join(lines))
+        else:
+            self.values['system'].set_text('-')
+        for child in self.findings.get_children():
+            self.findings.remove(child)
+        for level, text in system['findings']:
+            finding = label(text, 'notice')
+            finding.set_line_wrap(True)
+            if level in ('ok', 'info'):
+                finding.get_style_context().add_class(level)
+            self.findings.pack_start(finding, False, False, 0)
+        self.findings.show_all()
+        return False
 
 
 class Panel(Gtk.Window):
@@ -230,6 +404,12 @@ class Panel(Gtk.Window):
         about.set_valign(Gtk.Align.CENTER)
         about.connect('clicked', self.show_about)
         header.pack_end(about, False, False, 0)
+        self.diagnostics_window = None
+        diagnostics_button = Gtk.Button(label='Monitor')
+        diagnostics_button.set_tooltip_text('Driver and audio statistics')
+        diagnostics_button.set_valign(Gtk.Align.CENTER)
+        diagnostics_button.connect('clicked', self.show_diagnostics)
+        header.pack_end(diagnostics_button, False, False, 0)
         body.pack_start(header, False, False, 0)
         self.update_button = Gtk.Button(label='Update available')
         self.update_button.set_no_show_all(True)
@@ -669,6 +849,12 @@ class Panel(Gtk.Window):
             self.last_content_height = height
             self.resize(width, height)
         return False
+
+    def show_diagnostics(self, _button):
+        if self.diagnostics_window is None:
+            self.diagnostics_window = Diagnostics(self)
+            self.diagnostics_window.show_all()
+        self.diagnostics_window.present()
 
     def show_about(self, _button):
         try:
