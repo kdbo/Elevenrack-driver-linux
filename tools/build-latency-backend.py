@@ -33,7 +33,20 @@ def installed_version():
                        'or its development metadata, or specify --pipewire-version')
 
 
-def plugin_directory():
+def native_multiarch():
+    """The host's multiarch triplet, e.g. x86_64-linux-gnu, or None if unknown."""
+    for command in (('dpkg-architecture', '-qDEB_HOST_MULTIARCH'),
+                    (*shlex.split(os.environ.get('CC', 'cc')), '-print-multiarch')):
+        try:
+            value = run(*command)
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        if re.fullmatch(r'[a-z0-9_]+-linux-[a-z0-9_]+', value):
+            return value
+    return None
+
+
+def plugin_directory(root=Path('/'), multiarch=native_multiarch):
     try:
         path = run('pkg-config', '--variable=plugindir', 'libspa-0.2')
         if path and (Path(path) / 'alsa/libspa-alsa.so').is_file():
@@ -42,12 +55,21 @@ def plugin_directory():
         pass
     # Runtime packages do not always install the pkg-config metadata.
     matches = {p.resolve().parent.parent for pattern in (
-        '/usr/lib/spa-0.2/alsa/libspa-alsa.so',
-        '/usr/lib64/spa-0.2/alsa/libspa-alsa.so',
-        '/usr/lib/*-linux-gnu/spa-0.2/alsa/libspa-alsa.so')
-        for p in Path('/').glob(pattern.lstrip('/'))}
+        'usr/lib/spa-0.2/alsa/libspa-alsa.so',
+        'usr/lib64/spa-0.2/alsa/libspa-alsa.so',
+        'usr/lib/*-linux-gnu/spa-0.2/alsa/libspa-alsa.so')
+        for p in root.glob(pattern)}
+    if len(matches) > 1:
+        # Multiarch systems can also carry foreign plugins, e.g. i386 ones
+        # installed for 32-bit applications; build for the native one.
+        triplet = multiarch()
+        native = {m for m in matches if triplet and m.parent.name == triplet}
+        if len(native) == 1:
+            return native.pop()
     if len(matches) != 1:
-        raise RuntimeError('Cannot locate one system SPA directory; specify --spa-plugin-dir')
+        found = ', '.join(sorted(map(str, matches))) or 'none'
+        raise RuntimeError(f'Cannot locate one system SPA directory (found: {found}); '
+                           'specify --spa-plugin-dir')
     return matches.pop()
 
 
