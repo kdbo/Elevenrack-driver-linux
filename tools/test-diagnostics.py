@@ -180,6 +180,18 @@ class Diagnostics(unittest.TestCase):
             with scheduler:
                 self.assertEqual(self.levels(diagnostics.system_check('1-9', proc, sys)), ['ok'])
 
+    def test_pipewire_without_realtime_warns_even_without_threadirqs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            proc, sys, scheduler = self.tree(root, ksoftirqd_policy=os.SCHED_FIFO)
+            self.realtime_tree(root, 0, 0, 0)   # SCHED_OTHER: no rtkit, no rtprio limit
+            with scheduler:
+                result = diagnostics.system_check('1-9', proc, sys)
+            warnings = [text for level, text in result['findings'] if level == 'warn']
+            self.assertEqual(len(warnings), 1)
+            self.assertIn('no real-time priority', warnings[0])
+            self.assertIn('rtkit', warnings[0])
+
     def test_desktop_streams_and_node_names(self):
         objects = [{'id': 179, 'type': 'PipeWire:Interface:Node', 'info': {'props': {
                         'media.class': 'Stream/Output/Audio', 'application.name': 'Firefox',

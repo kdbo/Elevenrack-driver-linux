@@ -9,9 +9,10 @@ license=('MIT' 'GPL-2.0-or-later')
 options=('!strip' '!debug')
 # No exact kernel or PipeWire versions: DKMS fetches the sources of each installed
 # Arch kernel, and a pacman hook rebuilds the backend for the installed PipeWire.
+# rtkit gives PipeWire real-time scheduling; Arch only lists it as optional for pipewire.
 depends=('dkms' 'python' 'python-gobject' 'python-websockets' 'gtk3' 'alsa-utils'
          'pipewire' 'pipewire-audio' 'pipewire-jack' 'wireplumber>=0.5' 'gcc' 'alsa-lib'
-         'linux-headers' 'patch' 'zstd')
+         'linux-headers' 'patch' 'zstd' 'rtkit')
 provides=("eleven-rack-control=$pkgver" "eleven-rack-driver-dkms=$pkgver" "eleven-rack-latency-backend=$pkgver")
 conflicts=('eleven-rack-control' 'eleven-rack-driver-dkms' 'eleven-rack-latency-backend')
 backup=('etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf'

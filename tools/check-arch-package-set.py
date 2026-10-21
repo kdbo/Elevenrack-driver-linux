@@ -43,7 +43,7 @@ def check(directory, target):
     pinned = [d for d in depends if re.match(r'(linux|linux-headers|pipewire|pipewire-audio)=', d)]
     if pinned:
         raise RuntimeError('Driver must not pin exact versions: ' + ', '.join(pinned))
-    for dependency in ('dkms', 'linux-headers', 'pipewire', 'pipewire-audio', 'patch', 'zstd'):
+    for dependency in ('dkms', 'linux-headers', 'pipewire', 'pipewire-audio', 'patch', 'zstd', 'rtkit'):
         if dependency not in depends:
             raise RuntimeError(f'Missing dependency: {dependency}')
     source = 'usr/src/eleven-rack-' + target['version']

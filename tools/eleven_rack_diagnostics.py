@@ -303,7 +303,12 @@ def system_check(location, proc=PROC, sys=SYS):
     result['threadirqs'] = threaded
     realtime = pipewire_realtime(proc)
     result['pipewire_realtime'] = realtime
-    if threaded:
+    if realtime and realtime['policy'] not in ('FIFO', 'RR'):
+        result['findings'].append(('warn', "PipeWire's audio thread has no real-time priority "
+                                           f"({realtime['policy']}), so any busy program can delay audio "
+                                           'cycles. Install rtkit, or allow real-time scheduling for your user '
+                                           '(the audio group, or realtime-privileges on Arch), and log in again.'))
+    elif threaded:
         irq_threads = irq_thread_priorities(proc)
         result['irq_thread_priority'] = max(irq_threads.values(), default=None)
         usb = [p for n, p in irq_threads.items() if any(n.startswith(f'irq/{i}-') for i in irqs)]

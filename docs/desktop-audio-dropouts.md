@@ -31,8 +31,16 @@ ps -u $USER -L -o pid,cls,rtprio,comm | grep data-loop
 ```
 
 The `data-loop.0` thread of `pipewire` should show `FF` with a priority such
-as 88. `RR 20` means the RTKit fallback. Other users' PipeWire, for example the
-login screen's (`sddm` or `gdm`), does not matter.
+as 88. `RR 20` means the RTKit fallback. `TS` without a priority means no
+real-time scheduling at all: neither RTKit nor real-time permissions are
+available. Other users' PipeWire, for example the login screen's (`sddm` or
+`gdm`), does not matter.
+
+**No real-time priority at all (`TS`):** on Arch, `rtkit` is only an optional
+dependency of PipeWire, and a fresh installation may have neither it nor
+`realtime-privileges`. The Eleven Rack package from 0.1.2 beta16 depends on
+`rtkit`; for older packages install it with `sudo pacman -S rtkit` and log in
+again. PipeWire then runs at `RR 20`, which is enough without `threadirqs`.
 
 **Fix:** allow the nice level for the `audio` group and log in again. A reboot
 is the surest way:
