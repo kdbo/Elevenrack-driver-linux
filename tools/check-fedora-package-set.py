@@ -54,7 +54,8 @@ def check(directory):
                  '/etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf',
                  '/etc/wireplumber/wireplumber.conf.d/52-eleven-rack-latency.conf',
                  '/etc/modprobe.d/eleven-rack-latency.conf', source+'/dkms.conf',
-                 source+'/prepared-kernel/sound/usb/Makefile'):
+                 source+'/prepared-kernel/sound/usb/Makefile',
+                 source+'/fetch-fedora-kernel-source.py', source+'/build-driver.sh'):
         if name not in files:
             raise RuntimeError('Missing driver payload: '+name)
     editor_files = query(names['eleven-rack-editor-linux'], '--list').splitlines()

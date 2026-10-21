@@ -63,8 +63,8 @@ For optional audio tools and desktop setup, see
 ## Fedora
 
 Use RPMs built for your Fedora release (currently Fedora 43 or 44), not CentOS
-RPMs. The running kernel must be one of the package's bundled targets. Install
-its full module packages and development files before the Eleven Rack RPMs:
+RPMs. Install the running kernel's full module packages and development files
+before the Eleven Rack RPMs:
 
 ```sh
 sudo dnf install "kernel-devel-$(uname -r)" "kernel-modules-core-$(uname -r)" "kernel-modules-$(uname -r)" "kernel-modules-extra-$(uname -r)"
@@ -74,9 +74,15 @@ sudo reboot
 ```
 
 Use `dnf install` rather than installing RPMs without dependency resolution.
-The package set records its supported kernel and PipeWire versions; rebuild or
-obtain an updated set before upgrading beyond those targets. The Editor needs
-the matching Fedora Python ABI.
+The installation builds the driver for every installed kernel that has its
+`kernel-devel` package, and ends with a status line per kernel. For a kernel
+the package was not built with, which includes later kernel updates, the build
+downloads that kernel's signed source package (about 170 MB) once; this needs
+internet access. If the running kernel shows `NOT built`, the Rack keeps using
+the standard driver: fix the cause shown and run
+`sudo dnf reinstall eleven-rack-driver`. The package set records its supported
+PipeWire version; obtain an updated set before upgrading PipeWire beyond it.
+The Editor needs the matching Fedora Python ABI.
 
 ## CentOS Stream 10
 
@@ -93,7 +99,9 @@ dkms status
 sudo reboot
 ```
 
-The package's recorded kernel, PipeWire and Python versions must match the
+Kernels are handled as on Fedora. The CentOS Stream mirror keeps signed source
+packages only for its most recent kernels, so update an older kernel before
+installing. The package's recorded PipeWire and Python versions must match the
 installation. Fedora RPMs are not interchangeable with CentOS RPMs. CentOS
 hardware audio validation is still pending.
 
@@ -171,9 +179,10 @@ failure. Private build artifacts are not offered as public updates.
 
 Install updates using the same distribution package manager and the new local
 package filenames. Reboot after a driver update; restart the Editor after an
-Editor update. Check DKMS output before booting a new kernel. Fedora, CentOS and
-Arch sets need matching build targets; Ubuntu rebuilds when matching sources and
-headers are available.
+Editor update. Check DKMS output before booting a new kernel. On a kernel
+update, DKMS rebuilds the driver when the new kernel's headers are installed;
+on Ubuntu, Fedora, CentOS and Arch it fetches that kernel's sources when the
+package does not contain them.
 
 Remove the applications with your distribution's package manager:
 

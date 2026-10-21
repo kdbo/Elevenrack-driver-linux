@@ -96,7 +96,8 @@ def driver_payload(stage, version, kernel, source, backend_build, backend, extra
     copy(stage, ROOT/'config/51-eleven-rack.conf', 'etc/wireplumber/wireplumber.conf.d/51-eleven-rack.conf')
     write(stage, 'usr/bin/eleven-rack-control', '#!/bin/sh\nexec /usr/bin/python3 /usr/lib/eleven-rack/tools/eleven-rack-settings.py "$@"\n', True)
     destination = 'usr/src/eleven-rack-'+version
-    for name in ('build-driver-common.sh', 'prepare-driver.py', 'mixer-eleven-rack.h'):
+    for name in ('build-driver-common.sh', 'prepare-driver.py', 'mixer-eleven-rack.h',
+                 'fetch-fedora-kernel-source.py'):
         copy(stage, ROOT/'packaging'/name, destination+'/'+name)
     copy(stage, ROOT/'packaging/fedora/build-driver.sh', destination+'/build-driver.sh')
     dkms = (ROOT/'packaging/dkms.conf').read_text().replace('@VERSION@', version)
@@ -108,7 +109,7 @@ def driver_payload(stage, version, kernel, source, backend_build, backend, extra
         kernels.append(release)
         shutil.copytree(extra/'sound/usb', stage/destination/'prepared-kernels'/release/'sound/usb')
         write(stage, destination+'/prepared-kernels/'+release+'/kernel-release', release+'\n')
-    dkms += 'BUILD_EXCLUSIVE_KERNEL="^('+('|'.join(re.escape(k) for k in kernels))+')$"\n'
+    # Other kernels than the bundled ones fetch their sources when DKMS builds.
     write(stage, destination+'/dkms.conf', dkms)
     shutil.copytree(source/'sound/usb', stage/destination/'prepared-kernel/sound/usb')
     write(stage, destination+'/prepared-kernel/kernel-release', kernel+'\n')
@@ -118,54 +119,63 @@ def driver_payload(stage, version, kernel, source, backend_build, backend, extra
     return metadata
 
 
-def driver_scripts(version, kernel):
-    kernels = [kernel] if isinstance(kernel, str) else kernel
-    kernel = ' '.join(kernels)
+def driver_scripts(version):
+    log = f'/var/lib/dkms/eleven-rack/{version}/build/make.log'
     return f'''%post
 set -e
 echo 'Eleven Rack: registering DKMS sources...'
-dkms add -m eleven-rack -v {version} || test -d /var/lib/dkms/eleven-rack/{version}
-built=0
-running_kernel=$(uname -r)
-for kernel in {kernel}; do
-    if [ "$kernel" != "$running_kernel" ]; then
-        echo "Skipping inactive kernel $kernel"
-        continue
-    fi
-    if ! rpm -q "kernel-core-$kernel" >/dev/null 2>&1; then
-        echo "Skipping absent kernel $kernel"
-        continue
-    fi
-    test -f /usr/src/kernels/$kernel/Makefile || {{ echo "Missing kernel-devel files for $kernel" >&2; exit 1; }}
+test -d /var/lib/dkms/eleven-rack/{version} || dkms add -m eleven-rack -v {version}
+# Called in an if, so set -e does not apply: every step returns on failure.
+build_kernel() {{
+    kernel=$1
     echo "Eleven Rack: building the driver for $kernel..."
-    echo 'Build log: /var/lib/dkms/eleven-rack/{version}/build/make.log'
-    dkms build -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel" --verbose
+    echo 'Build log: {log}'
+    dkms build -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel" --verbose || return 1
     echo "Eleven Rack: installing the module for $kernel..."
-    dkms install -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel" --verbose
+    dkms install -m eleven-rack -v {version} -k "$kernel" --kernelsourcedir "/usr/src/kernels/$kernel" --verbose || return 1
     echo "Eleven Rack: updating module dependencies for $kernel..."
-    depmod -a "$kernel"
-    selected=$(modinfo -k "$kernel" -n snd_usb_audio)
+    depmod -a "$kernel" || return 1
+    selected=$(modinfo -k "$kernel" -n snd_usb_audio) || return 1
     case "$selected" in
         /lib/modules/$kernel/extra/*|/usr/lib/modules/$kernel/extra/*) ;;
-        *) echo "Eleven Rack replacement module not selected: $selected" >&2; exit 1 ;;
+        *) echo "Eleven Rack replacement module not selected: $selected" >&2; return 1 ;;
     esac
     if [ -f /boot/vmlinuz-$kernel ]; then
         echo "Eleven Rack: rebuilding initramfs for $kernel (this may take a while)..."
-        dracut --force --kver "$kernel"
+        dracut --force --kver "$kernel" || return 1
     fi
-    echo "Eleven Rack: driver ready for $kernel."
-    built=$((built + 1))
+}}
+running=$(uname -r)
+ready=''
+failed=''
+missing=''
+# The running kernel and every installed kernel, with or without kernel-devel.
+for kernel in $( (echo "$running"; ls /usr/src/kernels /lib/modules 2>/dev/null) | grep -v ':$' | sort -u); do
+    rpm -q "kernel-core-$kernel" >/dev/null 2>&1 || continue
+    if [ ! -f "/usr/src/kernels/$kernel/Makefile" ]; then
+        missing="$missing $kernel"
+    elif build_kernel "$kernel"; then
+        ready="$ready $kernel"
+    else
+        failed="$failed $kernel"
+    fi
 done
-if [ "$built" -eq 0 ]; then
-    echo 'No installed kernel matches the bundled sources. DKMS is registered; a supported kernel is required to use the patched driver.' >&2
-fi
-echo 'Eleven Rack installed. Reboot to activate the driver and audio configuration.'
+echo 'Eleven Rack driver:'
+for kernel in $ready; do echo "  $kernel: ready"; done
+for kernel in $failed; do echo "  $kernel: NOT built, the build failed (see the messages above)"; done
+for kernel in $missing; do echo "  $kernel: NOT built, kernel-devel is missing (sudo dnf install kernel-devel-$kernel)"; done
+case " $ready " in
+    *" $running "*) echo 'Eleven Rack installed. Reboot to activate the driver and audio configuration.' ;;
+    *) echo "WARNING: the Eleven Rack driver is not built for the running kernel $running." >&2
+       echo 'Until it is, the Rack uses the standard driver of this kernel. Fix the problem above and run: sudo dnf reinstall eleven-rack-driver' >&2 ;;
+esac
 %preun
 if [ "$1" -eq 0 ]; then dkms remove -m eleven-rack -v {version} --all; fi
 %postun
 if [ "$1" -eq 0 ]; then
-    for kernel in {kernel}; do
-        if [ -d /lib/modules/$kernel ]; then
+    for path in /lib/modules/*; do
+        kernel=${{path##*/}}
+        if [ -f "$path/modules.dep" ]; then
             depmod -a "$kernel"
             if [ -f /boot/vmlinuz-$kernel ]; then dracut --force --kver "$kernel"; fi
         fi
@@ -204,6 +214,8 @@ def editor_dependencies():
 def driver_dependencies(pw, targets):
     dependencies = ['dkms', 'gcc', 'make', 'python3', 'python3-gobject', 'python3-websockets',
                     'gtk3', 'alsa-utils', 'alsa-lib', 'wireplumber >= 0.5', 'kmod', 'dracut',
+                    # patch applies distribution patches to fetched kernel sources.
+                    'patch',
                     'pipewire = '+pw, 'pipewire-libs = '+pw,
                     'pipewire-jack-audio-connection-kit = '+pw]
     for target in targets:
@@ -265,7 +277,7 @@ def main():
         metadata = driver_payload(stage, version, args.kernel_release, args.kernel_source.resolve(), args.backend_build, backend, args.extra_kernel_source)
         pw = backend.dependency_version('rpm', metadata)
         dependencies = driver_dependencies(pw, targets)
-        recipe = spec('eleven-rack-driver', version, stage, dependencies, driver_scripts(version, [t['kernel_release'] for t in targets]))
+        recipe = spec('eleven-rack-driver', version, stage, dependencies, driver_scripts(version))
         build_rpm(stage, output, recipe, backend)
         stage = Path(temporary)/'editor'
         stage.mkdir()
