@@ -111,14 +111,19 @@ def tone(path, seconds=3, rate=48000):
     Path(path).write_bytes(b''.join(frames))
 
 
-def rms(path):
+def rms(path, channels=2):
+    """Highest per-channel RMS (0..1) of interleaved S16LE."""
     data = Path(path).read_bytes()
     samples = struct.unpack('<%dh' % (len(data)//2), data[:len(data)//2*2])
-    return math.sqrt(sum(s*s for s in samples)/len(samples))/32768 if samples else 0.0
+    levels = []
+    for channel in range(channels):
+        own = samples[channel::channels]
+        levels.append(math.sqrt(sum(s*s for s in own)/len(own))/32768 if own else 0.0)
+    return max(levels)
 
 
 def audio_check():
-    """Play a tone on the Rack's Main Out and record its Line In L meanwhile."""
+    """Play a tone on the Rack's Main Out and record its Line In L/R meanwhile."""
     dump = run('pw-dump', timeout=10, limit=None)
     try:
         objects = json.loads(dump.get('stdout') or '[]')
@@ -135,30 +140,35 @@ def audio_check():
     with tempfile.TemporaryDirectory() as tmp:
         played, recorded = Path(tmp)/'tone.raw', Path(tmp)/'line-in.raw'
         tone(played)
-        # Line In L is the 7th capture channel (AUX6); record it alone.
-        recorder = subprocess.Popen(['pw-record', '--raw', '--format', 's16', '--rate', '48000', '--channels', '1',
-                                     '--channel-map', 'AUX6', '--target', nodes['source'], str(recorded)],
+        # Line In L/R are capture channels 7 and 8 (AUX6, AUX7). pw-record rejects a
+        # one-channel map, and without dont-remix PipeWire may mix all channels.
+        recorder = subprocess.Popen(['pw-record', '--raw', '--format', 's16', '--rate', '48000', '--channels', '2',
+                                     '--channel-map', 'AUX6,AUX7', '-P', '{ stream.dont-remix = true }',
+                                     '--target', nodes['source'], str(recorded)],
                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         time.sleep(1)
         silence = rms(recorded) if recorded.exists() else None
         player = run('pw-play', '--raw', '--format', 's16', '--rate', '48000', '--channels', '2',
-                     '--channel-map', 'AUX0,AUX1', '--target', nodes['sink'], str(played), timeout=15)
+                     '--channel-map', 'AUX0,AUX1', '-P', '{ stream.dont-remix = true }',
+                     '--target', nodes['sink'], str(played), timeout=15)
         time.sleep(0.5)
         recorder.terminate()
         try:
             recorder.wait(timeout=5)
         except subprocess.TimeoutExpired:
             recorder.kill()
+        record_error = recorder.stderr.read().strip()[-2000:] if recorder.stderr else ''
         level = rms(recorded) if recorded.exists() else None
     return {'nodes': nodes, 'play_exit': player.get('exit'), 'play_error': player.get('stderr'),
+            'record_exit': recorder.returncode, 'record_error': record_error,
             'line_in_rms_total': level, 'line_in_rms_before_tone': silence,
             'signal_detected': level is not None and level > 0.005,
-            'note': 'signal_detected needs a Main Out L -> Line In L cable; without it only playback is checked'}
+            'note': 'signal_detected needs a Main Out -> Line In cable; without it only playback is checked'}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--audio-check', action='store_true', help='Play a 3 s tone and record Line In L')
+    parser.add_argument('--audio-check', action='store_true', help='Play a 3 s tone and record Line In L/R')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     host = platform.node()
@@ -190,7 +200,13 @@ def main():
           f"{'yes' if racks and racks[0]['eleven_stats'] else 'no'}")
     if report['audio_check']:
         check = report['audio_check']
-        print(f"  audio check: {check.get('error') or ('signal on Line In' if check['signal_detected'] else 'played; no signal on Line In (cable?)')}")
+        if check.get('error'):
+            print(f"  audio check: {check['error']}")
+        elif check['line_in_rms_total'] is None:
+            print(f"  audio check: recording failed: {check.get('record_error') or 'no data'}")
+        else:
+            print(f"  audio check: {'signal on Line In' if check['signal_detected'] else 'played; no signal on Line In (cable?)'}"
+                  f" (level {check['line_in_rms_total']:.4f}, before tone {check['line_in_rms_before_tone'] or 0:.4f})")
 
 
 if __name__ == '__main__':
