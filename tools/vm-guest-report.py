@@ -195,7 +195,11 @@ def main():
     racks = report['racks']
     print(f"Report: {output}")
     print(f"  {report['os'].get('PRETTY_NAME')} · kernel {report['kernel']} · {report['virtualization'] or 'native'}")
-    print(f"  module {report['module']['path']} (srcversion {report['module']['loaded_srcversion']})")
+    # Kernels without CONFIG_MODULE_SRCVERSION_ALL (Fedora) have no srcversion for
+    # loaded modules; the counters file then shows the patched driver is loaded.
+    loaded = report['module']['loaded_srcversion'] or (
+        'not loaded' if not Path('/sys/module/snd_usb_audio').exists() else 'not provided by this kernel')
+    print(f"  module {report['module']['path']} (srcversion {loaded})")
     print(f"  Racks: {', '.join(r['id'] or r['card'] for r in racks) or 'none'}; counters: "
           f"{'yes' if racks and racks[0]['eleven_stats'] else 'no'}")
     if report['audio_check']:

@@ -88,6 +88,7 @@ audio both ways.
 | Distribution | Kernel | PipeWire | DKMS | Rack | Counters | Audio check |
 | --- | --- | --- | --- | --- | --- | --- |
 | Arch Linux (2026-10-21) | 7.2.11-arch1-1 | 1.6.9 | installed | detected | yes | signal on Line In (0.058) |
+| Fedora 44 Workstation (2026-10-21) | 7.2.11-200.fc44 | 1.6.9 | installed | detected | yes | signal on Line In (0.058) |
 
 **Arch:** PipeWire first ran with normal scheduling (`TS`): Arch lists
 `rtkit` only as an optional PipeWire dependency, and the guest had neither
@@ -95,3 +96,16 @@ audio both ways.
 PipeWire's `data-loop.0` ran at `FF 88`, its clients at `FF 83`. The Arch
 package depends on `rtkit` from beta16. The Monitor's remaining warning, that
 `ksoftirqd` runs at normal priority, is expected without `threadirqs`.
+
+**Fedora 44:** the package contains driver sources only for the kernels it was
+built for (`7.2.11-200.fc44` and `6.19.10-300.fc44`), and its installation
+script builds only for the running kernel. The guest ran `7.2.9-201.fc44`, so
+the installation registered DKMS but built nothing, with only a warning. After
+`sudo dnf install kernel-7.2.11-200.fc44 kernel-devel-7.2.11-200.fc44` and a
+reboot, DKMS built the driver at boot. A `0.1.2~beta8` DKMS entry left from an
+earlier test showed as `broken`; `dkms remove` refuses a broken entry, so
+remove it with `sudo rm -rf /var/lib/dkms/eleven-rack/0.1.2~beta8`. PipeWire ran at
+`RR 20` through RTKit, enough without `threadirqs`. Fedora's kernel does not
+provide `srcversion` for loaded modules; `eleven_stats` and the module path
+under `extra/` show that the patched driver is loaded. The unsigned module
+taints the kernel; the guest has no Secure Boot.
