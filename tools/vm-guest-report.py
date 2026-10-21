@@ -19,10 +19,12 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import signal
 import struct
 import subprocess
 import tempfile
 import time
+import wave
 
 TOOLS = Path('/usr/lib/eleven-rack/tools')
 
@@ -102,18 +104,27 @@ def diagnostics():
         return result
 
 
+# WAV, not raw: pw-cat of PipeWire 1.4 neither finishes nor stops in raw mode.
 def tone(path, seconds=3, rate=48000):
-    """Stereo 997 Hz at -20 dBFS as raw S16LE, for pw-play."""
+    """Stereo 997 Hz at -20 dBFS as a 16-bit WAV file, for pw-play."""
     frames = []
     for i in range(int(seconds*rate)):
         value = int(0.1*32767*math.sin(2*math.pi*997*i/rate))
         frames.append(struct.pack('<hh', value, value))
-    Path(path).write_bytes(b''.join(frames))
+    with wave.open(str(path), 'wb') as output:
+        output.setnchannels(2)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        output.writeframes(b''.join(frames))
 
 
-def rms(path, channels=2):
-    """Highest per-channel RMS (0..1) of interleaved S16LE."""
-    data = Path(path).read_bytes()
+def rms(path, start=0.0, seconds=None):
+    """Highest per-channel RMS (0..1) of a 16-bit WAV file, optionally of a time window."""
+    with wave.open(str(path), 'rb') as recording:
+        channels, rate = recording.getnchannels(), recording.getframerate()
+        recording.setpos(min(int(start*rate), recording.getnframes()))
+        count = recording.getnframes() - recording.tell() if seconds is None else int(seconds*rate)
+        data = recording.readframes(count)
     samples = struct.unpack('<%dh' % (len(data)//2), data[:len(data)//2*2])
     levels = []
     for channel in range(channels):
@@ -138,28 +149,34 @@ def audio_check():
     if len(nodes) != 2:
         return {'error': 'Rack PipeWire nodes not found', 'nodes': nodes}
     with tempfile.TemporaryDirectory() as tmp:
-        played, recorded = Path(tmp)/'tone.raw', Path(tmp)/'line-in.raw'
+        played, recorded = Path(tmp)/'tone.wav', Path(tmp)/'line-in.wav'
         tone(played)
         # Line In L/R are capture channels 7 and 8 (AUX6, AUX7). pw-record rejects a
         # one-channel map, and without dont-remix PipeWire may mix all channels.
-        recorder = subprocess.Popen(['pw-record', '--raw', '--format', 's16', '--rate', '48000', '--channels', '2',
+        recorder = subprocess.Popen(['pw-record', '--rate', '48000', '--channels', '2',
                                      '--channel-map', 'AUX6,AUX7', '-P', '{ stream.dont-remix = true }',
                                      '--target', nodes['source'], str(recorded)],
                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         time.sleep(1)
-        silence = rms(recorded) if recorded.exists() else None
-        player = run('pw-play', '--raw', '--format', 's16', '--rate', '48000', '--channels', '2',
-                     '--channel-map', 'AUX0,AUX1', '-P', '{ stream.dont-remix = true }',
+        player = run('pw-play', '--channel-map', 'AUX0,AUX1', '-P', '{ stream.dont-remix = true }',
                      '--target', nodes['sink'], str(played), timeout=15)
         time.sleep(0.5)
-        recorder.terminate()
+        # SIGINT lets pw-record finish the WAV header.
+        recorder.send_signal(signal.SIGINT)
         try:
             recorder.wait(timeout=5)
         except subprocess.TimeoutExpired:
             recorder.kill()
+            recorder.wait()
         record_error = recorder.stderr.read().strip()[-2000:] if recorder.stderr else ''
-        level = rms(recorded) if recorded.exists() else None
-    return {'nodes': nodes, 'play_exit': player.get('exit'), 'play_error': player.get('stderr'),
+        try:
+            # The tone starts about 1 s after the recording.
+            silence, level = rms(recorded, 0, 0.8), rms(recorded)
+        except (OSError, EOFError, wave.Error) as error:
+            silence = level = None
+            record_error = record_error or str(error)
+    return {'nodes': nodes, 'play_exit': player.get('exit'),
+            'play_error': player.get('stderr') or player.get('error') or player.get('missing'),
             'record_exit': recorder.returncode, 'record_error': record_error,
             'line_in_rms_total': level, 'line_in_rms_before_tone': silence,
             'signal_detected': level is not None and level > 0.005,

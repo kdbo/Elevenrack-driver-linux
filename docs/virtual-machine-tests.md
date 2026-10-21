@@ -90,6 +90,7 @@ audio both ways.
 | Arch Linux (2026-10-21) | 7.2.11-arch1-1 | 1.6.9 | installed | detected | yes | signal on Line In (0.058) |
 | Fedora 44 Workstation (2026-10-21) | 7.2.11-200.fc44 | 1.6.9 | installed | detected | yes | signal on Line In (0.058) |
 | CentOS Stream 10 (2026-10-21) | 6.12.0-277.el10 | 1.6.9 | installed | detected | yes | signal on Line In (0.059) |
+| Fedora 43 Workstation (2026-10-21) | 7.2.11-100.fc43 | 1.4.11 | installed | detected | yes | signal on Line In (0.058) |
 
 **Arch:** PipeWire first ran with normal scheduling (`TS`): Arch lists
 `rtkit` only as an optional PipeWire dependency, and the guest had neither
@@ -117,6 +118,14 @@ CRB and EPEL were enabled as in the installation guide. PipeWire ran at
 `RR 20` through RTKit. The counters in the report were read before its audio
 check and are therefore all zero. A `0.1.2~beta8` DKMS entry from an earlier
 test was again `broken`.
+
+**Fedora 43:** as on Fedora 44, the guest first ran a kernel beta15 has no
+sources for (`7.2.9-101.fc43`); after installing `kernel-7.2.11-100.fc43` with
+its `kernel-devel`, DKMS built the driver at boot. A `0.1.2~beta12` DKMS entry
+was `broken`. The audio check first failed: `pw-play` and `pw-record` of
+PipeWire 1.4.11 neither finish nor stop on SIGTERM in raw mode. The report
+script now plays and records WAV files and stops the recording with SIGINT.
+PipeWire ran at `RR 20`. The driver counted 137 gaps, from VM timing.
 
 **Kernel sources for other kernels (after beta15):** the fetcher
 `packaging/fetch-fedora-kernel-source.py`, used by DKMS for kernels without
