@@ -89,6 +89,7 @@ audio both ways.
 | --- | --- | --- | --- | --- | --- | --- |
 | Arch Linux (2026-10-21) | 7.2.11-arch1-1 | 1.6.9 | installed | detected | yes | signal on Line In (0.058) |
 | Fedora 44 Workstation (2026-10-21) | 7.2.11-200.fc44 | 1.6.9 | installed | detected | yes | signal on Line In (0.058) |
+| CentOS Stream 10 (2026-10-21) | 6.12.0-277.el10 | 1.6.9 | installed | detected | yes | signal on Line In (0.059) |
 
 **Arch:** PipeWire first ran with normal scheduling (`TS`): Arch lists
 `rtkit` only as an optional PipeWire dependency, and the guest had neither
@@ -109,3 +110,18 @@ remove it with `sudo rm -rf /var/lib/dkms/eleven-rack/0.1.2~beta8`. PipeWire ran
 provide `srcversion` for loaded modules; `eleven_stats` and the module path
 under `extra/` show that the patched driver is loaded. The unsigned module
 taints the kernel; the guest has no Secure Boot.
+
+**CentOS Stream 10:** as on Fedora, beta15 only builds for its bundled kernel
+(`6.12.0-277.el10`); the guest ran `6.12.0-273.el10` and was updated first.
+CRB and EPEL were enabled as in the installation guide. PipeWire ran at
+`RR 20` through RTKit. The counters in the report were read before its audio
+check and are therefore all zero. A `0.1.2~beta8` DKMS entry from an earlier
+test was again `broken`.
+
+**Kernel sources for other kernels (after beta15):** the fetcher
+`packaging/fetch-fedora-kernel-source.py`, used by DKMS for kernels without
+bundled sources, was run in the guests on 2026-10-21 for kernels beta15 cannot
+build: `7.2.9-101.fc43` (signed copy removed by Fedora, rebuilt from the
+signature cache) and `6.12.0-273.el10` (signed source RPM from the CentOS
+mirror). Both passed `rpm --checksig` and gave `sound/usb` with the spec's
+patches. A full DKMS installation with these changes needs a new package set.
