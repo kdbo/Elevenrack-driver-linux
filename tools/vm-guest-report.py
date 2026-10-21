@@ -27,14 +27,19 @@ import time
 TOOLS = Path('/usr/lib/eleven-rack/tools')
 
 
-def run(*command, timeout=20):
+def run(*command, timeout=20, limit=20000):
+    """Run a command; keep the last `limit` characters of output for the report.
+
+    JSON output must not be cut: pass limit=None for it.
+    """
     if not shutil.which(command[0]):
         return {'missing': command[0]}
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError) as error:
         return {'error': str(error)}
-    return {'exit': result.returncode, 'stdout': result.stdout.strip()[-20000:],
+    stdout = result.stdout.strip()
+    return {'exit': result.returncode, 'stdout': stdout if limit is None else stdout[-limit:],
             'stderr': result.stderr.strip()[-4000:]}
 
 
@@ -90,7 +95,7 @@ def diagnostics():
     script = TOOLS/'eleven_rack_diagnostics.py'
     if not script.exists():
         return {'missing': str(script)}
-    result = run('python3', str(script), '--json', timeout=30)
+    result = run('python3', str(script), '--json', timeout=30, limit=None)
     try:
         return json.loads(result.get('stdout', ''))
     except ValueError:
@@ -114,7 +119,7 @@ def rms(path):
 
 def audio_check():
     """Play a tone on the Rack's Main Out and record its Line In L meanwhile."""
-    dump = run('pw-dump', timeout=10)
+    dump = run('pw-dump', timeout=10, limit=None)
     try:
         objects = json.loads(dump.get('stdout') or '[]')
     except ValueError:
