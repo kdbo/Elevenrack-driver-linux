@@ -61,3 +61,37 @@ Open VirtualBox, select a machine, and start it to install the guest OS. Start
 with one guest at a time. USB controllers and device filters remain disabled
 in this initial setup; no Eleven Rack passthrough or guest package tests have
 been performed.
+
+## Installation reports
+
+`tools/vm-guest-report.py` collects one JSON report per guest. It runs without
+root inside the guest, after the packages are installed and the Rack is passed
+through:
+
+```sh
+python3 vm-guest-report.py --audio-check
+```
+
+It records the distribution, kernel, package and DKMS state, the loaded
+`snd-usb-audio` module, the Rack's devices and driver counters, PipeWire's
+scheduling, the Monitor's diagnostics and the Rack's kernel messages. With
+`--audio-check` it plays a 997 Hz tone on Main Out and records Line In L/R;
+with a Main Out -> Line In cable or loopback the signal shows on Line In. The
+report is written to the home folder.
+
+Driver gap counters and xruns are expected in a guest: USB passthrough timing
+is not representative. Judge only function: module loaded, counters present,
+audio both ways.
+
+## Results with 0.1.2 beta15
+
+| Distribution | Kernel | PipeWire | DKMS | Rack | Counters | Audio check |
+| --- | --- | --- | --- | --- | --- | --- |
+| Arch Linux (2026-10-21) | 7.2.11-arch1-1 | 1.6.9 | installed | detected | yes | signal on Line In (0.058) |
+
+**Arch:** PipeWire first ran with normal scheduling (`TS`): Arch lists
+`rtkit` only as an optional PipeWire dependency, and the guest had neither
+`rtkit` nor `realtime-privileges`. After `sudo pacman -S rtkit` and a reboot,
+PipeWire's `data-loop.0` ran at `FF 88`, its clients at `FF 83`. The Arch
+package depends on `rtkit` from beta16. The Monitor's remaining warning, that
+`ksoftirqd` runs at normal priority, is expected without `threadirqs`.
