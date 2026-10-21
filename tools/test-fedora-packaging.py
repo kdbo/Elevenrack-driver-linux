@@ -137,7 +137,7 @@ class FedoraPackaging(unittest.TestCase):
         self.assertNotIn("'|'.join(re.escape(k) for k in kernels)", text)
         self.assertIn("'fetch-fedora-kernel-source.py'", text)
 
-    def run_post(self, running, kernels):
+    def run_post(self, running, kernels, dkms_entries=(), check=None):
         """Run %post against fake kernels: {release: 'devel' | 'core' | 'fails'}."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -150,13 +150,26 @@ class FedoraPackaging(unittest.TestCase):
             env = fake_commands(root/'bin', {
                 'uname': f'echo {running}',
                 'rpm': 'case "$2" in ' + ''.join(f'kernel-core-{k}) exit 0 ;; ' for k in kernels) + '*) exit 1 ;; esac',
-                'dkms': f'for k in {failing}; do [ "$1" = build ] && [ "$7" = "$k" ] && exit 1; done; exit 0',
+                'dkms': f'echo "dkms $*" >> {root}/dkms.log; '
+                        f'for k in {failing}; do [ "$1" = build ] && [ "$7" = "$k" ] && exit 1; done; exit 0',
                 'depmod': 'exit 0', 'dracut': 'exit 0',
                 'modinfo': 'echo /lib/modules/$2/extra/snd-usb-audio.ko.xz'})
             body = fedora.driver_scripts('0.1.2~beta16').split('\n%preun')[0].split('\n', 1)[1]
+            (root/'dkms').mkdir()
+            for old in dkms_entries:
+                (root/'dkms'/old).mkdir()
+            # DKMS links each kernel to the version built for it; this one dangles afterwards.
+            (root/'dkms/kernel-7.2.9-201.fc44.x86_64-x86_64').symlink_to(root/'dkms/0.1.2~beta8')
+            (root/'usr-src/eleven-rack-0.1.2~beta15').mkdir(parents=True)
+            (root/'usr-src/eleven-rack-0.1.2~beta15/dkms.conf').write_text('')
+            body = body.replace('/var/lib/dkms/eleven-rack', str(root/'dkms'))
+            body = body.replace('/usr/src/eleven-rack-', str(root/'usr-src/eleven-rack-'))
             body = body.replace('/usr/src/kernels', str(root/'src'))
             body = body.replace('/lib/modules 2>', str(root/'modules')+' 2>')
-            return subprocess.run(['sh', '-c', body], capture_output=True, text=True, env=env)
+            result = subprocess.run(['sh', '-c', body], capture_output=True, text=True, env=env)
+            if check:
+                check(root)
+            return result
 
     def test_post_builds_every_installed_kernel_with_headers(self):
         result = self.run_post('7.2.9-201.fc44.x86_64', {'7.2.9-201.fc44.x86_64': 'devel',
@@ -169,6 +182,19 @@ class FedoraPackaging(unittest.TestCase):
                       '(sudo dnf install kernel-devel-6.19.10-300.fc44.x86_64)', result.stdout)
         self.assertIn('Reboot to activate', result.stdout)
         self.assertNotIn('WARNING', result.stderr)
+
+    def test_post_removes_dkms_entries_of_older_versions(self):
+        def check(root):
+            self.assertEqual(sorted(p.name for p in (root/'dkms').iterdir()), ['0.1.2~beta16'])
+            log = (root/'dkms.log').read_text()
+            self.assertIn('dkms remove -m eleven-rack -v 0.1.2~beta15 --all', log)
+            self.assertNotIn('-v 0.1.2~beta8 --all', log)
+        result = self.run_post('7.2.9-201.fc44.x86_64', {'7.2.9-201.fc44.x86_64': 'devel'},
+                               ['0.1.2~beta8', '0.1.2~beta15', '0.1.2~beta16'], check)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('removing the DKMS entry of version 0.1.2~beta8', result.stdout)
+        self.assertIn('removing the DKMS entry of version 0.1.2~beta15', result.stdout)
+        self.assertNotIn('version 0.1.2~beta16', result.stdout)
 
     def test_post_warns_when_the_running_kernel_has_no_driver(self):
         result = self.run_post('7.2.9-201.fc44.x86_64', {'7.2.9-201.fc44.x86_64': 'fails',

@@ -125,6 +125,20 @@ def driver_scripts(version):
 set -e
 echo 'Eleven Rack: registering DKMS sources...'
 test -d /var/lib/dkms/eleven-rack/{version} || dkms add -m eleven-rack -v {version}
+# An upgrade removes the old version's sources but not its DKMS entry. %post
+# runs before the old files go, so remove that entry now; entries of earlier
+# upgrades have lost their sources and DKMS refuses them, so delete those.
+for entry in /var/lib/dkms/eleven-rack/*; do
+    old=${{entry##*/}}
+    case "$old" in {version}|kernel-*|original_module) continue ;; esac
+    [ -d "$entry" ] && [ ! -L "$entry" ] || continue
+    echo "Eleven Rack: removing the DKMS entry of version $old..."
+    if [ -f "/usr/src/eleven-rack-$old/dkms.conf" ]; then
+        dkms remove -m eleven-rack -v "$old" --all || true
+    fi
+    rm -rf "$entry"
+done
+find /var/lib/dkms/eleven-rack -maxdepth 1 -xtype l -delete 2>/dev/null || true
 # Called in an if, so set -e does not apply: every step returns on failure.
 build_kernel() {{
     kernel=$1
