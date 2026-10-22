@@ -23,6 +23,16 @@ def deadline(now):
     if now.hour<4: return now.replace(hour=3,minute=55,second=0,microsecond=0)
     return None
 
+def remove_passed_recordings(output, reports):
+    """Delete raw recordings of a passed task; analyses, logs and failed recordings stay."""
+    results=[row for report in reports for row in report.get('results',[])]
+    if not results or not all(row.get('passed') is True for row in results): return None
+    removed=0
+    for path in output.rglob('*.raw'):
+        if path.is_file() and not path.is_symlink():
+            removed+=path.stat().st_size;path.unlink()
+    return removed
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan',action='store_true')
@@ -95,6 +105,8 @@ def main():
         driver_srcversion=None
         platform=None
         transport=None
+        passed=None
+        removed=None
         if matrices:
             report=json.loads(matrices[0].read_text())
             driver_srcversion=report.get('driver_srcversion')
@@ -102,7 +114,10 @@ def main():
             transport=next((row.get('transport',{}).get('classification') for row in report.get('results',[])),None)
             restored=report.get('restored',False)
             complete=restored and len(report.get('results',[]))==1
-        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'driver_srcversion':driver_srcversion,'platform':platform,'transport':transport,'output':str(output)})
+            passed=all(row.get('passed') is True for row in report.get('results',[])) if complete else None
+            # About 1.3 GB per 30-minute task: keep recordings only where a fault needs inspection.
+            if complete: removed=remove_passed_recordings(output,[json.loads(path.read_text()) for path in matrices])
+        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'passed':passed,'recordings_removed_bytes':removed,'driver_srcversion':driver_srcversion,'platform':platform,'transport':transport,'output':str(output)})
         if complete: state['next_task']=index+1
         save()
         if (storage / 'stop-after-current').exists():
