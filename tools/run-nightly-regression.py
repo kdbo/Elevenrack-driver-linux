@@ -66,7 +66,11 @@ def main():
         temp=statefile.with_suffix('.tmp');temp.write_text(json.dumps(state,indent=2)+'\n');temp.replace(statefile)
     queue=tasks()
     first_task=state['next_task']
-    for index in range(first_task,len(queue)):
+    # Tasks to measure again after the queue, for example after a failure with an outside cause.
+    rerunfile=storage/'reruns.json'
+    reruns=json.loads(rerunfile.read_text()) if rerunfile.exists() else []
+    plan=[(index,False) for index in range(first_task,len(queue))]+[(index,True) for index in reruns if 0<=index<len(queue)]
+    for position,(index,rerun) in enumerate(plan):
         stop_request = storage / 'stop-after-current'
         if stop_request.exists():
             stop_request.unlink()
@@ -77,14 +81,14 @@ def main():
         if remaining<m*60+120: print('Next task reserved for tomorrow');break
         if shutil.disk_usage(storage).free<8*1024**3: print('Stopped: less than 8 GiB free');break
         if subprocess.run(['pgrep','-x','reaper'],stdout=subprocess.DEVNULL).returncode==0: print('REAPER active; postponed');break
-        name=f'{index:03d}-{r}-{q}-{m}min-{kind}-{datetime.now(ZONE):%Y%m%d-%H%M%S}'
+        name=f'{index:03d}-{r}-{q}-{m}min-{kind}-{"rerun-" if rerun else ""}{datetime.now(ZONE):%Y%m%d-%H%M%S}'
         output=storage/name
         print('Starting',name,flush=True)
         analysis_flags = ['--analog-white-noise'] if kind == 'white' else []
         # Explains delay steps: xHCI Ring Underruns versus PipeWire resyncs.
         analysis_flags += ['--transport-trace', '--usb-flight']
         # One SMI/stolen-time calibration per night, before the first audio task.
-        if index == first_task: analysis_flags += ['--platform-calibration', '30']
+        if position == 0: analysis_flags += ['--platform-calibration', '30']
         with (storage/(name+'.log')).open('w') as log:
             child=subprocess.Popen([sys.executable,str(ROOT/'tools/test-audio-regression.py'),*analysis_flags,'--output',str(output),'--profiles',f'{r}:{q}','--minutes',str(m),'--signals',kind],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             try:
@@ -117,14 +121,19 @@ def main():
             passed=all(row.get('passed') is True for row in report.get('results',[])) if complete else None
             # About 1.3 GB per 30-minute task: keep recordings only where a fault needs inspection.
             if complete: removed=remove_passed_recordings(output,[json.loads(path.read_text()) for path in matrices])
-        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'passed':passed,'recordings_removed_bytes':removed,'driver_srcversion':driver_srcversion,'platform':platform,'transport':transport,'output':str(output)})
-        if complete: state['next_task']=index+1
+        state['results'].append({'task':index,'profile':[r,q],'minutes':m,'signal':kind,'returncode':child.returncode,'complete':complete,'restored':restored,'passed':passed,'recordings_removed_bytes':removed,'rerun':rerun,'driver_srcversion':driver_srcversion,'platform':platform,'transport':transport,'output':str(output)})
+        if complete and not rerun: state['next_task']=index+1
         save()
+        if complete and rerun:
+            reruns=json.loads(rerunfile.read_text()) if rerunfile.exists() else []
+            if index in reruns: reruns.remove(index)
+            rerunfile.write_text(json.dumps(reruns)+'\n')
         if (storage / 'stop-after-current').exists():
             (storage / 'stop-after-current').unlink()
             print('Stopped after current measurement; queue retained.', flush=True)
             break
         if not complete:
             print('Incomplete task; queue paused until next night. Inspect logs.',flush=True);break
-    if state['next_task']==len(queue): print('Full regression queue completed; logs retained.')
+    pending=json.loads(rerunfile.read_text()) if rerunfile.exists() else []
+    if state['next_task']==len(queue) and not pending: print('Full regression queue completed; logs retained.')
 if __name__=='__main__': main()

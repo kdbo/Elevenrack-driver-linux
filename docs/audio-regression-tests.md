@@ -92,7 +92,7 @@ The installed user cron job starts daily at 23:00, Europe/Brussels. `run-nightly
 
 A new task only starts if its expected run time plus two minutes of reserve fits in the window. At 03:55, a task that is still running is stopped, leaving time to restore audio before 04:00. A hung process may need to be stopped forcibly; check the restore report in that case. An open REAPER, insufficient disk space (<8 GiB) or another active nightly run prevents starting. This does not detect every other audio application.
 
-A 30-minute task stores about 1.3 GB of recorded and reference audio (`*.raw`). After a complete task that passed, the nightly run deletes these recordings and keeps the analysis files, logs and latency series; `queue.json` records `passed` and `recordings_removed_bytes`. Recordings of failed or incomplete tasks stay for inspection.
+A 30-minute task stores about 1.3 GB of recorded and reference audio (`*.raw`). After a complete task that passed, the nightly run deletes these recordings and keeps the analysis files, logs and latency series; `queue.json` records `passed` and `recordings_removed_bytes`. Recordings of failed or incomplete tasks stay for inspection. To measure a task again after the queue, for example after a failure with an outside cause, add its number to `build/latency/nightly-regression/reruns.json` (a JSON list such as `[274]`); a completed re-run is removed from the list and recorded in `queue.json` with `rerun: true`, without moving the queue.
 
 Leave the computer awake, the user audio session available and the Eleven Rack switched on, with Main Out L → Line In L connected. Cron does not wake a sleeping computer. Disable automatic sleep beforehand for test nights. The tests interrupt normal audio use.
 
