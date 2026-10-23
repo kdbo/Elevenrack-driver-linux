@@ -100,6 +100,27 @@ Progress: `build/latency/nightly-regression/queue.json`. Main log: `build/latenc
 
 The cron job is identified by `# eleven-rack-nightly-regression`. Remove that line with `crontab -e` to disable future nightly runs. This does not stop a run that is already active.
 
+## Results of the 30-minute series, October 2026
+
+Test setup: Dell Latitude 5490 (Intel xHCI without CFC), one Eleven Rack with Main Out L → Line In L, Ubuntu 26.04 with kernel `7.0.0-38-generic` and PipeWire 1.6.2, and the beta12 DKMS driver (`srcversion B736CD3435A1C3D68CBFD6A`). Each task records 30 minutes of one profile and one signal.
+
+| Period | Tasks | PASS | Not passed |
+| --- | --- | --- | --- |
+| 15–19 October, before the interrupt settings | 28 | 23 | 218, 221, 223, 224, 242 |
+| 19–22 October, with the interrupt settings | 44 | 42 | 257, 274 |
+| 22–23 October, re-runs of all seven and 16 random tasks | 23 | 23 | — |
+
+The interrupt settings, applied on 19 October, put the xHCI interrupt on its own CPU and give that CPU's `ksoftirqd` real-time priority; see [delayed USB handling](usb-completion-delays.md). Causes of the seven tasks that did not pass:
+
+- 218, 221 and 224 (48 kHz, pink noise) ran before the pink-noise analysis fix of 17 October.
+- 242 (44100:256, pink noise) was a delay step from a Ring Underrun caused by delayed USB completion handling, before the interrupt settings. 223 (48000:256, white noise) also ran before those settings.
+- 274 (96000:64, white noise) restarted the playback stream at the same milliseconds as two AppArmor profile reloads from a snap update. The snap refresh window was then moved out of the test hours.
+- 257 (88200:64, pink noise) had a delay step of one USB packet without any xHCI error, PipeWire resync, SMI or Ring Underrun. It is the only failure without a known cause.
+
+All seven passed when measured again on 22–23 October. The random tasks favoured buffers of 64 and 128 samples (seed `20261022`).
+
+Conclusion: no failure in this series can be attributed to the driver. With the interrupt settings there are about 33 hours of recorded audio across all 24 profiles and three signals, with one unexplained single-packet step that did not recur. Assuming such events are independent, that bounds a rate caused by the driver to at most about one per 11 hours at 95% confidence; this is an upper bound, not a measured rate. Limitations: one computer and one Rack; the results depend on the interrupt settings, without which this laptop showed about one delay step per hour at some profiles; and the beta12 driver was measured. Later drivers add the counters in `/proc/asound/<card>/eleven_stats` without changing audio handling, but their own long runs are still to be done.
+
 ## Firmware SMIs and system pauses
 
 A System Management Interrupt (SMI) makes the BIOS firmware stop all CPU cores at once. Linux, PipeWire and the driver do not notice it and cannot prevent it. To distinguish such pauses from driver faults, every regression matrix counts SMIs during the recording (`smi.csv` next to `matrix.json`). For each profile, `matrix.json` contains a `platform` block with:
