@@ -203,7 +203,12 @@ Per-user settings are retained.
 **DKMS build failure:** read the build-log path printed by DKMS. Check the
 running kernel, matching development files and supported package targets. See
 [packaging](docs/packaging.md) for log locations. On Ubuntu, after fixing the
-cause, `sudo dpkg --configure -a` retries incomplete package configuration.
+cause, `sudo dpkg --configure -a` retries incomplete package configuration. The
+installation builds the driver for every kernel with headers and ends with a
+status line per kernel. On Ubuntu only a failure for the running kernel stops
+the installation; for an older kernel it is reported and the installation
+continues. Remove the headers of kernels you no longer use, for example
+`sudo apt remove linux-headers-6.17.0-40-generic`.
 
 **Unknown ALSA/media symbols:** verify that the running kernel's complete module
 packages are installed, including `kernel-modules` and `kernel-modules-extra`

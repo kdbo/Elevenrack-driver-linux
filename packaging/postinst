@@ -2,7 +2,48 @@
 set -e
 case "$1" in
     configure)
-        /usr/lib/dkms/common.postinst eleven-rack @VERSION@ /usr/share/eleven-rack "" "$2"
+        version=@VERSION@
+        test -d "/var/lib/dkms/eleven-rack/$version" || dkms add -m eleven-rack -v "$version"
+        # Build for every kernel with headers. DKMS's common.postinst stops at the
+        # first failure, so an old kernel could block the running one; here only
+        # a failure for the running kernel stops the installation.
+        running=$(uname -r)
+        ready=''
+        failed=''
+        skipped=''
+        for build in $(ls -dv /lib/modules/*/build 2>/dev/null); do
+            kernel=${build#/lib/modules/}
+            kernel=${kernel%/build}
+            [ -f "$build/Makefile" ] || continue
+            echo "Eleven Rack: building the driver for $kernel..."
+            status=0
+            dkms build -m eleven-rack -v "$version" -k "$kernel" || status=$?
+            if [ "$status" -eq 77 ]; then
+                # BUILD_EXCLUSIVE_KERNEL: older than 6.8.
+                skipped="$skipped $kernel"
+            elif [ "$status" -eq 0 ] && dkms install -m eleven-rack -v "$version" -k "$kernel"; then
+                ready="$ready $kernel"
+            else
+                failed="$failed $kernel"
+            fi
+        done
+        echo 'Eleven Rack driver:'
+        for kernel in $ready; do echo "  $kernel: ready"; done
+        for kernel in $skipped; do echo "  $kernel: not supported (kernel 6.8 or newer is required)"; done
+        for kernel in $failed; do echo "  $kernel: NOT built, the build failed (see the messages above)"; done
+        case " $ready $skipped $failed " in
+            *" $running "*) ;;
+            *) echo "WARNING: no kernel headers for the running kernel $running; install linux-headers-$running." >&2 ;;
+        esac
+        case " $failed " in
+            *" $running "*)
+                echo "Eleven Rack: the driver could not be built for the running kernel $running." >&2
+                echo 'Fix the problem above and run: sudo dpkg --configure -a' >&2
+                exit 1 ;;
+        esac
+        if [ -n "$failed" ]; then
+            echo 'The driver works on the kernels marked ready; remove the headers of kernels you no longer use.'
+        fi
         if command -v update-initramfs >/dev/null 2>&1; then
             update-initramfs -u -k all
         fi
