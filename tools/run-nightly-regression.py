@@ -38,7 +38,7 @@ def main():
     parser.add_argument('--plan',action='store_true')
     window=parser.add_mutually_exclusive_group()
     window.add_argument('--start-now',action='store_true',help='Manually open a five-hour window using the same queue')
-    window.add_argument('--until', help='Run today until HH:MM Europe/Brussels, reserving five minutes for restoration')
+    window.add_argument('--until', help='Run until the next HH:MM Europe/Brussels (tomorrow if already passed), reserving five minutes for restoration')
     args=parser.parse_args()
     until=None
     if args.until:
@@ -56,7 +56,10 @@ def main():
     except BlockingIOError: print('Another nightly run is active');return
     now=datetime.now(ZONE);end=now+timedelta(hours=4,minutes=55) if args.start_now else deadline(now)
     if until is not None:
-        end=now.replace(hour=until.hour,minute=until.minute,second=0,microsecond=0)-timedelta(minutes=5)
+        end=now.replace(hour=until.hour,minute=until.minute,second=0,microsecond=0)
+        # A time that has already passed today means tomorrow, so a run can last overnight.
+        if end<=now: end+=timedelta(days=1)
+        end-=timedelta(minutes=5)
     if end is None or now>=end: print('Outside testing window');return
     os.environ.setdefault('XDG_RUNTIME_DIR',f'/run/user/{os.getuid()}')
     os.environ.setdefault('DBUS_SESSION_BUS_ADDRESS',f'unix:path={os.environ["XDG_RUNTIME_DIR"]}/bus')
