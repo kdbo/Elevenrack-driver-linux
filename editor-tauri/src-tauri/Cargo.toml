@@ -1,6 +1,6 @@
 [package]
 name = "eleven-rack-editor-tauri"
-version = "0.1.2-beta15"
+version = "0.1.2-beta16"
 edition = "2021"
 rust-version = "1.93"
 license = "MIT"
