@@ -7,6 +7,10 @@
     "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.6.9.tar.gz",
     "sha256": "dbc3624cf71215c26a22fc98f6f71f7b8599f5f6b415eab4a5c90ca96c170c7c"
   },
+  "1.6.10": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.6.10.tar.gz",
+    "sha256": "93b7c4f1e62fd9ec3a921846c6bfc64442872bb2366c2bbc3ea69a427b79a4f9"
+  },
   "1.0.5": {
     "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.0.5.tar.gz",
     "sha256": "c5a5de26d684a1a84060ad7b6131654fb2835e03fccad85059be92f8e3ffe993",
