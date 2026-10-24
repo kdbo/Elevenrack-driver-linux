@@ -96,6 +96,12 @@ A 30-minute task stores about 1.3 GB of recorded and reference audio (`*.raw`). 
 
 Leave the computer awake, the user audio session available and the Eleven Rack switched on, with Main Out L → Line In L connected. Cron does not wake a sleeping computer. Disable automatic sleep beforehand for test nights. The tests interrupt normal audio use.
 
+Do not use the computer during a series, and pause background maintenance that runs into the firmware. On the Dell test laptop each of these caused failures:
+
+- The keyboard backlight switches on at a key press after its timeout (`/sys/class/leds/dell::kbd_backlight/stop_timeout`) through the BIOS, which costs SMIs of 20–30 ms. Switch it off (`Fn+F10`, or write `0` to its `brightness`).
+- `fwupd-refresh.timer` starts fwupd, which queried the BIOS with about 250 SMIs in two seconds. Pause it with `sudo systemctl stop fwupd-refresh.timer` and start it again afterwards.
+- A snap refresh reloads AppArmor profiles; keep its window outside the test hours (`sudo snap set system refresh.timer=…`).
+
 Progress: `build/latency/nightly-regression/queue.json`. Main log: `build/latency/nightly-regression/cron.log`; each task also has its own log and result directory.
 
 The cron job is identified by `# eleven-rack-nightly-regression`. Remove that line with `crontab -e` to disable future nightly runs. This does not stop a run that is already active.
@@ -119,7 +125,13 @@ The interrupt settings, applied on 19 October, put the xHCI interrupt on its own
 
 All seven passed when measured again on 22–23 October. The random tasks favoured buffers of 64 and 128 samples (seed `20261022`).
 
-Conclusion: no failure in this series can be attributed to the driver. With the interrupt settings there are about 33 hours of recorded audio across all 24 profiles and three signals, with one unexplained single-packet step that did not recur. Assuming such events are independent, that bounds a rate caused by the driver to at most about one per 11 hours at 95% confidence; this is an upper bound, not a measured rate. Limitations: one computer and one Rack; the results depend on the interrupt settings, without which this laptop showed about one delay step per hour at some profiles; and the beta12 driver was measured. Later drivers add the counters in `/proc/asound/<card>/eleven_stats` without changing audio handling, but their own long runs are still to be done.
+Conclusion: no failure in this series can be attributed to the driver. With the interrupt settings there are about 33 hours of recorded audio across all 24 profiles and three signals, with one unexplained single-packet step that did not recur. Assuming such events are independent, that bounds a rate caused by the driver to at most about one per 11 hours at 95% confidence; this is an upper bound, not a measured rate. Limitations: one computer and one Rack; the results depend on the interrupt settings, without which this laptop showed about one delay step per hour at some profiles; and the beta12 driver was measured. Later drivers add the counters in `/proc/asound/<card>/eleven_stats` without changing audio handling, and were measured separately below.
+
+### beta16 driver, 24 October 2026
+
+The same laptop and Rack with the beta16 driver (`srcversion AFD4F2399764ADDF1AAC256`), the interrupt settings, the keyboard backlight off and fwupd paused: all 24 combinations with buffers of 64 and 128 samples at 44.1, 48, 88.2 and 96 kHz, each with sine, white and pink noise, 30 minutes each. All 24 passed, all with platform and transport `clean`: no SMIs, no xHCI events on the playback endpoint, no PipeWire resyncs. The driver counters added no playback gaps, xruns, capture packet errors or empty capture URBs during the series.
+
+Two earlier attempts that morning did not pass, both from outside the driver: the first task, started ten minutes after a reboot, had 20 playback endpoint stops that did not recur; the second had one fault at the moment of two keyboard-backlight SMIs while the computer was being used. Before that, an fwupd start caused the only four gaps the counters recorded.
 
 ## Firmware SMIs and system pauses
 
