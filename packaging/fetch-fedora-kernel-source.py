@@ -101,13 +101,38 @@ def download(url, target, signature_url=None):
         shutil.copyfileobj(response, stream, 1 << 20)
 
 
+KEYS = Path('/etc/pki/rpm-gpg')
+
+
+def distribution_keys(srpm):
+    """The distribution's own release keys, as dnf uses them, for this source RPM."""
+    release = re.fullmatch(r'.+-[^-]+-([^-]+)\.src\.rpm', srpm)[1]
+    fedora = re.search(r'\.fc(\d+)$', release)
+    names = ([f'RPM-GPG-KEY-fedora-{fedora[1]}-primary'] if fedora else
+             ['RPM-GPG-KEY-centosofficial-SHA256', 'RPM-GPG-KEY-centosofficial'])
+    keys = [KEYS / name for name in names if (KEYS / name).is_file()]
+    if not keys:
+        raise RuntimeError(f'No distribution signing key in {KEYS} for {srpm}')
+    return keys
+
+
 def verify(path, srpm):
-    """Require a trusted signature and the expected package identity."""
-    result = subprocess.run(['rpm', '--checksig', str(path)], capture_output=True, text=True)
-    if result.returncode != 0 or 'signatures OK' not in result.stdout:
-        raise RuntimeError(f'{srpm} has no trusted signature: {(result.stdout + result.stderr).strip()}')
-    actual = subprocess.check_output(['rpm', '-qp', '--qf', '%{NAME}-%{VERSION}-%{RELEASE}.src.rpm', str(path)],
-                                     text=True).strip()
+    """Require a signature by the distribution's key and the expected package identity.
+
+    The check uses a private keyring holding only that key: during a package
+    installation rpm holds the lock on its own database, and rpm --checksig
+    then cannot read the trusted keys and reports every signature as not OK.
+    """
+    with tempfile.TemporaryDirectory(prefix='keyring-') as keyring:
+        options = ['--dbpath', keyring, '--define', f'_keyringpath {keyring}/pubkeys']
+        subprocess.run(['rpmdb', *options, '--initdb'], check=True, capture_output=True)
+        for key in distribution_keys(srpm):
+            subprocess.run(['rpmkeys', *options, '--import', str(key)], check=True, capture_output=True)
+        result = subprocess.run(['rpmkeys', *options, '--checksig', str(path)], capture_output=True, text=True)
+        if result.returncode != 0 or 'signatures OK' not in result.stdout:
+            raise RuntimeError(f'{srpm} has no trusted signature: {(result.stdout + result.stderr).strip()}')
+        actual = subprocess.check_output(['rpm', *options, '-qp', '--qf', '%{NAME}-%{VERSION}-%{RELEASE}.src.rpm',
+                                          str(path)], text=True).strip()
     if actual != srpm:
         raise RuntimeError(f'Downloaded {actual}, expected {srpm}')
 

@@ -267,17 +267,47 @@ ApplyOptionalPatch linux-kernel-test.patch
             self.assertFalse((root/'tree/sound/core').exists())
             self.assertFalse((root/'tree/Makefile').exists())
 
-    def test_unsigned_source_rpm_is_refused(self):
+    def run_verify(self, checksig, keys=('RPM-GPG-KEY-fedora-44-primary', 'RPM-GPG-KEY-rpmfusion-free')):
+        """verify() with fake rpm tools; returns (error or None, commands run)."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            env = fake_commands(root/'bin', {'rpm': 'echo "kernel.src.rpm: digests OK"; exit 0'})
-            old = os.environ['PATH']
-            os.environ['PATH'] = env['PATH']
+            (root/'keys').mkdir()
+            for key in keys:
+                (root/'keys'/key).write_text('key')
+            log = root/'calls.log'
+            env = fake_commands(root/'bin', {
+                'rpmdb': f'echo "rpmdb $*" >> {log}',
+                'rpmkeys': f'echo "rpmkeys $*" >> {log}\ncase "$*" in *--checksig*) echo "{checksig}" ;; esac',
+                'rpm': 'echo kernel-7.2.9-201.fc44.src.rpm'})
+            old, keydir = os.environ['PATH'], fetch.KEYS
+            os.environ['PATH'], fetch.KEYS = env['PATH'], root/'keys'
             try:
-                with self.assertRaisesRegex(RuntimeError, 'no trusted signature'):
-                    fetch.verify(root/'kernel.src.rpm', 'kernel-7.2.9-201.fc44.src.rpm')
+                fetch.verify(root/'kernel.src.rpm', 'kernel-7.2.9-201.fc44.src.rpm')
+                error = None
+            except RuntimeError as caught:
+                error = str(caught)
             finally:
-                os.environ['PATH'] = old
+                os.environ['PATH'], fetch.KEYS = old, keydir
+            return error, log.read_text() if log.exists() else ''
+
+    def test_signature_checked_with_only_the_distribution_key(self):
+        error, calls = self.run_verify('kernel.src.rpm: digests signatures OK')
+        self.assertIsNone(error)
+        self.assertIn('RPM-GPG-KEY-fedora-44-primary', calls)
+        self.assertNotIn('rpmfusion', calls)
+        # A private database, never the system one that a running installation locks.
+        self.assertTrue(all('--dbpath' in line for line in calls.splitlines()))
+
+    def test_unsigned_source_rpm_is_refused(self):
+        error, _ = self.run_verify('kernel.src.rpm: digests OK')
+        self.assertIn('no trusted signature', error)
+        error, _ = self.run_verify('kernel.src.rpm: digests SIGNATURES NOT OK')
+        self.assertIn('no trusted signature', error)
+
+    def test_missing_distribution_key_is_refused(self):
+        error, calls = self.run_verify('kernel.src.rpm: digests signatures OK', keys=('RPM-GPG-KEY-fedora-43-primary',))
+        self.assertIn('No distribution signing key', error)
+        self.assertNotIn('--checksig', calls)
 
     def test_signature_header_replaces_the_unsigned_one(self):
         def header(entries, store):
