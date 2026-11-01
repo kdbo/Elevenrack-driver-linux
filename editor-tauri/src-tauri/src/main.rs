@@ -78,6 +78,12 @@ fn main() {
     let smoke = args.iter().any(|a| a == "--smoke-test");
     let disabled = smoke || args.iter().any(|a| a == "--no-midi");
     let logs = smoke || args.iter().any(|a| a == "--logs");
+    // WebKitGTK's DMA-BUF renderer shows a black window on NVIDIA's driver and
+    // in VMs without 3D. Set before any thread starts; a user's value wins.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
     let application = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
