@@ -3,6 +3,8 @@
 import hashlib
 import importlib.util
 import json
+import shutil
+import tarfile
 from pathlib import Path
 import tempfile
 import unittest
@@ -33,6 +35,36 @@ class VersionTests(unittest.TestCase):
         with patch.object(builder, 'run', side_effect=FileNotFoundError()):
             with self.assertRaisesRegex(RuntimeError, 'install pipewire'):
                 builder.installed_version()
+
+
+class UnlistedSourceTests(unittest.TestCase):
+    def archive(self, path, alsa_source):
+        tree = path.parent / (path.name + '.tree') / 'pipewire-9.9.9'
+        (tree / 'spa/plugins/alsa').mkdir(parents=True)
+        (tree / 'spa/plugins/alsa/alsa-pcm.c').write_bytes(alsa_source)
+        with tarfile.open(path, 'w:gz') as bundle:
+            bundle.add(tree, arcname='pipewire-9.9.9')
+
+    def fetch(self, *sources):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'work').mkdir()
+            served = {}
+            for url, source in zip(builder.UPSTREAMS, sources):
+                served[url.format(v='9.9.9')] = root / f'{len(served)}.tar.gz'
+                self.archive(served[url.format(v='9.9.9')], source)
+            def download(url, target):
+                shutil.copyfile(served[url], target)
+            with patch.object(builder.urllib.request, 'urlretrieve', side_effect=download):
+                archive, tree = builder.fetch_unlisted('9.9.9', root / 'work')
+                return archive.name, (tree / 'spa/plugins/alsa/alsa-pcm.c').read_bytes()
+
+    def test_matching_hosts_yield_the_canonical_archive(self):
+        self.assertEqual(('upstream-0.tar.gz', b'same'), self.fetch(b'same', b'same'))
+
+    def test_differing_hosts_are_refused(self):
+        with self.assertRaisesRegex(RuntimeError, 'differs between gitlab.freedesktop.org and github.com'):
+            self.fetch(b'upstream', b'tampered')
 
 
 class PackageTests(unittest.TestCase):

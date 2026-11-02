@@ -13,6 +13,11 @@ import tempfile
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
+# Two independent hosts of the upstream tag; the canonical one comes first.
+UPSTREAMS = (
+    'https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/{v}/pipewire-{v}.tar.gz',
+    'https://github.com/PipeWire/pipewire/archive/refs/tags/{v}.tar.gz',
+)
 
 
 def run(*args):
@@ -73,11 +78,43 @@ def plugin_directory(root=Path('/'), multiarch=native_multiarch):
     return matches.pop()
 
 
+def extract(archive, target, version):
+    target.mkdir()
+    with tarfile.open(archive) as bundle:
+        # data filter rejects path traversal and unsafe links/devices.
+        bundle.extractall(target, filter='data')
+    tree = target / f'pipewire-{version}'
+    if not (tree / 'spa/plugins/alsa/alsa-pcm.c').is_file():
+        raise RuntimeError('Archive does not contain the requested PipeWire source tree')
+    return tree
+
+
+def snapshot(tree):
+    """Every path in the tree with its file bytes or link target."""
+    return {str(p.relative_to(tree)): (p.readlink() if p.is_symlink() else
+                                       p.read_bytes() if p.is_file() else None)
+            for p in tree.rglob('*')}
+
+
+def fetch_unlisted(version, work):
+    """An uncatalogued release, accepted only when both upstream hosts serve the same tree."""
+    trees = []
+    for index, url in enumerate(UPSTREAMS):
+        archive = work / f'upstream-{index}.tar.gz'
+        print('Downloading', url.format(v=version), flush=True)
+        urllib.request.urlretrieve(url.format(v=version), archive)
+        trees.append((archive, extract(archive, work / f'upstream-{index}', version)))
+    if snapshot(trees[0][1]) != snapshot(trees[1][1]):
+        raise RuntimeError(f'PipeWire {version} differs between {" and ".join(u.split("/")[2] for u in UPSTREAMS)}; '
+                           'refusing to patch/build')
+    return trees[0]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pipewire-version', help='Defaults to the installed PipeWire version')
     parser.add_argument('--archive', type=Path, help='Local pristine upstream PipeWire tar.gz')
-    parser.add_argument('--sha256', help='Required for versions outside packaging/pipewire-sources.json')
+    parser.add_argument('--sha256', help='Required with --archive for versions outside packaging/pipewire-sources.json')
     parser.add_argument('--spa-plugin-dir', type=Path, help='System SPA directory on the target distro')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/latency')
     args = parser.parse_args()
@@ -87,10 +124,12 @@ def main():
     sources = json.loads((ROOT / 'packaging/pipewire-sources.json').read_text())
     source = sources.get(version, {})
     expected = args.sha256 or source.get('sha256')
-    if not expected or not re.fullmatch(r'[a-fA-F0-9]{64}', expected):
-        parser.error(f'PipeWire {version} has no valid source checksum; supply --archive '
-                     'and --sha256 or add this release to packaging/pipewire-sources.json')
-    if not source and not args.archive:
+    # Without a pinned checksum, a release is fetched from both upstream hosts instead.
+    unlisted = not expected and not args.archive
+    if not unlisted and (not expected or not re.fullmatch(r'[a-fA-F0-9]{64}', expected)):
+        parser.error(f'PipeWire {version} has no valid source checksum; supply --sha256 '
+                     'with --archive or add this release to packaging/pipewire-sources.json')
+    if not source and not args.archive and not unlisted:
         parser.error(f'Supply --archive for unlisted PipeWire {version}')
     spa_dir = args.spa_plugin_dir or plugin_directory()
     # These paths are embedded in C and systemd configuration; reject control characters.
@@ -103,20 +142,19 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='eleven-pipewire-') as directory:
         work = Path(directory)
-        archive = args.archive
-        if archive is None:
-            archive = work / 'pipewire.tar.gz'
-            print('Downloading', source['url'], flush=True)
-            urllib.request.urlretrieve(source['url'], archive)
-        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-        if digest.lower() != expected.lower():
-            raise RuntimeError('PipeWire archive SHA-256 mismatch; refusing to patch/build')
-        with tarfile.open(archive) as bundle:
-            # data filter rejects path traversal and unsafe links/devices.
-            bundle.extractall(work, filter='data')
-        tree = work / f'pipewire-{version}'
-        if not (tree / 'spa/plugins/alsa/alsa-pcm.c').is_file():
-            raise RuntimeError('Archive does not contain the requested PipeWire source tree')
+        if unlisted:
+            archive, tree = fetch_unlisted(version, work)
+            digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        else:
+            archive = args.archive
+            if archive is None:
+                archive = work / 'pipewire.tar.gz'
+                print('Downloading', source['url'], flush=True)
+                urllib.request.urlretrieve(source['url'], archive)
+            digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+            if digest.lower() != expected.lower():
+                raise RuntimeError('PipeWire archive SHA-256 mismatch; refusing to patch/build')
+            tree = extract(archive, work / 'source', version)
         patch = ROOT / 'packaging' / source.get('patch', 'pipewire-eleven-latency.patch')
         subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', '-p1', '-i', str(patch)],
                        cwd=tree, check=True)
@@ -135,6 +173,7 @@ def main():
         # Publish only after successful compilation and linking.
         metadata = {
             'pipewire_version': version, 'source_sha256': digest,
+            'source_verification': 'matching upstream hosts' if unlisted else 'pinned checksum',
             'patch_sha256': hashlib.sha256(patch.read_bytes()).hexdigest(),
             'spa_plugin_dir': str(spa_dir), 'system_alsa_plugin': str(original),
             'machine': run('uname', '-m'),

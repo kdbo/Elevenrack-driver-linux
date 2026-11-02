@@ -70,11 +70,15 @@ class UniversalBackendTests(unittest.TestCase):
                 installer.install(self.source, self.destination)
             run.assert_not_called()
 
-    def test_unknown_version_requests_package_update_without_version_prompt(self):
+    def test_unbundled_version_is_left_to_the_builder_to_download(self):
         detected = SimpleNamespace(installed_version=lambda: '9.9.9', plugin_directory=self.detected.plugin_directory)
-        with patch.object(installer, 'builder', return_value=detected):
-            with self.assertRaisesRegex(RuntimeError, 'updated Eleven Rack driver package'):
+        failure = subprocess.CalledProcessError(1, 'build-latency-backend.py')
+        with patch.object(installer, 'builder', return_value=detected), \
+                patch.object(installer.subprocess, 'run', side_effect=failure) as run:
+            with self.assertRaises(subprocess.CalledProcessError):
                 installer.install(self.source, self.destination)
+        self.assertNotIn('--archive', run.call_args.args[0])
+        self.assertFalse((self.destination / installer.GENERATED[0]).exists())
 
     def test_removal_leaves_other_audio_files_untouched(self):
         for name in installer.GENERATED:
@@ -88,7 +92,7 @@ class UniversalBackendTests(unittest.TestCase):
         self.assertTrue(all(not (self.destination / name).exists() for name in installer.GENERATED))
 
     def test_failed_cli_install_disables_previous_backend(self):
-        # An empty catalog rejects any installed version without compiling or fetching.
+        # With an empty catalog the fixture builder fails, as an offline download would.
         (self.source / 'packaging/pipewire-sources.json').write_text('{}')
         for name in installer.GENERATED:
             target = self.destination / name

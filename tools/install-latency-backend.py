@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the bundled backend for installed PipeWire without downloading sources."""
+"""Build the backend for installed PipeWire from bundled sources, downloading only unbundled releases."""
 import argparse
 import hashlib
 import importlib.util
@@ -34,11 +34,14 @@ def install(source_root, destination):
     catalog = json.loads((source_root / 'packaging/pipewire-sources.json').read_text())
     source = catalog.get(version)
     if source is None:
-        raise RuntimeError(f'PipeWire {version} is not in the bundled source catalog; '
-                           'install an updated Eleven Rack driver package. No Ubuntu version selection is required.')
-    archive = source_root / 'archives' / f'pipewire-{version}.tar.gz'
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != source['sha256']:
-        raise RuntimeError('Bundled PipeWire source checksum mismatch')
+        # A PipeWire update newer than this package: the builder fetches it from both upstream hosts.
+        print(f'PipeWire {version} is not bundled; downloading its sources', flush=True)
+        archive, source, origin = None, {}, {'source_verification': 'matching upstream hosts'}
+    else:
+        archive = source_root / 'archives' / f'pipewire-{version}.tar.gz'
+        if hashlib.sha256(archive.read_bytes()).hexdigest() != source['sha256']:
+            raise RuntimeError('Bundled PipeWire source checksum mismatch')
+        origin = {'source_sha256': source['sha256']}
     state = destination / 'var/lib/eleven-rack/latency'
     metadata_path = state / 'backend-build.json'
     library = destination / GENERATED[0]
@@ -46,14 +49,17 @@ def install(source_root, destination):
     config = source_root / 'config/52-eleven-rack-latency.conf'
     expected = {
         'pipewire_version': version,
-        'source_sha256': source['sha256'],
+        **origin,
         'patch_sha256': hashlib.sha256(patch.read_bytes()).hexdigest(),
         'correction_config_sha256': hashlib.sha256(config.read_bytes()).hexdigest(),
         'spa_plugin_dir': str(spa_dir),
         'wrapper_sha256': hashlib.sha256((source_root / 'tools/spa-eleven-alsa.c').read_bytes()).hexdigest(),
         'builder_sha256': hashlib.sha256((source_root / 'tools/build-latency-backend.py').read_bytes()).hexdigest(),
     }
-    metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
+    try:
+        metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
+    except ValueError:
+        metadata = {}  # Damaged metadata only means the previous build cannot be reused.
     cached = all(metadata.get(key) == value for key, value in expected.items())
     cached = cached and library.exists() and hashlib.sha256(library.read_bytes()).hexdigest() == metadata.get('library_sha256')
     state.mkdir(parents=True, exist_ok=True)
@@ -61,7 +67,8 @@ def install(source_root, destination):
         work = Path(temporary)
         if not cached:
             subprocess.run([sys.executable, str(source_root / 'tools/build-latency-backend.py'),
-                            '--archive', str(archive), '--output', str(work)], check=True)
+                            *(['--archive', str(archive)] if archive else []),
+                            '--output', str(work)], check=True)
             subprocess.run([sys.executable, str(source_root / 'tools/check-latency-backend.py'),
                             '--build', str(work)], check=True)
             built_metadata = json.loads((work / 'backend-build.json').read_text())

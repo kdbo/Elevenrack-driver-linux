@@ -41,10 +41,16 @@ python3 tools/build-latency-backend.py
 python3 tools/check-latency-backend.py
 ```
 
-The builder detects the installed PipeWire version. The source catalog pins
-upstream archives and SHA-256 checksums for 1.6.2 and 1.6.9. Downloads use HTTPS,
-the archive checksum is checked before extraction, and patching refuses fuzzy
-matches. Upstream archives omit distribution-specific source changes; if a
+The builder detects the installed PipeWire version. The source catalog
+(`packaging/pipewire-sources.json`) pins upstream archives and SHA-256
+checksums. Downloads use HTTPS, the archive checksum is checked before
+extraction, and patching refuses fuzzy matches. A release outside the catalog
+is downloaded from both gitlab.freedesktop.org and GitHub and used only when
+the two source trees are identical; `backend-build.json` records which check
+was applied. The Ubuntu and Arch packages rebuild the backend after each
+PipeWire update from the bundled archives, and use the same two-host download
+only for a release newer than the package; without network access the backend
+stays disabled until the next update. Upstream archives omit distribution-specific source changes; if a
 distribution patches these ALSA files, review those changes before deployment.
 
 A local archive or a different source release can be selected explicitly:
