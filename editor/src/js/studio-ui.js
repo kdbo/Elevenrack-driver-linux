@@ -654,12 +654,17 @@
   }
   function rad(deg) { return (deg - 90) * Math.PI / 180; }
 
-  function drawMeter(canvas, m, db, now, label) {
-    const w = 200, h = 118, ctx = prep(canvas, w, h);
-    const dt = Math.min(0.05, (now - (m.last || now)) / 1000); m.last = now;
-    const target = dbToAngle(db);
-    m.angle += (target - m.angle) * Math.min(1, dt * 14);
-    // face
+  // The face is drawn once into an offscreen canvas: redrawing its gradients
+  // and labels every frame kept WebKit busy and made the whole editor slow
+  // without GPU acceleration.
+  const VU_W = 200, VU_H = 118, VU_PX = VU_W / 2, VU_PY = VU_H, VU_R = 88;
+  function meterFace(m, dpr, label) {
+    const w = VU_W, h = VU_H, px = VU_PX, py = VU_PY, r = VU_R, key = label + '@' + dpr;
+    if (m.face && m.faceKey === key) return m.face;
+    const face = document.createElement('canvas');
+    face.width = Math.round(w * dpr); face.height = Math.round(h * dpr);
+    const ctx = face.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     let g = ctx.createRadialGradient(w / 2, h * 0.1, 4, w / 2, h * 0.6, w * 0.8);
     g.addColorStop(0, '#f8f0da'); g.addColorStop(0.6, '#f1e7cc'); g.addColorStop(1, '#d0c09b');
     rr(ctx, 0, 0, w, h, 8); ctx.fillStyle = g; ctx.fill();
@@ -667,7 +672,6 @@
     g.addColorStop(0, 'rgba(255,196,110,0.35)'); g.addColorStop(1, 'rgba(255,196,110,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     // scale: an arc from the pivot, red only from 0 to +3
-    const px = w / 2, py = h, r = 88;
     const arc = function (a0, a1, col, lw) { ctx.beginPath(); ctx.arc(px, py, r, rad(a0), rad(a1)); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'butt'; ctx.stroke(); };
     arc(SCALE[0][1], dbToAngle(0), '#1a1a1a', 2);
     arc(dbToAngle(0), SCALE[SCALE.length - 1][1], '#c8281e', 4);
@@ -685,6 +689,24 @@
     });
     ctx.font = '800 15px Manrope, Helvetica, Arial, sans-serif'; ctx.fillStyle = '#2a2622'; ctx.fillText('VU', px, h - 22);
     ctx.font = '700 6.5px Manrope, Helvetica, Arial, sans-serif'; ctx.fillStyle = '#5a534a'; ctx.fillText(label, px, h - 10);
+    ctx.font = '700 5.5px Manrope, Helvetica, Arial, sans-serif'; ctx.fillText('PEAK', w - 14, 23);
+    m.face = face; m.faceKey = key;
+    return face;
+  }
+  // Fonts that finish loading after the first frame need a new face.
+  if (document.fonts) document.fonts.addEventListener('loadingdone', function () { VU.l.face = VU.r.face = null; });
+
+  function drawMeter(canvas, m, db, now, label) {
+    const w = VU_W, h = VU_H, px = VU_PX, py = VU_PY, r = VU_R;
+    const dt = Math.min(0.05, (now - (m.last || now)) / 1000); m.last = now;
+    const target = dbToAngle(db);
+    m.angle += (target - m.angle) * Math.min(1, dt * 14);
+    const lit = db >= 2, face = meterFace(m, Math.min(window.devicePixelRatio || 1, 3), label);
+    // A resting needle needs no new frame.
+    if (m.canvas === canvas && m.drawn === face && m.lit === lit && Math.abs(m.angle - m.drawnAngle) < 0.05) return;
+    m.canvas = canvas; m.drawn = face; m.lit = lit; m.drawnAngle = m.angle;
+    const ctx = prep(canvas, w, h);
+    ctx.drawImage(face, 0, 0, w, h);
     // needle + pivot
     const a = rad(m.angle);
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 2; ctx.shadowOffsetY = 1;
@@ -692,10 +714,8 @@
     ctx.strokeStyle = '#111'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.stroke(); ctx.restore();
     ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.fillStyle = '#2b2e33'; ctx.fill();
     // peak lamp
-    const lit = db >= 2;
     ctx.beginPath(); ctx.arc(w - 14, 14, 3.5, 0, Math.PI * 2); ctx.fillStyle = lit ? '#ff3b30' : '#5a1a16'; ctx.fill();
     if (lit) { ctx.save(); ctx.shadowColor = '#ff3b30'; ctx.shadowBlur = 8; ctx.fill(); ctx.restore(); }
-    ctx.font = '700 5.5px Manrope, Helvetica, Arial, sans-serif'; ctx.fillStyle = '#5a534a'; ctx.fillText('PEAK', w - 14, 23);
   }
   function vuLoop(now) {
     updateActivity(now);
