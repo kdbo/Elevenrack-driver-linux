@@ -427,7 +427,6 @@
     master.appendChild(ms);
     $('meter-row').appendChild($('out-vol-group'));
     $('meter-row').appendChild($('tempo-wrap'));
-    $('tempo-label').appendChild(mk('i', { class: 'activity-led tempo-led', id: 'tempo-activity-led', 'aria-hidden': 'true', title: 'Pulse at the current tempo' }));
     const rs = mk('div', { class: 'glass strip rig' }, '<span class="label">Rig &amp; bank</span><div id="rig-buttons"></div>');
     master.appendChild(rs);
     const rb = $('rig-buttons');
@@ -634,15 +633,11 @@
     return SCALE[SCALE.length - 1][1];
   }
   const VU = { l: { angle: -46, last: 0 }, r: { angle: -46, last: 0 }, raf: null, ext: null, extAt: 0 };
-  const activity = { midiUntil: 0, tempo: null, beatAt: 0 };
+  const activity = { midiUntil: 0 };
   function updateActivity(now) {
     const connected = typeof bridgeMidiReady !== 'undefined' && bridgeMidiReady;
-    const midi = $('midi-activity-led'), tempo = $('tempo-activity-led');
+    const midi = $('midi-activity-led');
     if (midi) midi.classList.toggle('on', connected && now < activity.midiUntil);
-    const bpm10 = connected && typeof currentTempoTenths === 'number' && currentTempoTenths > 0 ? currentTempoTenths : null;
-    if (activity.tempo !== bpm10) { activity.tempo = bpm10; activity.beatAt = now; }
-    const period = bpm10 ? 600000 / bpm10 : 0;
-    if (tempo) tempo.classList.toggle('on', !!period && (now - activity.beatAt) % period < Math.min(90, period * 0.2));
   }
   if (typeof handleBridgeMsg === 'function') {
     const orig = handleBridgeMsg;

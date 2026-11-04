@@ -134,9 +134,6 @@ means no Rack is connected or pw-record is missing. The tuner needle
 continues to follow live tuning data from the Rack.
 
 A small green MIDI IN indicator flashes on incoming MIDI messages.
-The amber indicator next to TEMPO pulses at the displayed BPM while
-connected. It is a visual tempo reference, not a hardware beat-phase
-or MIDI-clock synchronization indicator.
 
 Cab Always Off, Cabinet Resonance, FX Loop global routing and Digital
 Output Mode are hardware-wide settings, rather than individual preset
