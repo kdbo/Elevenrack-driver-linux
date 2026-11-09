@@ -42,11 +42,12 @@ The macOS DMG bundles the Eleven Rack audio driver for Apple Silicon:
 vendored under driver/ (see driver/LICENSE and driver/README-ELEVEN-EDIT.md)
 with Eleven Edit's playback fixes on top (driver/History.txt, 1.2.0).
 
-The Mac build bundles two typefaces under the SIL Open Font License 1.1
+The Mac build bundles three typefaces under the SIL Open Font License 1.1
 (src/fonts/, licence texts alongside):
 
     Manrope -- Copyright 2018 The Manrope Project Authors (Mikhail Sharanda)
     JetBrains Mono -- Copyright 2020 The JetBrains Mono Project Authors
+    Damion -- Copyright 2014 The Damion Project Authors (Vernon Adams)
 
 Amp, cabinet and effect names shown as "based on" in the interface are
 trademarks of their respective owners, who are not associated with this
