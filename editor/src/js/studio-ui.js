@@ -70,8 +70,8 @@
   // is based on — shape, colours and control layout only, with the rack's own
   // model names and no maker's logo or lettering. Models without an entry keep
   // the family amp / category pedal above. Values are look keys in studio.css.
-  const AMP_DEVICE = { plexivari: 'plexi-vari', plexi50: 'plexi-50', plexi100: 'plexi-100', j45: 'jtm45', lead800: 'lead800', ac_hi: 'ac30', tweed_bass: 'tweed-bass', tweed_lux: 'tweed-lux', lux_vib: 'lux-vib', lux_norm: 'lux-norm', black_vib: 'black-vib', black_sr: 'black-sr', black_duo: 'black-duo', black_mini: 'black-mini', blueline: 'blue-line', m2lead: 'm2-lead', sl100drive: 'sl100-drive', sl100crunch: 'sl100-crunch', sl100clean: 'sl100-clean' };
-  const CAB_DEVICE = { 0: 'custom18', 1: 'lux112', 2: 'tweed112', 3: 'open115', 4: 'ac212', 5: 'blackduo212', 8: 'tweed410', 9: 'blacksr410', 10: 'mk1960c30', 11: 'mk1960', 12: 'basket412', 13: 'green20', 14: 'blueline810' };   // by cab-type-select index
+  const AMP_DEVICE = { plexivari: 'plexi-vari', plexi50: 'plexi-50', plexi100: 'plexi-100', j45: 'jtm45', lead800: 'lead800', ac_hi: 'ac30', tweed_bass: 'tweed-bass', tweed_lux: 'tweed-lux', lux_vib: 'lux-vib', lux_norm: 'lux-norm', black_vib: 'black-vib', black_sr: 'black-sr', black_duo: 'black-duo', black_mini: 'black-mini', blueline: 'blue-line', m2lead: 'm2-lead', sl100drive: 'sl100-drive', sl100crunch: 'sl100-crunch', sl100clean: 'sl100-clean', treadmod: 'tread-mod', treadvint: 'tread-vint', ms30: 'ms30', rb01b_red: 'rb101-red', rb01b_blue: 'rb101-blue', rb01b_green: 'rb101-green', dc_bass: 'dc-bass', dc_vint_crunch: 'dc-vint-crunch', dc_vint_od: 'dc-vint-od', dc_vint_clean: 'dc-vint-clean', dc_mod_clean: 'dc-mod-clean', dc_mod800: 'dc-mod800', dc_mod_sod: 'dc-mod-sod', dc_mod_od: 'dc-mod-od' };
+  const CAB_DEVICE = { 0: 'custom18', 1: 'lux112', 2: 'tweed112', 3: 'open115', 4: 'ac212', 5: 'blackduo212', 6: 'b30212', 7: 'silver212', 8: 'tweed410', 9: 'blacksr410', 10: 'mk1960c30', 11: 'mk1960', 12: 'basket412', 13: 'green20', 14: 'blueline810' };   // by cab-type-select index
   const MIC_DEVICE = { 1: 'dyn57' };        // by mic-type-select index
   const DIST_DEVICE = { 0x17: 'tri-fuzz', 0x18: 'black-op', 0x19: 'green-jrc', 0x1A: 'white-boost', 0x1B: 'dc-dist' };
   const WAH_DEVICE = { 0x23: 'shine-wah', 0x24: 'black-wah' };
@@ -664,6 +664,19 @@
     }
     return renderImgs[key];
   }
+  // every part of a look loaded ahead, so a change of model shows at once
+  function preloadRender(dev) {
+    const m = RENDERS[dev];
+    if (!m || m.frames || m.spin === undefined) return;
+    renderImg(dev, 'body');
+    Object.keys(m.knobs || {}).forEach(k => renderImg(dev, 'knob-' + k));
+    Object.keys(m.toggles || {}).forEach(k => renderImg(dev, 'tog-' + k));
+  }
+  (function preloadAll() {
+    const devs = Object.keys(RENDERS);
+    const idle = window.requestIdleCallback || (fn => setTimeout(fn, 30));
+    (function next() { if (devs.length) { preloadRender(devs.shift()); idle(next); } })();
+  })();
   function drawRenderedKnob(canvas, value127, wrap, dev) {
     canvas.dataset.look = 'render:' + dev;
     if (wrap.dataset.slider) {
@@ -752,6 +765,11 @@
       el.querySelectorAll('.render-bar').forEach(n => n.classList.remove('render-bar'));
       return;
     }
+    // a new model: its knobs drawn straight away (not left to a later, maybe
+    // deferred, repaint that would show the previous model's in their place)
+    const changed = el.dataset.laidOut !== dev;
+    el.dataset.laidOut = dev;
+    preloadRender(dev);
     if (!body) { body = mk('img', { class: 'render-body', alt: '' }); host.insertAdjacentElement('afterbegin', body); }
     const src = RENDER_BASE + dev + '-body.webp';
     if (body.getAttribute('src') !== src) body.setAttribute('src', src);
@@ -787,7 +805,12 @@
       if (!p) return;
       const size = Math.round(m.knob * p[2]);
       k.style.left = p[0] + 'px'; k.style.top = p[1] + 'px';
-      if (w.style.width !== size + 'px') { w.style.width = w.style.height = size + 'px'; const c = w.querySelector('canvas.knob-canvas'); if (c) drawKnob(c, clamp127(w.dataset.value)); }
+      if (w.style.width !== size + 'px' || changed) {
+        w.style.width = w.style.height = size + 'px';
+        const c = w.querySelector('canvas.knob-canvas');
+        if (c && knobLook(w) === 'render:' + dev) drawRenderedKnob(c, clamp127(w.dataset.value), w, dev);
+        else if (c) drawKnob(c, clamp127(w.dataset.value));
+      }
     });
     const led = el.querySelector('.pedal-led-wrap');
     if (led) { led.style.left = m.led[0] + 'px'; led.style.top = m.led[1] + 'px'; }
@@ -1169,7 +1192,7 @@
     setDevice(obj, ampDev);
     if (obj.dataset.cab !== cabDev) { if (cabDev) obj.dataset.cab = cabDev; else delete obj.dataset.cab; }
     // a rendered cabinet: its picture under the grille's name plate
-    const cabRender = { basket412: 'cab-green25', green20: 'cab-green20', ac212: 'cab-ac212', tweed410: 'cab-tweed410', tweed112: 'cab-tweed112', mk1960: 'cab-1960', mk1960c30: 'cab-1960c30', open115: 'cab-1x15', lux112: 'cab-lux112', blacksr410: 'cab-blacksr410', blackduo212: 'cab-blackduo212', custom18: 'cab-custom18', blueline810: 'cab-blueline810' }[cabDev], cabEl = obj.querySelector('.cab');
+    const cabRender = { basket412: 'cab-green25', green20: 'cab-green20', ac212: 'cab-ac212', tweed410: 'cab-tweed410', tweed112: 'cab-tweed112', mk1960: 'cab-1960', mk1960c30: 'cab-1960c30', open115: 'cab-1x15', lux112: 'cab-lux112', blacksr410: 'cab-blacksr410', blackduo212: 'cab-blackduo212', custom18: 'cab-custom18', blueline810: 'cab-blueline810', silver212: 'cab-silver212', b30212: 'cab-b30212' }[cabDev], cabEl = obj.querySelector('.cab');
     if (cabEl) {
       let ci = cabEl.querySelector(':scope > img.render-cab');
       if (cabRender && RENDERS[cabRender]) {

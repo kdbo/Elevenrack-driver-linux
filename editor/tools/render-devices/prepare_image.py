@@ -892,17 +892,19 @@ def tweed_lux(src, out):
     return dict(im=im, knobs=knobs, r=74, pieces=pieces, shape=Image.new('L', im.size, 255))
 
 
-def surround(im, near_bg, whole_edge=False):
+def surround(im, near_bg, whole_edge=False, holes=()):
     # the outline of a device drawn on a plain backdrop: the backdrop (pixels
     # whose grey level near_bg accepts) flooded from the corners and edges'
     # middles (whole_edge: from anywhere on the edge, for pockets of backdrop
     # a cut leaves on it; not on a black backdrop, where the device's own
-    # darkest edge would go with it)
+    # darkest edge would go with it; holes: seeds in backdrop the device
+    # encloses, such as inside a handle)
     cand = im.convert('L').point(lambda v: 255 if near_bg(v) else 0)
     w, h = im.size
     seeds = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (w // 2, 0), (w // 2, h - 1)]
     if whole_edge:
         seeds += [(x, y) for x in range(w) for y in (0, h - 1)] + [(x, y) for y in range(h) for x in (0, w - 1)]
+    seeds += list(holes)
     for seed in seeds:
         if cand.getpixel(seed) == 255:
             ImageDraw.floodfill(cand, seed, 128)
@@ -1425,6 +1427,427 @@ def sl100(name, switch):
     return prepare
 
 
+def treadplate(mode, live):
+    # a Solo Head: two channels of the rack's six knobs, in the rack's
+    # order; live: the row the rack's model is (0 top, 1 bottom), the other
+    # row and the loop's master stay as drawn, dimmed
+    def prepare(src, out):
+        im0 = Image.open(src).convert('RGBA')
+        im = im0.copy()
+        # the maker's badge: its letters painted out along the plate's rows,
+        # the name and the mode lettered on in their place
+        region = Image.new('L', im.size, 0)
+        d = ImageDraw.Draw(region)
+        d.rectangle((925, 233, 1268, 280), fill=255)
+        d.rectangle((990, 294, 1190, 316), fill=255)
+        unprint(im, region, ink=lambda p: max(p) > 80)
+        for text, (x, y), size in (('TREADPLATE', (1090, 257), 42), (mode, (1090, 305), 18)):
+            f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), size * 3)
+            f.set_variation_by_name('ExtraBold')
+            t = Image.new('RGBA', (400 * 3, 70 * 3), (0, 0, 0, 0))
+            ImageDraw.Draw(t).text((600, 105), text, font=f, fill='#d6d6d3', anchor='mm', stroke_width=3, stroke_fill='#55565a')
+            t = t.resize((400, 70), Image.LANCZOS)
+            im.alpha_composite(t, (x - 200, y - 35))
+        # the model's logo makes way for the rack's, in the same vintage
+        # badge style: a ring with the mode arched in its top, the name in
+        # cream script across it, a ribbon over its foot
+        patch_tiled(im, (1640, 456, 1662, 634), (414, 456, 740, 634), feather=3)
+        cream = '#efe3c4'
+        cx, cy, R = 577, 552, 88
+        d = ImageDraw.Draw(im)
+        d.ellipse((cx - R, cy - R, cx + R, cy + R), outline=cream, width=4)
+        f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), 25)
+        f.set_variation_by_name('ExtraBold')
+        r = R - 22                                  # the letters' middle line
+        ws = [f.getlength(ch) + 3 for ch in mode]   # each letter's share of the arc
+        at = -sum(ws) / 2
+        for ch, w in zip(mode, ws):
+            a = (at + w / 2) / r
+            at += w
+            t = Image.new('RGBA', (44, 44), (0, 0, 0, 0))
+            ImageDraw.Draw(t).text((22, 22), ch, font=f, fill=cream, anchor='mm')
+            t = t.rotate(-math.degrees(a), resample=Image.BICUBIC)
+            x, y = cx + r * math.sin(a), cy - r * math.cos(a)
+            im.alpha_composite(t, (round(x - 22), round(y - 22)))
+        script_logo(im, 'Cali Recto', (577, 548), 70, fill=cream, edge='#14120e')
+        d.rounded_rectangle((497, 596, 657, 628), 15, fill='#151515', outline=cream, width=3)
+        label(im, '100W HEAD', (577, 612), 21, fill=cream, squeeze=0.9, weight='ExtraBold')
+        # the live row's knobs drawn alike, pointing at noon (the drawing's
+        # point anywhere), the rest dimmed where they are
+        knob = cut_knob(im0, (951, 490), 36)
+        # at the editor's size its thin printed line is lost on the chrome: a
+        # bold white pointer with a dark edge instead, the cap sharpened
+        knob = knob.filter(ImageFilter.UnsharpMask(2, 120, 2))
+        kd = ImageDraw.Draw(knob)
+        kc = knob.width / 2
+        kd.line((kc, kc - 3, kc, kc - 31), fill=(12, 12, 12, 255), width=11)
+        kd.line((kc, kc - 5, kc, kc - 29), fill=(250, 250, 246, 255), width=6)
+        cols = ((951, 951), (1111, 1109), (1263, 1264), (1419, 1417), (1573, 1574), (1724, 1729))
+        knobs, dead = {}, [(784, 541)]
+        for slot, xs in enumerate(cols):              # Master, Presence, Bass, Middle, Treble, Gain
+            for row, (x, y) in enumerate(((xs[0], 490), (xs[1], 587))):
+                if row == live:
+                    im.alpha_composite(knob, (round(x - knob.width / 2), round(y - knob.height / 2)))
+                    knobs[str(slot)] = (x, y)
+                else:
+                    dead.append((x, y))
+        for x, y in dead:
+            box = (x - 40, y - 40, x + 40, y + 40)
+            k = im.crop(box)
+            g = Image.merge('RGB', [k.convert('L')] * 3).convert('RGBA')
+            g = Image.blend(g, Image.new('RGBA', g.size, (28, 28, 28, 255)), 0.45)
+            m = Image.new('L', k.size, 0)
+            ImageDraw.Draw(m).ellipse((4, 4, 76, 76), fill=255)
+            im.paste(g, box[:2], m.filter(ImageFilter.GaussianBlur(2)))
+        return dict(im=im, knobs=knobs, r=36, shape=surround(im, lambda v: v >= 245))
+    return prepare
+
+
+def ms30(src, out):
+    im = Image.open(src).convert('RGBA')
+    # the maker's name covered with the plate's own shading, the rack's on in
+    # the same cream serif capitals (no serif font ships with the editor:
+    # the system's Liberation Serif, for this tool only)
+    face = Image.new('RGBA', (650, 88))
+    strip = im.crop((535, 522, 570, 610)).convert('RGB')
+    for y in range(face.height):                # each row's own shade, smooth like the glossy plate
+        row = [strip.getpixel((x, y)) for x in range(strip.width)]
+        ImageDraw.Draw(face).line((0, y, face.width, y), fill=tuple(sum(c[k] for c in row) // len(row) for k in range(3)) + (255,))
+    m = Image.new('L', face.size, 0)
+    ImageDraw.Draw(m).rectangle((4, 4, face.width - 5, face.height - 5), fill=255)
+    im.paste(face, (565, 522), m.filter(ImageFilter.GaussianBlur(2)))
+    f = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf', 100 * 2)
+    t = Image.new('RGBA', (640 * 2, 110 * 2), (0, 0, 0, 0))
+    td = ImageDraw.Draw(t)
+    td.text((320 * 2 + 4, 55 * 2 + 5), 'MS-30', font=f, fill=(0, 0, 0, 200), anchor='mm')
+    t = t.filter(ImageFilter.GaussianBlur(3))
+    ImageDraw.Draw(t).text((320 * 2, 55 * 2), 'MS-30', font=f, fill='#efe2c2', anchor='mm', stroke_width=2, stroke_fill='#5a4a30')
+    t = t.resize((640, 110), Image.LANCZOS)
+    im.alpha_composite(t, (888 - 320, 566 - 55))
+    # the first channel's Volume, Bass and Treble, Cut and Master are the
+    # rack's; the second channel's Volume and Tone stay as drawn, dimmed
+    knobs = {str(i): (x, 300) for i, x in enumerate((380.5, 501, 620, 1154.5, 1268.5))}
+    for x in (828, 942):
+        box = (x - 58, 300 - 58, x + 58, 300 + 58)
+        k = im.crop(box)
+        g = Image.merge('RGB', [k.convert('L')] * 3).convert('RGBA')
+        g = Image.blend(g, Image.new('RGBA', g.size, (24, 22, 20, 255)), 0.45)
+        m = Image.new('L', k.size, 0)
+        ImageDraw.Draw(m).ellipse((4, 4, 112, 112), fill=255)
+        im.paste(g, box[:2], m.filter(ImageFilter.GaussianBlur(2)))
+    return dict(im=im, knobs=knobs, r=56, shape=surround(im, lambda v: v >= 245, holes=[(885, 90)]))
+
+
+def cab_ms30(src, out):
+    # drawn flat from the front already: the feet cut off, the maker's name
+    # covered with the plate's own shading and the rack's cab on in the
+    # head's serif capitals
+    im = Image.open(src).convert('RGBA').crop((0, 0, 1254, 1108))
+    face = Image.new('RGBA', (392, 66))
+    strip = im.crop((414, 282, 438, 348)).convert('RGB')
+    for y in range(face.height):
+        row = [strip.getpixel((x, y)) for x in range(strip.width)]
+        ImageDraw.Draw(face).line((0, y, face.width, y), fill=tuple(sum(c[k] for c in row) // len(row) for k in range(3)) + (255,))
+    m = Image.new('L', face.size, 0)
+    ImageDraw.Draw(m).rectangle((3, 3, face.width - 4, face.height - 4), fill=255)
+    im.paste(face, (431, 282), m.filter(ImageFilter.GaussianBlur(2)))
+    f = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf', 40 * 2)
+    t = Image.new('RGBA', (440 * 2, 80 * 2), (0, 0, 0, 0))
+    ImageDraw.Draw(t).text((220 * 2 + 3, 40 * 2 + 4), '2x12 Silver Cone', font=f, fill=(0, 0, 0, 200), anchor='mm')
+    t = t.filter(ImageFilter.GaussianBlur(3))
+    ImageDraw.Draw(t).text((220 * 2, 40 * 2), '2x12 Silver Cone', font=f, fill='#efe2c2', anchor='mm', stroke_width=2, stroke_fill='#5a4a30')
+    t = t.resize((440, 80), Image.LANCZOS)
+    im.alpha_composite(t, (627 - 220, 315 - 40))
+    return dict(im=im, knobs={}, r=10, shape=surround(im, lambda v: v <= 4), extra={'label': 'baked'})
+
+
+def rb101(channel):
+    # the Ecstasy's three channels: each the rack's Presence, Volume, its
+    # EQ and Gain, the other presence knob relettered Boost, the channel's
+    # gain boost switch the rack's Bright; the other channels' knobs dimmed
+    lit = {'green': (0, 2, 3, 4, 5, 6, 1), 'blue': (1, 8, 9, 10, 11, 13, 0), 'red': (1, 7, 9, 10, 11, 12, 0)}[channel]
+    def prepare(src, out):
+        im = Image.open(src).convert('RGBA')
+        # each knob's shaft: the middle of its pointer-to-tail axis
+        xs = (340, 461.5, 601.5, 725, 848.5, 968, 1086, 1239, 1361.5, 1479.5, 1599, 1718.5, 1836.5, 1954.5)
+        y = 537
+        ink = '#f0f0ee'
+        # the maker's script off the grille: the weave copied in from either
+        # side, the rack's name on in the same cream script
+        patch(im, (130, 138, 470, 400), (775, 138, 1115, 400), feather=4)
+        patch(im, (1430, 138, 1775, 400), (1080, 138, 1425, 400), feather=4)
+        script_logo(im, 'RB-101', (1100, 268), 170, fill='#f2e6c4', edge='#2a1f12')
+        # the panel's maker's mark: the channel in its place
+        region = Image.new('L', im.size, 0)
+        ImageDraw.Draw(region).rectangle((606, 438, 852, 484), fill=255)
+        unprint(im, region, ink=lambda p: max(p) > 60)
+        label(im, 'RB-101 ' + channel.upper(), (730, 461), 26, fill='#e8e8e6', squeeze=0.85, weight='SemiBold')
+        # the Boost knob's legend relettered (right of its lamp)
+        bx = round(xs[lit[6]])
+        region = Image.new('L', im.size, 0)
+        ImageDraw.Draw(region).rectangle((bx - 14, 590, bx + 42, 611), fill=255)
+        unprint(im, region, ink=lambda p: max(p) > 90)
+        label(im, 'BOOST', (bx + 14, 600), 19, fill=ink, squeeze=0.85, weight='Bold')
+        # the gain boost switch's legend: the rack's Bright
+        sw = (916, 458) if channel == 'green' else (1665, 458)
+        region = Image.new('L', im.size, 0)
+        ImageDraw.Draw(region).rectangle((sw[0] - 52, 420, sw[0] + 52, 452), fill=255)
+        unprint(im, region, ink=lambda p: max(p) > 70)
+        label(im, 'BRIGHT', (sw[0], 438), 19, fill=ink, squeeze=0.85, weight='Bold')
+        # the drawn knobs, slightly apart in height and angle, painted out
+        # with their shadows; the first one cut out and set on every shaft
+        # in one row, so each turns round its middle, the other channels'
+        # ones dimmed
+        cream = lambda p: p[0] > 170 and p[0] - p[2] > 12
+        rgb = im.convert('RGB').load()
+        hole = Image.new('L', im.size, 0)
+        hp = hole.load()
+        for x in xs:
+            for yy in range(486, 592):
+                for xx in range(round(x) - 45, round(x) + 45):
+                    if cream(rgb[xx, yy]):
+                        hp[xx, yy] = 255
+        r = 60
+        m = hole.filter(ImageFilter.MaxFilter(5))     # with its dark outline
+        ImageDraw.floodfill(m, (xs[0], y), 128)
+        m = m.point(lambda v: 255 if v == 128 else 0)
+        box = (round(xs[0]) - r - 2, y - r - 2, round(xs[0]) + r + 2, y + r + 2)
+        knob = im.crop(box)
+        knob.putalpha(m.crop(box).filter(ImageFilter.GaussianBlur(0.8)))
+        hole = ImageChops.lighter(hole, ImageChops.offset(hole, 6, 6)).filter(ImageFilter.MaxFilter(13))
+        ImageDraw.Draw(hole).rectangle((0, 591, im.width, im.height), fill=0)   # not the legends
+        unprint(im, hole, ink=lambda p: True)
+        dim = Image.merge('RGB', [knob.convert('L')] * 3).convert('RGBA')
+        dim = Image.blend(dim, Image.new('RGBA', dim.size, (20, 20, 20, 255)), 0.5)
+        dim.putalpha(knob.getchannel('A'))
+        pieces, knobs = {}, {}
+        for i, x in enumerate(xs):
+            if i in lit:
+                slot = lit.index(i)
+                pieces[str(slot)] = knob
+                knobs[str(slot)] = (x, y)
+            else:
+                im.alpha_composite(dim, (round(x - dim.width / 2), round(y - dim.height / 2)))
+        return dict(im=im, knobs=knobs, r=r, pieces=pieces, shape=surround(im, lambda v: v <= 6),
+                    toggles={'btn-bright': (sw[0], sw[1], 12)},
+                    controls={'btn-bright': (sw[0], sw[1], 40, 40)})
+    return prepare
+
+
+def cab_b30(src, out):
+    # drawn flat from the front already: the feet cut off, the maker's
+    # script covered with the tolex beside it, the rack's cab on in the
+    # head's cream script
+    im = Image.open(src).convert('RGBA').crop((0, 0, 1536, 974))
+    patch(im, (85, 116, 545, 290), (538, 116, 998, 290), feather=6)
+    script_logo(im, '2x12 B30', (768, 200), 128, fill='#f2e6c4', edge='#2a1f12')
+    return dict(im=im, knobs={}, r=10, shape=surround(im, lambda v: v >= 245), extra={'label': 'baked'})
+
+
+def dc_bass(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    im = im0.copy()
+    ink = '#161616'
+    # the rack's DC Bass has eight knobs, a Sync picker and Bright, the
+    # drawing seven knobs: the brushed panel right of the divider laid anew
+    # along its rows (the brushing runs across), the knobs set closer
+    region = Image.new('L', im.size, 0)
+    ImageDraw.Draw(region).rectangle((746, 168, 2026, 358), fill=255)   # (short of the screws)
+    unprint(im, region, ink=lambda p: True)
+    # each knob the drawing's first one, a little smaller, its scale and
+    # legend drawn anew round it: 0-10 over the editor's 270 degrees
+    k0 = cut_knob(im0, (843, 250), 54, feather=1)
+    r = 44
+    knob = k0.resize((2 * r + 4, 2 * r + 4), Image.LANCZOS)
+    d = ImageDraw.Draw(im)
+    f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), 17)
+    f.set_variation_by_name('ExtraBold')
+    titles = ('GAIN', 'BASS', 'MIDDLE', 'TREBLE', 'PRESENCE', 'SPEED', 'DEPTH', 'MASTER')
+    knobs = {}
+    step = 143
+    for i, title in enumerate(titles):
+        x, y = 822 + i * step, 246
+        for v in range(11):
+            a = math.radians(-135 + 27 * v)
+            d.line(((x + 45 * math.sin(a), y - 45 * math.cos(a)), (x + 50 * math.sin(a), y - 50 * math.cos(a))), fill=ink, width=2)
+            d.text((x + 60 * math.sin(a), y - 60 * math.cos(a)), str(v), font=f, fill=ink, anchor='mm')
+        label(im, title, (x, 330), 25, fill=ink, squeeze=0.82, weight='ExtraBold')
+        im.alpha_composite(knob, (x - knob.width // 2, y - knob.height // 2))
+        knobs[str(i)] = (x, y)
+    # the Sync picker last in the row
+    sx = 822 + 8 * step - 20
+    label(im, 'SYNC', (sx, 330), 25, fill=ink, squeeze=0.82, weight='ExtraBold')
+    # the lit power rocker is the rack's Bright: drawn unlit, lit while on
+    rk, h = (193, 270), 74
+    box = (rk[0] - h, rk[1] - h, rk[0] + h, rk[1] + h)
+    lit = im0.crop(box)
+    m = Image.new('L', lit.size, 0)
+    ImageDraw.Draw(m).rectangle((8, 8, lit.width - 8, lit.height - 8), fill=255)
+    lit.putalpha(m.filter(ImageFilter.GaussianBlur(5)))
+    off = Image.merge('RGB', [lit.convert('L')] * 3).convert('RGBA')
+    off = Image.blend(off, Image.new('RGBA', off.size, (40, 42, 46, 255)), 0.35)
+    off.putalpha(lit.getchannel('A'))
+    im.alpha_composite(off, box[:2])
+    label(im, 'BRIGHT', (rk[0], 352), 15, fill=ink, squeeze=0.85, weight='ExtraBold')
+    # the outline: the case itself as a rounded box (its black tolex edge
+    # melts into the black backdrop), the handle above it from the backdrop
+    shape = Image.new('L', im.size, 0)
+    shape.paste(surround(im, lambda v: v <= 12).crop((660, 0, 1505, 80)), (660, 0))
+    case = Image.new('L', im.size, 0)
+    ImageDraw.Draw(case).rounded_rectangle((32, 72, 2138, 676), 36, fill=255)
+    shape = ImageChops.lighter(shape, case.filter(ImageFilter.GaussianBlur(0.8)))
+    return dict(im=im, knobs=knobs, r=r, shape=shape, pieces={k: knob for k in knobs},
+                toggles={'btn-bright': (rk[0], rk[1], h)}, toggle_images={'btn-bright': lit},
+                controls={'btn-bright': (rk[0], rk[1], 80, 130), 'sync-select': (sx, 250, 150, 44)})
+
+
+def black_knob(r, line=(236, 222, 190)):
+    # a black bakelite knob seen from straight above, pointing at noon: a
+    # fluted skirt, a domed cap lit from the top left, a cream pointer line
+    # and a soft drop shadow; drawn at four times the size
+    S = 4
+    n = (2 * r + 4) * S
+    c = n / 2
+    out = Image.new('RGBA', (n, n), (0, 0, 0, 0))
+    sh = Image.new('L', (n, n), 0)
+    ImageDraw.Draw(sh).ellipse((c - r * S + 6 * S, c - r * S + 9 * S, c + r * S - 2 * S, c + r * S + 3 * S), fill=170)
+    out.paste(Image.new('RGBA', (n, n), (0, 0, 0, 255)), (0, 0), sh.filter(ImageFilter.GaussianBlur(5 * S)))
+    d = ImageDraw.Draw(out)
+    rs = (r - 4) * S
+    d.ellipse((c - rs, c - rs, c + rs, c + rs), fill=(14, 12, 10, 255))
+    for k in range(36):                          # the skirt's flutes
+        a = math.radians(k * 10)
+        d.line((c + 0.78 * rs * math.sin(a), c - 0.78 * rs * math.cos(a), c + 0.97 * rs * math.sin(a), c - 0.97 * rs * math.cos(a)),
+               fill=(48, 44, 40, 255), width=S)
+    rc = 0.66 * rs
+    cap = Image.new('RGBA', (n, n))
+    cd = ImageDraw.Draw(cap)
+    for k in range(40, 0, -1):                   # the dome: lighter to its top left
+        f = k / 40
+        v = round(20 + 46 * (1 - f) ** 2)
+        rr = rc * f
+        cd.ellipse((c - rr - (1 - f) * 0.3 * rc, c - rr - (1 - f) * 0.3 * rc, c + rr - (1 - f) * 0.3 * rc, c + rr - (1 - f) * 0.3 * rc), fill=(v, v - 2, v - 4, 255))
+    cm = Image.new('L', (n, n), 0)
+    ImageDraw.Draw(cm).ellipse((c - rc, c - rc, c + rc, c + rc), fill=255)
+    out.paste(cap, (0, 0), cm)
+    d.ellipse((c - rc, c - rc, c + rc, c + rc), outline=(6, 5, 4, 255), width=2 * S)
+    d.line((c, c - 0.12 * rs, c, c - 0.95 * rs), fill=line + (255,), width=4 * S)
+    return out.resize((2 * r + 4, 2 * r + 4), Image.LANCZOS)
+
+
+def dc_vintage(name):
+    def prepare(src, out):
+        im0 = Image.open(src).convert('RGBA')
+        im = im0.copy()
+        ink = '#1c160e'
+        # the rack's DC models have eight knobs, a Sync picker and Bright,
+        # the drawing six knobs: the print and knobs right of the switch
+        # painted out along the panel's rows, its stains left standing
+        region = Image.new('L', im.size, 0)
+        ImageDraw.Draw(region).rectangle((400, 422, 1985, 628), fill=255)
+        unprint(im, region, ink=lambda p: p[1] < 185)
+        # the drawing's knobs lean (a blade over a skirt seen from aside):
+        # one black knob with a cream pointer drawn from straight above,
+        # in their colours, set on every shaft so each turns round its middle
+        c = (560, 521)
+        r = 50
+        knob = black_knob(r)
+        # each with its 0-10 scale drawn anew over the editor's 270 degrees
+        d = ImageDraw.Draw(im)
+        f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), 18)
+        f.set_variation_by_name('ExtraBold')
+        titles = ('GAIN', 'BASS', 'MIDDLE', 'TREBLE', 'PRESENCE', 'SPEED', 'DEPTH', 'MASTER')
+        step = 172
+        knobs = {}
+        for i, title in enumerate(titles):
+            x, y = 500 + i * step, c[1]
+            for v in range(11):
+                a = math.radians(-135 + 27 * v)
+                d.line(((x + 54 * math.sin(a), y - 54 * math.cos(a)), (x + 61 * math.sin(a), y - 61 * math.cos(a))), fill=ink, width=3)
+                d.text((x + 74 * math.sin(a), y - 74 * math.cos(a)), str(v), font=f, fill=ink, anchor='mm')
+            label(im, title, (x, 610), 27, fill=ink, squeeze=0.82, weight='ExtraBold')
+            knobs[str(i)] = (x, y)
+        sx = 500 + 8 * step - 10
+        label(im, 'SYNC', (sx, 610), 27, fill=ink, squeeze=0.82, weight='ExtraBold')
+        # the power switch is the rack's Bright
+        region = Image.new('L', im.size, 0)
+        ImageDraw.Draw(region).rectangle((280, 448, 380, 478), fill=255)
+        ImageDraw.Draw(region).rectangle((280, 586, 380, 616), fill=255)
+        unprint(im, region, ink=lambda p: p[1] < 168)
+        label(im, 'BRIGHT', (330, 465), 23, fill=ink, squeeze=0.8, weight='ExtraBold')
+        return dict(im=im, knobs=knobs, r=r, pieces={k: knob for k in knobs}, shape=surround(im, lambda v: v <= 12),
+                    toggles={'btn-bright': (331, 530, 30)},
+                    controls={'btn-bright': (331, 530, 50, 80), 'sync-select': (sx, 521, 150, 46)})
+    return prepare
+
+
+def dc_head(knob, panel, row, labels_y, ink, rocker, weight='ExtraBold'):
+    # the rack's DC models: eight knobs, a Sync picker and Bright, the
+    # drawings six knobs and a lit power rocker. knob: the first knob's
+    # middle, the radius it is cut at and drawn at; panel: the box laid anew
+    # along its rows; row: the first knob's x, the step and y; rocker: its
+    # middle and half size
+    def prepare(src, out):
+        im0 = Image.open(src).convert('RGBA')
+        im = im0.copy()
+        region = Image.new('L', im.size, 0)
+        ImageDraw.Draw(region).rectangle(panel, fill=255)
+        unprint(im, region, ink=lambda p: True)
+        (kx, ky), r_cut, r = knob
+        k = cut_knob(im0, (kx, ky), r_cut, feather=1).resize((2 * r + 4, 2 * r + 4), Image.LANCZOS)
+        x0, step, y = row
+        d = ImageDraw.Draw(im)
+        f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), max(14, round(r * 0.4)))
+        f.set_variation_by_name('ExtraBold')
+        knobs = {}
+        titles = ('GAIN', 'BASS', 'MIDDLE', 'TREBLE', 'PRESENCE', 'SPEED', 'DEPTH', 'MASTER')
+        for i, title in enumerate(titles):
+            x = x0 + i * step
+            for v in range(11):
+                a = math.radians(-135 + 27 * v)
+                d.line(((x + (r + 3) * math.sin(a), y - (r + 3) * math.cos(a)), (x + (r + 10) * math.sin(a), y - (r + 10) * math.cos(a))), fill=ink, width=3)
+                d.text((x + (r + 23) * math.sin(a), y - (r + 23) * math.cos(a)), str(v), font=f, fill=ink, anchor='mm')
+            label(im, title, (x, labels_y), max(20, round(r * 0.56)), fill=ink, squeeze=0.82, weight=weight)
+            im.alpha_composite(k, (round(x - k.width / 2), round(y - k.height / 2)))
+            knobs[str(i)] = (x, y)
+        sx = x0 + 8 * step - step // 8
+        label(im, 'SYNC', (sx, labels_y), max(20, round(r * 0.56)), fill=ink, squeeze=0.82, weight=weight)
+        # the lit power rocker is the rack's Bright: drawn unlit, lit while on
+        (rx, ry), h = rocker
+        box = (rx - h, ry - h, rx + h, ry + h)
+        lit = im0.crop(box)
+        m = Image.new('L', lit.size, 0)
+        ImageDraw.Draw(m).rectangle((10, 10, lit.width - 10, lit.height - 10), fill=255)
+        lit.putalpha(m.filter(ImageFilter.GaussianBlur(6)))
+        off = Image.merge('RGB', [lit.convert('L')] * 3).convert('RGBA')
+        off = Image.blend(off, Image.new('RGBA', off.size, (30, 30, 32, 255)), 0.45)
+        off.putalpha(lit.getchannel('A'))
+        im.alpha_composite(off, box[:2])
+        label(im, 'BRIGHT', (rx, ry + h - 4), max(16, round(r * 0.42)), fill=ink, squeeze=0.85, weight=weight)
+        # the case as a rounded box found along a few rows and columns (its
+        # black edge melts into the backdrop), the handle above it from the backdrop
+        g = im0.convert('L').filter(ImageFilter.MedianFilter(5)).load()
+        w, h2 = im.size
+        edge = lambda pts: next(i for i, v in enumerate(pts) if v > 40)
+        mid = h2 // 2 + 60
+        left = edge([g[x, mid] for x in range(w)])
+        right = w - 1 - edge([g[x, mid] for x in range(w - 1, -1, -1)])
+        cols = [w // 5, w // 2 - 420, w // 2 + 420, 4 * w // 5]
+        top = min(edge([g[x, y] for y in range(h2)]) for x in cols)
+        bottom = h2 - 1 - min(edge([g[x, y] for y in range(h2 - 1, -1, -1)]) for x in cols)
+        case = Image.new('L', im.size, 0)
+        ImageDraw.Draw(case).rounded_rectangle((left, top, right, bottom), 34, fill=255)
+        handle = surround(im0.filter(ImageFilter.MedianFilter(3)), lambda v: v <= 26, holes=[(w // 2, top - 12)])
+        ImageDraw.Draw(handle).rectangle((0, top, w, h2), fill=0)
+        ImageDraw.Draw(handle).rectangle((0, 0, w // 2 - 420, top), fill=0)
+        ImageDraw.Draw(handle).rectangle((w // 2 + 420, 0, w, top), fill=0)
+        shape = ImageChops.lighter(handle, case.filter(ImageFilter.GaussianBlur(0.8)))
+        return dict(im=im, knobs=knobs, r=r, pieces={q: k for q in knobs}, shape=shape,
+                    toggles={'btn-bright': (rx, ry, h)}, toggle_images={'btn-bright': lit},
+                    controls={'btn-bright': (rx, ry, round(h * 1.2), round(h * 1.8)), 'sync-select': (sx, y, round(step * 0.85), 44)})
+    return prepare
+
+
 def cab_vibro(src, out):
     im0 = Image.open(src).convert('RGBA')
     # the Black Vibro combo without its chassis, seen flat from the front:
@@ -1568,6 +1991,24 @@ IMAGES = {
     'sl100-drive': dict(prepare=sl100('SL100 Drive', 'MOD'), width=760, spin=0),
     'sl100-crunch': dict(prepare=sl100('SL100 Crunch', 'BRIGHT'), width=760, spin=0),
     'sl100-clean': dict(prepare=sl100('SL100 Clean', 'BRIGHT'), width=760, spin=0),
+    'tread-mod': dict(prepare=treadplate('MODERN', 1), width=760, spin=0),
+    'tread-vint': dict(prepare=treadplate('VINTAGE', 0), width=760, spin=0),
+    'ms30': dict(prepare=ms30, width=760, spin=0),
+    'dc-bass': dict(prepare=dc_bass, width=760, spin=0),
+    'dc-vint-crunch': dict(prepare=dc_vintage('Crunch'), width=760, spin=0),
+    'dc-vint-od': dict(prepare=dc_head(((570, 517), 53, 46), panel=(372, 446, 2005, 628), row=(470, 182, 517), labels_y=604, ink='#e6d8b2', rocker=((280, 529), 62)), width=760, spin=0),
+    'dc-vint-clean': dict(prepare=dc_head(((572, 517), 53, 46), panel=(372, 446, 2005, 628), row=(470, 182, 517), labels_y=604, ink='#e6d8b2', rocker=((284, 529), 62)), width=760, spin=0),
+    'dc-mod-clean': dict(prepare=dc_head(((918, 251), 56, 38), panel=(830, 168, 2034, 352), row=(895, 134, 246), labels_y=338,
+                                          ink='#121212', rocker=((211, 272), 58)), width=760, spin=0),
+    'dc-mod800': dict(prepare=dc_head(((577, 505), 50, 46), panel=(362, 446, 1992, 628), row=(470, 178, 503), labels_y=597,
+                                       ink='#17120a', rocker=((291, 524), 58)), width=760, spin=0),
+    'dc-mod-sod': dict(prepare=dc_head(((576, 503), 56, 46), panel=(362, 434, 1992, 626), row=(470, 178, 501), labels_y=595,
+                                        ink='#e8e8ea', rocker=((291, 519), 64), weight='Bold'), width=760, spin=0),
+    'dc-mod-od': dict(prepare=dc_head(((576, 503), 56, 46), panel=(362, 434, 1992, 626), row=(470, 178, 501), labels_y=595,
+                                       ink='#e8e8ea', rocker=((291, 519), 64), weight='Bold'), width=760, spin=0),
+    'rb101-red': dict(prepare=rb101('red'), width=760, spin=35),
+    'rb101-blue': dict(prepare=rb101('blue'), width=760, spin=35),
+    'rb101-green': dict(prepare=rb101('green'), width=760, spin=35),
     # the same 4x12, its plate stamped for the 25 W or the 20 W speakers
     'cab-green25': dict(prepare=cab_green(25), width=760, spin=0),
     'cab-green20': dict(prepare=cab_green(20), width=760, spin=0),
@@ -1582,6 +2023,8 @@ IMAGES = {
     'cab-blackduo212': dict(prepare=cab_black_duo, width=760, spin=0),
     'cab-custom18': dict(prepare=cab_black_mini, width=760, spin=0),
     'cab-blueline810': dict(prepare=cab_svt810, width=760, spin=0),
+    'cab-silver212': dict(prepare=cab_ms30, width=760, spin=0),
+    'cab-b30212': dict(prepare=cab_b30, width=760, spin=0),
     'cab-tweed112': dict(prepare=cab_tweed('Tweed Lux', (708, 102), 42), width=760, spin=0),
 }
 
@@ -1597,6 +2040,7 @@ def main(dev, src, out):
         m = Image.new('L', t.size, 0)
         ImageDraw.Draw(m).ellipse((2, 2, t.width - 2, t.height - 2), fill=255)
         t.putalpha(m.filter(ImageFilter.GaussianBlur(2)))
+        t = rec.get('toggle_images', {}).get(k, t)     # (or a picture of its own)
         t.save(os.path.join(out, '%s-tog-%s.png' % (dev, k)))
     for k, c in knobs.items():
         # a smaller copy turns its full-size twin's cut-out, scaled down by the editor
