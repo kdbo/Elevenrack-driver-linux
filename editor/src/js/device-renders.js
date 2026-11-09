@@ -86,6 +86,149 @@ window.DEVICE_RENDERS = {
   },
   "width": 760
  },
+ "black-duo": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    334.8,
+    104.6,
+    14,
+    25
+   ],
+   "sync-select": [
+    521.5,
+    99.1,
+    44,
+    19
+   ]
+  },
+  "dials": {},
+  "height": 210,
+  "img": {
+   "height": 210,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 210,
+  "knob": 36.3,
+  "knobs": {
+   "0": [
+    365.5,
+    98.1,
+    1
+   ],
+   "1": [
+    405.0,
+    98.1,
+    1
+   ],
+   "2": [
+    444.1,
+    98.1,
+    1
+   ],
+   "3": [
+    482.8,
+    98.1,
+    1
+   ],
+   "4": [
+    560.5,
+    98.1,
+    1
+   ],
+   "5": [
+    599.1,
+    98.2,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    334.8,
+    104.6,
+    22.0
+   ]
+  },
+  "width": 760
+ },
+ "black-mini": {
+  "bars": {},
+  "controls": {
+   "sync-select": [
+    87.9,
+    94.5,
+    71,
+    23
+   ]
+  },
+  "dials": {},
+  "height": 263,
+  "img": {
+   "height": 263,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 263,
+  "knob": 56.8,
+  "knobs": {
+   "0": [
+    165.2,
+    90.2,
+    1
+   ],
+   "1": [
+    229.0,
+    90.3,
+    1
+   ],
+   "2": [
+    292.8,
+    90.4,
+    1
+   ],
+   "3": [
+    356.6,
+    90.3,
+    1
+   ],
+   "4": [
+    421.0,
+    89.8,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {},
+  "width": 760
+ },
  "black-op": {
   "controls": {},
   "height": 536,
@@ -119,6 +262,166 @@ window.DEVICE_RENDERS = {
    32.0
   ],
   "width": 416
+ },
+ "black-sr": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    314.7,
+    95.2,
+    16,
+    27
+   ],
+   "sync-select": [
+    507.5,
+    89.6,
+    50,
+    21
+   ]
+  },
+  "dials": {},
+  "height": 241,
+  "img": {
+   "height": 241,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 241,
+  "knob": 39.8,
+  "knobs": {
+   "0": [
+    349.8,
+    87.7,
+    1
+   ],
+   "1": [
+    389.3,
+    87.8,
+    1
+   ],
+   "2": [
+    428.6,
+    87.8,
+    1
+   ],
+   "3": [
+    468.1,
+    87.7,
+    1
+   ],
+   "4": [
+    546.7,
+    87.7,
+    1
+   ],
+   "5": [
+    586.0,
+    87.6,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    314.7,
+    95.2,
+    23.6
+   ]
+  },
+  "width": 760
+ },
+ "black-vib": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    324.2,
+    89.4,
+    16,
+    25
+   ],
+   "sync-select": [
+    639.1,
+    84.6,
+    65,
+    21
+   ]
+  },
+  "dials": {},
+  "height": 239,
+  "img": {
+   "height": 239,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 239,
+  "knob": 37.9,
+  "knobs": {
+   "0": [
+    358.1,
+    83.5,
+    1
+   ],
+   "1": [
+    400.9,
+    83.5,
+    1
+   ],
+   "2": [
+    444.2,
+    83.5,
+    1
+   ],
+   "3": [
+    488.7,
+    83.4,
+    1
+   ],
+   "4": [
+    532.5,
+    83.4,
+    1
+   ],
+   "5": [
+    576.3,
+    83.4,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    324.2,
+    89.4,
+    22.8
+   ]
+  },
+  "width": 760
  },
  "black-wah": {
   "bars": {
@@ -201,6 +504,85 @@ window.DEVICE_RENDERS = {
   "toggles": {},
   "width": 760
  },
+ "blue-line": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    616.2,
+    102.8,
+    15,
+    22
+   ]
+  },
+  "dials": {},
+  "height": 253,
+  "img": {
+   "height": 253,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 253,
+  "knob": 35.1,
+  "knobs": {
+   "0": [
+    233.1,
+    103.1,
+    1
+   ],
+   "1": [
+    283.9,
+    103.1,
+    1
+   ],
+   "2": [
+    334.6,
+    103.1,
+    1
+   ],
+   "3": [
+    385.1,
+    103.1,
+    1
+   ],
+   "4": [
+    448.2,
+    103.1,
+    1
+   ],
+   "5": [
+    496.6,
+    103.1,
+    1
+   ],
+   "6": [
+    545.0,
+    103.1,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    616.2,
+    102.8,
+    21.0
+   ]
+  },
+  "width": 760
+ },
  "cab-1960": {
   "bars": {},
   "controls": {},
@@ -263,6 +645,37 @@ window.DEVICE_RENDERS = {
   "toggles": {},
   "width": 760
  },
+ "cab-1x15": {
+  "bars": {},
+  "controls": {},
+  "dials": {},
+  "height": 493,
+  "img": {
+   "height": 493,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 493,
+  "knob": 13.0,
+  "knobs": {},
+  "label": "baked",
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {},
+  "width": 760
+ },
  "cab-ac212": {
   "bars": {},
   "controls": {},
@@ -276,6 +689,130 @@ window.DEVICE_RENDERS = {
   },
   "img_h": 499,
   "knob": 11.9,
+  "knobs": {},
+  "label": "baked",
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {},
+  "width": 760
+ },
+ "cab-blackduo212": {
+  "bars": {},
+  "controls": {},
+  "dials": {},
+  "height": 472,
+  "img": {
+   "height": 472,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 472,
+  "knob": 13.2,
+  "knobs": {},
+  "label": "baked",
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {},
+  "width": 760
+ },
+ "cab-blacksr410": {
+  "bars": {},
+  "controls": {},
+  "dials": {},
+  "height": 655,
+  "img": {
+   "height": 655,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 655,
+  "knob": 14.9,
+  "knobs": {},
+  "label": "baked",
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {},
+  "width": 760
+ },
+ "cab-blueline810": {
+  "bars": {},
+  "controls": {},
+  "dials": {},
+  "height": 1274,
+  "img": {
+   "height": 1274,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 1274,
+  "knob": 19.8,
+  "knobs": {},
+  "label": "baked",
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {},
+  "width": 760
+ },
+ "cab-custom18": {
+  "bars": {},
+  "controls": {},
+  "dials": {},
+  "height": 503,
+  "img": {
+   "height": 503,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 503,
+  "knob": 13.0,
   "knobs": {},
   "label": "baked",
   "led": [
@@ -338,6 +875,37 @@ window.DEVICE_RENDERS = {
   },
   "img_h": 760,
   "knob": 14.5,
+  "knobs": {},
+  "label": "baked",
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {},
+  "width": 760
+ },
+ "cab-lux112": {
+  "bars": {},
+  "controls": {},
+  "dials": {},
+  "height": 473,
+  "img": {
+   "height": 473,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 473,
+  "knob": 13.0,
   "knobs": {},
   "label": "baked",
   "led": [
@@ -1382,6 +1950,85 @@ window.DEVICE_RENDERS = {
   "toggles": {},
   "width": 760
  },
+ "m2-lead": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    610.5,
+    102.0,
+    19,
+    27
+   ]
+  },
+  "dials": {},
+  "height": 377,
+  "img": {
+   "height": 377,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 377,
+  "knob": 49.7,
+  "knobs": {
+   "0": [
+    101.3,
+    105.4,
+    1
+   ],
+   "1": [
+    154.0,
+    105.4,
+    1
+   ],
+   "2": [
+    205.2,
+    105.4,
+    1
+   ],
+   "3": [
+    256.8,
+    105.4,
+    1
+   ],
+   "4": [
+    309.3,
+    105.4,
+    1
+   ],
+   "5": [
+    362.2,
+    105.4,
+    1
+   ],
+   "6": [
+    414.7,
+    105.4,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    610.5,
+    102.0,
+    25.7
+   ]
+  },
+  "width": 760
+ },
  "memory-man": {
   "bars": {},
   "controls": {
@@ -2026,6 +2673,228 @@ window.DEVICE_RENDERS = {
   ],
   "toggles": {},
   "width": 440
+ },
+ "sl100-clean": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    122.3,
+    182.4,
+    11,
+    17
+   ]
+  },
+  "dials": {},
+  "height": 260,
+  "img": {
+   "height": 260,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 260,
+  "knob": 28.8,
+  "knobs": {
+   "0": [
+    188.9,
+    190.7,
+    1
+   ],
+   "1": [
+    256.2,
+    190.7,
+    1
+   ],
+   "2": [
+    323.5,
+    190.7,
+    1
+   ],
+   "3": [
+    390.8,
+    190.7,
+    1
+   ],
+   "4": [
+    458.1,
+    190.7,
+    1
+   ],
+   "5": [
+    525.4,
+    190.7,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    122.3,
+    182.4,
+    11.5
+   ]
+  },
+  "width": 760
+ },
+ "sl100-crunch": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    122.3,
+    182.4,
+    11,
+    17
+   ]
+  },
+  "dials": {},
+  "height": 260,
+  "img": {
+   "height": 260,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 260,
+  "knob": 28.8,
+  "knobs": {
+   "0": [
+    188.9,
+    190.7,
+    1
+   ],
+   "1": [
+    256.2,
+    190.7,
+    1
+   ],
+   "2": [
+    323.5,
+    190.7,
+    1
+   ],
+   "3": [
+    390.8,
+    190.7,
+    1
+   ],
+   "4": [
+    458.1,
+    190.7,
+    1
+   ],
+   "5": [
+    525.4,
+    190.7,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    122.3,
+    182.4,
+    11.5
+   ]
+  },
+  "width": 760
+ },
+ "sl100-drive": {
+  "bars": {},
+  "controls": {
+   "btn-bright": [
+    122.3,
+    182.4,
+    11,
+    17
+   ]
+  },
+  "dials": {},
+  "height": 260,
+  "img": {
+   "height": 260,
+   "left": 0,
+   "top": 0,
+   "width": 760
+  },
+  "img_h": 260,
+  "knob": 28.8,
+  "knobs": {
+   "0": [
+    188.9,
+    190.7,
+    1
+   ],
+   "1": [
+    256.2,
+    190.7,
+    1
+   ],
+   "2": [
+    323.5,
+    190.7,
+    1
+   ],
+   "3": [
+    390.8,
+    190.7,
+    1
+   ],
+   "4": [
+    458.1,
+    190.7,
+    1
+   ],
+   "5": [
+    525.4,
+    190.7,
+    1
+   ]
+  },
+  "led": [
+   0,
+   0
+  ],
+  "leds": {},
+  "sliders": {},
+  "spin": 0,
+  "sprites": [],
+  "switch": [
+   0,
+   0,
+   0
+  ],
+  "toggles": {
+   "btn-bright": [
+    122.3,
+    182.4,
+    11.5
+   ]
+  },
+  "width": 760
  },
  "tri-fuzz": {
   "controls": {},

@@ -892,41 +892,106 @@ def tweed_lux(src, out):
     return dict(im=im, knobs=knobs, r=74, pieces=pieces, shape=Image.new('L', im.size, 255))
 
 
-def fender_skirt(im, centre, r_in=19, r_out=36.5, ring=27, size=13):
+def surround(im, near_bg, whole_edge=False):
+    # the outline of a device drawn on a plain backdrop: the backdrop (pixels
+    # whose grey level near_bg accepts) flooded from the corners and edges'
+    # middles (whole_edge: from anywhere on the edge, for pockets of backdrop
+    # a cut leaves on it; not on a black backdrop, where the device's own
+    # darkest edge would go with it)
+    cand = im.convert('L').point(lambda v: 255 if near_bg(v) else 0)
+    w, h = im.size
+    seeds = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (w // 2, 0), (w // 2, h - 1)]
+    if whole_edge:
+        seeds += [(x, y) for x in range(w) for y in (0, h - 1)] + [(x, y) for y in range(h) for x in (0, w - 1)]
+    for seed in seeds:
+        if cand.getpixel(seed) == 255:
+            ImageDraw.floodfill(cand, seed, 128)
+    return cand.point(lambda v: 0 if v == 128 else 255).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
+
+
+def skirt_pieces(im, knobs, r):
+    # skirted knobs cut out whole, but for the panel's index notch reaching
+    # into the skirt's top: that stays put
+    pieces = {}
+    for k, c in knobs.items():
+        pieces[k] = cut_knob(im, c, r)
+        a = pieces[k].getchannel('A')
+        ImageDraw.Draw(a).rectangle((pieces[k].width / 2 - 4, 0, pieces[k].width / 2 + 4, 6), fill=0)
+        pieces[k].putalpha(a)
+    return pieces
+
+
+def fender_skirt(im, centre, r_in=19, r_out=36.5, ring=27, size=13, drop=0, side=0):
     # a skirted knob's own numbers turn with it and are read at the panel's
     # index notch above it: the garbled ones painted out with the skirt's own
     # shading (a low percentile round the same circle), 0-10 lettered on so
     # each value stands under the notch when the knob points at it, i.e.
-    # counting up anticlockwise, the drawing being at noon (5)
+    # counting up anticlockwise, the drawing being at noon (5); drop: how
+    # much further the skirt reaches at its bottom, seen a little from above
+    # (side: at its left and right)
     import statistics
     cx, cy = centre
     src = im.copy().load()
     px = im.load()
-    for y in range(round(cy - r_out), round(cy + r_out) + 1):
-        for x in range(round(cx - r_out), round(cx + r_out) + 1):
+    for y in range(round(cy - r_out), round(cy + r_out + drop) + 1):
+        for x in range(round(cx - r_out - drop), round(cx + r_out + drop) + 1):
             d = math.hypot(x - cx, y - cy)
-            if not r_in <= d <= r_out:
-                continue
             a0 = math.atan2(y - cy, x - cx)
-            ring_px = [src[round(cx + d * math.cos(a0 + math.radians(k * 3))), round(cy + d * math.sin(a0 + math.radians(k * 3)))] for k in range(-10, 11)]
+            r1 = r_out + drop * max(0, math.sin(a0)) + side * abs(math.cos(a0))
+            if not r_in <= d <= r1:
+                continue
+            ring_px = [src[round(cx + d * math.cos(a0 + math.radians(k * 3))), round(cy + d * math.sin(a0 + math.radians(k * 3)))] for k in range(-16, 17)]
             ring_px.sort(key=lambda p: p[0] + p[1] + p[2])
             p = ring_px[len(ring_px) // 4]
-            w = min(1, (d - r_in) / 1.5, (r_out - d) / 1.5)
+            w = min(1, (d - r_in) / 1.5, (r1 - d) / 1.5)
             q = px[x, y]
             px[x, y] = tuple(round(q[i] + (p[i] - q[i]) * w) for i in range(3)) + (255,)
+    skirt_numbers(im, centre, ring, size)
+
+
+def skirt_numbers(im, centre, ring, size, fill='#ece4d0'):
+    # a skirt's 0-10, each standing under the index notch above the knob
+    # when the knob points at it: counting up anticlockwise, 5 at the top
+    cx, cy = centre
     f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), size)
     f.set_variation_by_name('Bold')
     for v in range(11):
         phi = 135 - 27 * v                     # clockwise from the top, in the drawing
         l, t, r, b = f.getbbox(str(v))
         t_im = Image.new('RGBA', (r - l + 6, b - t + 6), (0, 0, 0, 0))
-        ImageDraw.Draw(t_im).text((3 - l, 3 - t), str(v), font=f, fill='#ece4d0')
+        ImageDraw.Draw(t_im).text((3 - l, 3 - t), str(v), font=f, fill=fill)
         if v == 10:
             t_im = t_im.resize((round(t_im.width * 0.8), t_im.height), Image.LANCZOS)
         t_im = t_im.rotate(-phi, resample=Image.BICUBIC, expand=True)
         a = math.radians(phi)
         x, y = cx + ring * math.sin(a), cy - ring * math.cos(a)
         im.alpha_composite(t_im, (round(x - t_im.width / 2), round(y - t_im.height / 2)))
+
+
+def clear_skirt(im, skirt, cap, lum=70, passes=6):
+    # a skirt drawn in perspective (an ellipse lower than its cap): its
+    # printed numbers painted out with the skirt's own dark from round them
+    (ex, ey, rx, ry), (cx, cy, cr) = skirt, cap
+    box = (round(ex - rx) - 4, round(ey - ry) - 4, round(ex + rx) + 4, round(ey + ry) + 4)
+    region = Image.new('L', im.size, 0)
+    ImageDraw.Draw(region).ellipse((ex - rx, ey - ry, ex + rx, ey + ry), fill=255)
+    ImageDraw.Draw(region).ellipse((cx - cr, cy - cr, cx + cr, cy + cr), fill=0)
+    bright = im.convert('L').point(lambda v: 255 if v > lum else 0)
+    hole = ImageChops.multiply(bright.filter(ImageFilter.MaxFilter(3)), region)
+    px, hp, rp = im.load(), hole.load(), region.load()
+    for _ in range(passes):                     # grow the dark in from the edges of each number
+        fill = {}
+        for y in range(box[1], box[3]):
+            for x in range(box[0], box[2]):
+                if not hp[x, y]:
+                    continue
+                ns = [px[x + i, y + j] for i in (-2, -1, 0, 1, 2) for j in (-2, -1, 0, 1, 2)
+                      if rp[x + i, y + j] and not hp[x + i, y + j]]
+                if ns:
+                    fill[x, y] = tuple(sum(c[k] for c in ns) // len(ns) for k in range(3)) + (255,)
+        for xy, c in fill.items():
+            px[xy] = c
+            hp[xy] = 0
 
 
 def lux(channel):
@@ -959,21 +1024,459 @@ def lux(channel):
         # look's channel, Speed, Intensity
         vtb = ((581.5, 187.9), (660.8, 187.7), (740.2, 187.7)) if channel == 'vib' else ((217.7, 187.6), (296.7, 187.6), (376.6, 187.6))
         knobs = {str(i): c for i, c in enumerate(vtb + ((921.6, 188.0), (1001.7, 187.8)))}
-        # the panel's index notch reaches into the skirt's top: it stays put
-        pieces = {}
-        for k, c in knobs.items():
-            pieces[k] = cut_knob(im, c, 37)
-            a = pieces[k].getchannel('A')
-            ImageDraw.Draw(a).rectangle((pieces[k].width / 2 - 4, 0, pieces[k].width / 2 + 4, 7), fill=0)
-            pieces[k].putalpha(a)
+        pieces = skirt_pieces(im, knobs, 37)
         # the black round the cabinet goes
-        cand = im.convert('L').point(lambda v: 255 if v <= 4 else 0)
-        for seed in ((0, 0), (1401, 0), (0, im.height - 1), (1401, im.height - 1), (700, 0), (700, im.height - 1)):
-            if cand.getpixel(seed) == 255:
-                ImageDraw.floodfill(cand, seed, 128)
-        shape = cand.point(lambda v: 0 if v == 128 else 255).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
+        shape = surround(im, lambda v: v <= 4)
         return dict(im=im, knobs=knobs, r=37, pieces=pieces, shape=shape, controls={'sync-select': (842, 190, 92, 38)})
     return prepare
+
+
+def black_vib(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    # the combo cut down to a head, as the Lux
+    top, bot = im0.crop((0, 0, 1402, 330)), im0.crop((0, 1000, 1402, 1122))
+    im = Image.new('RGBA', (1402, 318 + 122))
+    im.paste(bot, (0, 318))
+    m = Image.new('L', (1402, 330), 255)
+    ImageDraw.Draw(m).rectangle((0, 320, 1402, 330), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(4)))
+    plain = (1262, 192, 1300, 222)             # worn panel, past the pilot lamp
+    ink = '#e8e0cc'
+    # the rack's Black Vibro has a Mid knob and no reverb: the drawn Bass
+    # becomes Middle, Reverb becomes Bass
+    for x, text in ((820, 'MIDDLE'), (902, 'BASS')):
+        patch_poly(im, plain, [(x - 38, 202), (x + 38, 202), (x + 38, 224), (x - 38, 224)], feather=3)
+        label(im, text, (x, 213), 20, fill=ink, squeeze=0.74, weight='ExtraBold')
+    # the worn-off maker's mark makes way for the vibrato's Sync picker
+    patch_poly(im, plain, [(1108, 118), (1250, 118), (1250, 226), (1108, 226)], feather=5, flat=True)
+    label(im, 'SYNC', (1179, 213), 20, fill=ink, squeeze=0.74, weight='ExtraBold')
+    centres = ((265.1, 153.9), (341.9, 154.0), (416.9, 154.0), (660.6, 154.1), (739.6, 154.0), (819.5, 154.0),
+               (901.5, 153.8), (982.3, 153.9), (1063.1, 153.9))
+    for c in centres:
+        fender_skirt(im, c, r_in=17, r_out=32, ring=24, size=12, drop=7, side=2.5)
+    # tone slots in the rack's order: Volume, Treble, Mid, Bass (the
+    # vibrato channel's), Speed, Intensity
+    knobs = {str(i): c for i, c in enumerate(centres[3:])}
+    pieces = skirt_pieces(im, knobs, 33)
+    shape = surround(im, lambda v: v <= 4)
+    # the vibrato channel's Bright slide switch is the rack's Bright
+    return dict(im=im, knobs=knobs, r=33, pieces=pieces, shape=shape,
+                toggles={'btn-bright': (598, 165, 21)},
+                controls={'btn-bright': (598, 165, 30, 46), 'sync-select': (1179, 156, 120, 38)})
+
+
+def black_sr(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    # the combo cut down to a head, as the Lux: the top with the panel and a
+    # strip of grille, then the bottom rail and feet
+    top, bot = im0.crop((0, 0, 1254, 300)), im0.crop((0, 1140, 1254, 1254))
+    im = Image.new('RGBA', (1254, 282 + bot.height))
+    im.paste(bot, (0, 282))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 292, 1254, 300), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(4)))
+    plain = (1010, 125, 1100, 200)             # the empty panel past Intensity
+    ink = '#efe8d6'
+    # no reverb in the rack's amp: its knob makes way for the vibrato's Sync picker
+    patch_poly(im, plain, [(800, 114), (864, 114), (864, 202), (800, 202)], feather=4)
+    label(im, 'SYNC', (832, 191), 19, fill=ink, squeeze=0.78, weight='ExtraBold')
+    # the rack's name in the empty end of the panel, as the real amp's script
+    script_logo(im, 'Black SR', (1052, 150), 32, fill='#ece3cf', edge='#0c0c0c')
+    centres = ((234.6, 147.0), (297.6, 146.9), (360.0, 146.9), (578.5, 147.0), (641.9, 147.1), (705.2, 147.1),
+               (768.6, 147.0), (895.0, 147.0), (958.2, 146.9))
+    for c in centres:
+        fender_skirt(im, c, r_in=18, r_out=29.5, ring=24.5, size=11, drop=1.5)
+    # tone slots in the rack's order: Volume, Treble, Mid, Bass (the
+    # vibrato channel's), Speed, Intensity
+    knobs = {str(i): c for i, c in enumerate(centres[3:])}
+    pieces = skirt_pieces(im, knobs, 30)
+    shape = surround(im, lambda v: v >= 245)
+    # the vibrato channel's Bright slide switch is the rack's Bright
+    return dict(im=im, knobs=knobs, r=30, pieces=pieces, shape=shape,
+                toggles={'btn-bright': (522, 159, 19)},
+                controls={'btn-bright': (522, 159, 26, 44), 'sync-select': (832, 150, 80, 34)})
+
+
+def cab_black_sr(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    # the Super Reverb combo without its chassis, seen flat from the front,
+    # as the Vibro's
+    top, bot = im0.crop((0, 68, 1254, 112)), im0.crop((0, 216, 1254, 1231))
+    im = Image.new('RGBA', (1254, 38 + bot.height))
+    im.paste(bot, (0, 38))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 39, 1254, 44), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(2)))
+    for x0 in (0, 1184):
+        c = im.crop((x0, im.height - 70, x0 + 70, im.height)).transpose(Image.FLIP_TOP_BOTTOM)
+        cm = Image.new('L', c.size, 0)
+        ImageDraw.Draw(cm).rectangle((0 if x0 == 0 else 8, 0, 62 if x0 == 0 else 70, 56), fill=255)
+        im.paste(c, (x0, 0), cm.filter(ImageFilter.GaussianBlur(2.5)))
+    script_logo(im, 'Black SR', (230, 100), 56, fill='#ece6d6', edge='#1a1712')
+    return dict(im=im, knobs={}, r=10, shape=surround(im, lambda v: v >= 245), extra={'label': 'baked'})
+
+
+def duo_source(src):
+    im0 = Image.open(src).convert('RGBA')
+    # a speck of the grey backdrop between the bottom-left corner and the
+    # rail, too dark to be taken for the backdrop: made white
+    px = im0.load()
+    for y in range(1040, 1054):
+        for x in range(68, 92):
+            if sum(px[x, y][:3]) > 450:
+                px[x, y] = (255, 255, 255, 255)
+    return im0
+
+
+def black_duo(src, out):
+    im0 = duo_source(src)
+    # the combo cut down to a head, as the Lux, without its casters
+    top, bot = im0.crop((0, 0, 1402, 330)), im0.crop((0, 990, 1402, 1053))
+    im = Image.new('RGBA', (1402, 318 + bot.height))
+    im.paste(bot, (0, 318))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 326, 1402, 330), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(3)))
+    # brushed silver, its streaks kept level by taking the same rows
+    silver = lambda y0, y1: (1138, y0, 1180, y1)
+    blue, ink = '#3497ac', '#1e1e1e'
+    # the maker's model name: the rack's in its place, in the same blue capitals
+    patch_tiled(im, silver(150, 225), (1174, 150, 1270, 225), feather=3)
+    label(im, 'BLACK', (1221, 172), 30, fill=blue, squeeze=0.72, weight='Bold')
+    label(im, 'DUO', (1221, 202), 30, fill=blue, squeeze=0.72, weight='Bold')
+    # no reverb in the rack's amp: its knob makes way for the vibrato's Sync picker
+    # (the whole gap between its neighbours, the knob's own shadow with it)
+    patch_tiled(im, silver(146, 222), (921, 146, 994, 222), feather=1)
+    patch_tiled(im, silver(219, 236), (922, 219, 997, 236), feather=3)
+    label(im, 'SYNC', (958, 227), 17, fill=ink, squeeze=0.8, weight='ExtraBold')
+    # the skirts are drawn in perspective, lower than their caps: their
+    # printed numbers painted out, and a clean 0-10 turned round each
+    # knob's shaft (the black skirt and the cap look the same at any angle,
+    # so only the numbers turn)
+    caps = ((251.3, 173.6), (319.6, 174.1), (385.8, 174.0), (451.5, 173.9), (674.7, 174.2), (746.4, 174.1),
+            (817.4, 174.2), (887.7, 174.1), (1028.7, 174.2), (1098.9, 174.3))
+    for cx, cy in caps:
+        clear_skirt(im, (cx + 0.5, cy + 7.5, 31, 29.5), (cx, cy, 17))
+    shafts = [(cx, cy + 4) for cx, cy in caps]
+    for c in shafts[:4]:                       # the normal channel's, which stay put
+        skirt_numbers(im, c, 25, 12)
+    # tone slots in the rack's order: Volume, Treble, Mid, Bass (the
+    # vibrato channel's), Speed, Intensity
+    knobs = {str(i): c for i, c in enumerate(shafts[4:])}
+    r = 31
+    pieces = {}
+    for k in knobs:
+        pieces[k] = Image.new('RGBA', (2 * r + 4, 2 * r + 4), (0, 0, 0, 0))
+        skirt_numbers(pieces[k], (r + 2, r + 2), 25, 12)
+    # the vibrato channel's Bright slide switch is the rack's Bright
+    return dict(im=im, knobs=knobs, r=r, pieces=pieces, shape=surround(im, lambda v: v >= 245, whole_edge=True),
+                toggles={'btn-bright': (619, 190, 20)},
+                controls={'btn-bright': (619, 190, 26, 46), 'sync-select': (958, 180, 80, 34)})
+
+
+def cab_black_duo(src, out):
+    im0 = duo_source(src)
+    # the Twin combo without its chassis, seen flat from the front, as the
+    # Vibro's (and without its casters)
+    top, bot = im0.crop((0, 90, 1402, 140)), im0.crop((0, 243, 1402, 1053))
+    im = Image.new('RGBA', (1402, 47 + bot.height))
+    im.paste(bot, (0, 47))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 48, 1402, 50), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(1.5)))
+    for x0 in (0, 1332):
+        c = im.crop((x0, im.height - 70, x0 + 70, im.height)).transpose(Image.FLIP_TOP_BOTTOM)
+        cm = Image.new('L', c.size, 0)
+        ImageDraw.Draw(cm).rectangle((0 if x0 == 0 else 8, 0, 62 if x0 == 0 else 70, 56), fill=255)
+        im.paste(c, (x0, 0), cm.filter(ImageFilter.GaussianBlur(2.5)))
+    script_logo(im, 'Black Duo', (250, 112), 58, fill='#ece6d6', edge='#1a1712')
+    return dict(im=im, knobs={}, r=10, shape=surround(im, lambda v: v >= 245, whole_edge=True), extra={'label': 'baked'})
+
+
+def black_mini(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    # the combo cut down to a head, as the Lux
+    top, bot = im0.crop((0, 0, 1402, 380)), im0.crop((0, 990, 1402, 1110))
+    im = Image.new('RGBA', (1402, 368 + bot.height))
+    im.paste(bot, (0, 368))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 376, 1402, 380), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(3)))
+    plain = (1205, 240, 1230, 265)             # the smooth black panel past the switch
+    ink = '#ebe3cf'
+    # the maker's script and line make way for the rack's name
+    patch_tiled(im, plain, (842, 115, 1150, 268), feather=4)
+    script_logo(im, 'Black Mini', (996, 182), 64, fill='#ece3cf', edge='#0c0c0c')
+    # the inputs make way for the vibrato's Sync picker (the rack has none here)
+    patch_tiled(im, plain, (92, 116, 248, 264), feather=4)
+    label(im, 'SYNC', (167, 241), 24, fill=ink, squeeze=0.8, weight='Bold')
+    # the skirts are drawn a little from above, lower than their caps: as
+    # the Duo's, only their numbers turn round each shaft
+    caps = ((308.5, 166.2), (425.5, 166.3), (542.2, 166.5), (659.1, 166.4), (777.1, 165.5))
+    for cx, cy in caps:
+        clear_skirt(im, (cx, cy + 9, 52, 51), (cx, cy, 26))
+    # tone slots in the rack's order: Volume, Treble, Bass, Speed, Intensity
+    knobs = {str(i): (cx, cy + 6) for i, (cx, cy) in enumerate(caps)}
+    r = 50
+    pieces = {}
+    for k in knobs:
+        pieces[k] = Image.new('RGBA', (2 * r + 4, 2 * r + 4), (0, 0, 0, 0))
+        skirt_numbers(pieces[k], (r + 2, r + 2), 40, 20)
+    return dict(im=im, knobs=knobs, r=r, pieces=pieces, shape=surround(im, lambda v: v >= 245),
+                controls={'sync-select': (167, 180, 130, 42)})
+
+
+def cab_black_mini(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    # the Vibro Champ combo without its chassis: drawn flat from the front
+    # already, only the panel's strip taken out
+    top, bot = im0.crop((0, 0, 1402, 110)), im0.crop((0, 282, 1402, 1122))
+    im = Image.new('RGBA', (1402, 104 + bot.height))
+    im.paste(bot, (0, 104))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 104, 1402, 110), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(2)))
+    script_logo(im, '1x8 Custom', (270, 160), 58, fill='#ece6d6', edge='#1a1712')
+    return dict(im=im, knobs={}, r=10, shape=surround(im, lambda v: v >= 245), extra={'label': 'baked'})
+
+
+def unprint(im, region, ink=lambda p: p[2] - p[0] > 15):
+    # blue print on brushed metal painted out along each row from the panel
+    # either side of it, so the brushing runs on through
+    rgb = im.convert('RGB').load()
+    hole = Image.new('L', im.size, 0)
+    hp = hole.load()
+    rp = region.load()
+    l, t, r, b = region.getbbox()
+    for y in range(t, b):
+        for x in range(l, r):
+            if rp[x, y] and ink(rgb[x, y]):
+                hp[x, y] = 255
+    hole = ImageChops.multiply(hole.filter(ImageFilter.MaxFilter(5)), region)
+    hp, px = hole.load(), im.load()
+    for y in range(t, b):
+        x = l
+        while x < r:
+            if not hp[x, y]:
+                x += 1
+                continue
+            x1 = x
+            while x1 < r and hp[x1, y]:
+                x1 += 1
+            a, c = px[x - 1, y], px[x1, y]
+            for i in range(x, x1):
+                f = (i - x + 1) / (x1 - x + 1)
+                px[i, y] = tuple(round(a[k] + (c[k] - a[k]) * f) for k in range(3)) + (255,)
+            x = x1
+
+
+def blue_line(src, out):
+    im = Image.open(src).convert('RGBA')
+    ink = '#002b60'
+    centres = (664.5, 809.5, 954, 1098, 1278, 1416, 1554)
+    region = Image.new('L', im.size, 0)
+    d = ImageDraw.Draw(region)
+    # the drawing's garbled panel scales round each knob, its ticks left standing
+    for cx in centres:
+        d.ellipse((cx - 67, 296 - 67, cx + 67, 296 + 67), fill=255)
+        d.ellipse((cx - 51, 296 - 51, cx + 51, 296 + 51), fill=0)
+        for a in (0, 90, 180, 270):
+            d.pieslice((cx - 70, 226, cx + 70, 366), a - 10, a + 10, fill=0)
+    d.rectangle((580, 351, 1180, 392), fill=0)   # not the first channel's legends
+    # the second channel's legends, the mid-frequency and ultra switches'
+    # legends with their leader lines, the inputs' bright and normal,
+    # polarity: the rack's Blue Line has one channel
+    for box in ((740, 194, 1180, 224), (1206, 194, 1626, 224), (803, 230, 815, 236), (1012, 230, 1030, 258),
+                (1410, 230, 1422, 236), (1548, 230, 1560, 236), (1210, 350, 1622, 385), (455, 245, 540, 335),
+                (1700, 350, 1815, 385)):
+        d.rectangle(box, fill=255)
+    unprint(im, region)
+    label(im, 'ULTRA & MID FREQ', (1415, 211), 17, fill=ink, squeeze=0.95, weight='Bold')
+    for cx, text in ((1278, 'ultra-hi'), (1416, 'ultra-lo'), (1554, 'mid freq')):
+        label(im, text, (cx, 366), 27, fill=ink, squeeze=0.95, weight='Bold')
+    label(im, 'bright', (1757, 366), 27, fill=ink, squeeze=0.95, weight='Bold')
+    # the name where the original has its maker's mark, above the switches:
+    # a printed roundel and the name in lower case
+    badge = Image.new('RGBA', (200 * 3, 48 * 3), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(badge)
+    bd.ellipse((3, 3, 135, 135), outline=ink, width=16)
+    bd.ellipse((44, 44, 94, 94), fill=ink)
+    f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), 96)
+    f.set_variation_by_name('Bold')
+    bd.text((162, 66), 'blue line', font=f, fill=ink, anchor='lm')
+    badge = badge.resize((200, 48), Image.LANCZOS)
+    im.alpha_composite(badge, (1752, 206))
+    # the skirts are drawn a little from below, their caps higher: as the
+    # Duo's, only their numbers turn round each shaft
+    for cx in centres:
+        clear_skirt(im, (cx, 297, 48, 47), (cx, 288, 26))
+    # tone slots in the rack's order: Volume, Treble, Mid, Bass, Ultra-Hi,
+    # Ultra-Low, Mid Freq
+    knobs = {str(i): (cx, 296) for i, cx in enumerate(centres)}
+    r = 48
+    pieces = {}
+    for k in knobs:
+        pieces[k] = Image.new('RGBA', (2 * r + 4, 2 * r + 4), (0, 0, 0, 0))
+        skirt_numbers(pieces[k], (r + 2, r + 2), 40, 14)
+    # the polarity switch is the rack's Bright
+    return dict(im=im, knobs=knobs, r=r, pieces=pieces, shape=surround(im, lambda v: v >= 245),
+                toggles={'btn-bright': (1757, 295, 30)},
+                controls={'btn-bright': (1757, 295, 44, 64)})
+
+
+def m2_lead(src, out):
+    im = Image.open(src).convert('RGBA')
+    ink = '#e9e6df'
+    caps = (236.5, 359.5, 479, 599.5, 722, 845.5, 968)
+    lines = (242, 363, 481, 602, 720, 840, 963)     # the index lines above the knobs
+    region = Image.new('L', im.size, 0)
+    d = ImageDraw.Draw(region)
+    # the pull switches' legends (the rack has none of them), the knobs'
+    # legends that change, the EQ switch's, the maker's name
+    d.rectangle((180, 150, 1030, 180), fill=255)
+    for x in lines:
+        d.rectangle((x - 6, 150, x + 6, 180), fill=0)
+    for box in ((180, 326, 300, 352), (660, 326, 1035, 352), (1375, 150, 1470, 180), (1385, 278, 1465, 306),
+                (1430, 318, 1670, 356)):
+        d.rectangle(box, fill=255)
+    unprint(im, region, ink=lambda p: min(p) > 90)
+    # the caps' pointer lines: the numbers turn under the index line instead
+    region = Image.new('L', im.size, 0)
+    for cx in caps:
+        ImageDraw.Draw(region).rectangle((cx - 10, 212, cx + 10, 236), fill=255)
+    unprint(im, region, ink=lambda p: sum(p) < 420)
+    for cx, text in ((236.5, 'VOLUME'), (722, 'DRIVE'), (845.5, 'MASTER'), (968, 'PRESENCE')):
+        label(im, text, (cx, 339), 24, fill=ink, squeeze=0.78, weight='Bold')
+    label(im, 'ON', (1425, 165), 24, fill=ink, squeeze=0.78, weight='Bold')
+    label(im, 'BRIGHT', (1425, 292), 24, fill=ink, squeeze=0.78, weight='Bold')
+    script_logo(im, 'M-2 Lead', (423, 493), 72, fill='#e6e2d8', edge='#0e0e0e')
+    # the skirts are drawn a little from above, lower than their caps: as
+    # the Duo's, only their numbers turn round each shaft
+    for cx in caps:
+        clear_skirt(im, (cx + 1, 249, 54, 55), (cx, 236, 24.5), passes=12)
+    # tone slots in the rack's order: Volume, Treble, Bass, Middle, Drive,
+    # Master, Presence
+    knobs = {str(i): (cx, 246) for i, cx in enumerate(caps)}
+    r = 56
+    pieces = {}
+    for k in knobs:
+        pieces[k] = Image.new('RGBA', (2 * r + 4, 2 * r + 4), (0, 0, 0, 0))
+        skirt_numbers(pieces[k], (r + 2, r + 2), 43, 16, fill=ink)
+    # the EQ in switch is the rack's Bright; the graphic EQ stays as drawn
+    return dict(im=im, knobs=knobs, r=r, pieces=pieces, shape=surround(im, lambda v: v >= 245),
+                toggles={'btn-bright': (1425, 238, 30)},
+                controls={'btn-bright': (1425, 238, 44, 64)})
+
+
+def sl100(name, switch):
+    def prepare(src, out):
+        im0 = Image.open(src).convert('RGBA')
+        im = im0.copy()
+        ink = '#141414'
+        # the maker's badge: the ascenders above it covered with the mesh two
+        # diamonds along, the plate's face laid anew inside its rim
+        for x0, x1 in ((955, 992), (1075, 1108)):
+            patch(im, (x0 - 180, 195, x1 - 180, 235), (x0, 195, x1, 235), feather=2)
+        face = Image.new('RGBA', (1467 - 714 - 6, 326 - 231 - 6))
+        fd = ImageDraw.Draw(face)
+        for y in range(face.height):
+            v = round(34 - 20 * y / face.height)
+            fd.line((0, y, face.width, y), fill=(v, v, v + 1, 255))
+        m = Image.new('L', face.size, 0)
+        ImageDraw.Draw(m).rounded_rectangle((0, 0, face.width - 1, face.height - 1), 7, fill=255)
+        im.paste(face, (717, 234), m)
+        badge = Image.new('RGBA', (900 * 2, 110 * 2), (0, 0, 0, 0))
+        f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), 150)
+        f.set_variation_by_name('SemiBold')
+        bd = ImageDraw.Draw(badge)
+        bd.text((900, 110), name, font=f, fill='#d8d8d6', anchor='mm', stroke_width=3, stroke_fill='#6a6a6a')
+        badge = badge.resize((900, 110), Image.LANCZOS)
+        im.alpha_composite(badge, (1092 - 450, 280 - 55))
+        # the panel laid anew with the brushed metal past the Depth knob: the
+        # rack's SLO has six knobs and one switch, the drawing nine and four
+        patch_tiled(im, (1700, 440, 1750, 632), (262, 440, 1700, 632), feather=3)
+        tog = (332, 507)
+        t = im0.crop((tog[0] - 20, tog[1] - 20, tog[0] + 20, tog[1] + 20))
+        m = Image.new('L', t.size, 0)
+        ImageDraw.Draw(m).ellipse((4, 5, 36, 37), fill=255)
+        tx = 370
+        im.paste(t, (tx - 20, tog[1] - 20), m.filter(ImageFilter.GaussianBlur(2)))
+        label(im, switch, (tx, 470), 17, fill=ink, squeeze=0.85, weight='ExtraBold')
+        # Preamp, Bass, Middle, Treble, Presence and the Normal master,
+        # in the rack's order, each with its scale drawn anew at its sweep
+        units = ((567.5, 'PREAMP'), (837, 'BASS'), (965, 'MIDDLE'), (1097.5, 'TREBLE'), (1507, 'PRESENCE'), (1232, 'MASTER'))
+        knobs = {}
+        d = ImageDraw.Draw(im)
+        f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), 15)
+        f.set_variation_by_name('ExtraBold')
+        for i, (sx, title) in enumerate(units):
+            x, y = 555 + i * 187, 530
+            for v in range(11):
+                a = math.radians(-135 + 27 * v)
+                d.line(((x + 39 * math.sin(a), y - 39 * math.cos(a)), (x + 45 * math.sin(a), y - 45 * math.cos(a))), fill=ink, width=2)
+                d.text((x + 54 * math.sin(a), y - 54 * math.cos(a)), str(v), font=f, fill=ink, anchor='mm')
+            label(im, title, (x, 462), 21, fill=ink, squeeze=0.85, weight='ExtraBold')
+            k = cut_knob(im0, (sx, y), 38)
+            im.alpha_composite(k, (round(x - k.width / 2), round(y - k.height / 2)))
+            knobs[str(i)] = (x, y)
+        return dict(im=im, knobs=knobs, r=38, shape=surround(im, lambda v: v >= 245),
+                    toggles={'btn-bright': (tx, tog[1], 16)},
+                    controls={'btn-bright': (tx, tog[1], 30, 46)})
+    return prepare
+
+
+def cab_vibro(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    # the Black Vibro combo without its chassis, seen flat from the front:
+    # the panel's strip taken out (the top's tolex meeting the grille), the
+    # top with its handle and the feet under it cut off; the cabinet's name
+    # on the grille where a blackface's logo sits
+    top, bot = im0.crop((0, 54, 1402, 110)), im0.crop((0, 235, 1402, 1093))
+    im = Image.new('RGBA', (1402, 50 + bot.height))
+    im.paste(bot, (0, 50))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 50, 1402, 56), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(2)))
+    # the top corners get the bottom ones' metal protectors, mirrored
+    for x0 in (0, 1332):
+        c = im.crop((x0, 838, x0 + 70, 908)).transpose(Image.FLIP_TOP_BOTTOM)
+        cm = Image.new('L', c.size, 0)
+        ImageDraw.Draw(cm).rectangle((0 if x0 == 0 else 6, 0, 63 if x0 == 0 else 70, 63), fill=255)
+        im.paste(c, (x0, 0), cm.filter(ImageFilter.GaussianBlur(2.5)))
+    script_logo(im, 'Open Back', (290, 121), 60, fill='#ece6d6', edge='#1a1712')
+    # the black round it goes
+    shape = surround(im, lambda v: v <= 4)
+    return dict(im=im, knobs={}, r=10, shape=shape, extra={'label': 'baked'})
+
+
+def cab_lux(src, out):
+    im0 = Image.open(src).convert('RGBA')
+    # the Deluxe Reverb combo without its chassis, seen flat from the front,
+    # as the Vibro's: the panel's strip out, the top with its glides and the
+    # feet cut off, the bottom's rounded corners mirrored onto the top
+    top, bot = im0.crop((0, 75, 1402, 131)), im0.crop((0, 260, 1402, 1082))
+    im = Image.new('RGBA', (1402, 50 + bot.height))
+    im.paste(bot, (0, 50))
+    m = Image.new('L', top.size, 255)
+    ImageDraw.Draw(m).rectangle((0, 51, 1402, 56), fill=0)
+    im.paste(top, (0, 0), m.filter(ImageFilter.GaussianBlur(2)))
+    for x0 in (0, 1332):
+        c = im.crop((x0, im.height - 60, x0 + 70, im.height)).transpose(Image.FLIP_TOP_BOTTOM)
+        cm = Image.new('L', c.size, 0)
+        ImageDraw.Draw(cm).rectangle((0 if x0 == 0 else 8, 0, 62 if x0 == 0 else 70, 46), fill=255)
+        im.paste(c, (x0, 0), cm.filter(ImageFilter.GaussianBlur(2.5)))
+    script_logo(im, 'Black Panel Lux', (330, 120), 56, fill='#ece6d6', edge='#1a1712')
+    shape = surround(im, lambda v: v <= 4)
+    return dict(im=im, knobs={}, r=10, shape=shape, extra={'label': 'baked'})
+
+
+def cab_svt810(src, out):
+    # drawn flat from the front already: the feet cut off, the maker's badge
+    # covered with the grille cloth beside it, on the same rows so the weave runs on
+    im = Image.open(src).convert('RGBA').crop((0, 0, 992, 1554))
+    patch_tiled(im, (262, 104, 396, 270), (108, 104, 242, 270), feather=4, mirror=False)
+    script_logo(im, '8x10 Blue Line', (300, 170), 64, fill='#e9e9e6', edge='#1a1c20')
+    return dict(im=im, knobs={}, r=10, shape=surround(im, lambda v: v >= 245), extra={'label': 'baked'})
 
 
 def cab_tweed(name, plate, size):
@@ -1056,6 +1559,15 @@ IMAGES = {
     # its skirted knobs are drawn at noon
     'lux-vib': dict(prepare=lux('vib'), width=760, spin=0),
     'lux-norm': dict(prepare=lux('norm'), width=760, spin=0),
+    'black-vib': dict(prepare=black_vib, width=760, spin=0),
+    'black-sr': dict(prepare=black_sr, width=760, spin=0),
+    'black-duo': dict(prepare=black_duo, width=760, spin=0),
+    'black-mini': dict(prepare=black_mini, width=760, spin=0),
+    'blue-line': dict(prepare=blue_line, width=760, spin=0),
+    'm2-lead': dict(prepare=m2_lead, width=760, spin=0),
+    'sl100-drive': dict(prepare=sl100('SL100 Drive', 'MOD'), width=760, spin=0),
+    'sl100-crunch': dict(prepare=sl100('SL100 Crunch', 'BRIGHT'), width=760, spin=0),
+    'sl100-clean': dict(prepare=sl100('SL100 Clean', 'BRIGHT'), width=760, spin=0),
     # the same 4x12, its plate stamped for the 25 W or the 20 W speakers
     'cab-green25': dict(prepare=cab_green(25), width=760, spin=0),
     'cab-green20': dict(prepare=cab_green(20), width=760, spin=0),
@@ -1063,6 +1575,13 @@ IMAGES = {
     # the same 1960 4x12 with 65 W speakers, or with Classic 30s
     'cab-1960': dict(prepare=cab_1960([('65 W', 22)]), width=760, spin=0),
     'cab-1960c30': dict(prepare=cab_1960([('CLASSIC', 18), ('30', 18)]), width=760, spin=0),
+    # the Black Vibro's own cabinet, its chassis taken out
+    'cab-1x15': dict(prepare=cab_vibro, width=760, spin=0),
+    'cab-lux112': dict(prepare=cab_lux, width=760, spin=0),
+    'cab-blacksr410': dict(prepare=cab_black_sr, width=760, spin=0),
+    'cab-blackduo212': dict(prepare=cab_black_duo, width=760, spin=0),
+    'cab-custom18': dict(prepare=cab_black_mini, width=760, spin=0),
+    'cab-blueline810': dict(prepare=cab_svt810, width=760, spin=0),
     'cab-tweed112': dict(prepare=cab_tweed('Tweed Lux', (708, 102), 42), width=760, spin=0),
 }
 
