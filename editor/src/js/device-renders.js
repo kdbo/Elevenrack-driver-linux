@@ -1064,6 +1064,7 @@ window.DEVICE_RENDERS = {
     47
    ]
   },
+  "dials": {},
   "height": 419,
   "img": {
    "height": 419,
@@ -1100,7 +1101,9 @@ window.DEVICE_RENDERS = {
     248.5
    ]
   },
+  "sliders": {},
   "spin": 30,
+  "sprites": [],
   "switch": [
    113.1,
    336.8,

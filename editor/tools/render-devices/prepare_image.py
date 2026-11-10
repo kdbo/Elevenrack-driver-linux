@@ -85,6 +85,46 @@ def label(im, text, centre, size, fill='#eadcb6', squeeze=0.78, weight='ExtraBol
     im.alpha_composite(t_im, (round(centre[0] - t_im.width / 2), round(centre[1] - t_im.height / 2)))
 
 
+def text_layer(text, size, fill, weight='ExtraBold', squeeze=1.0, slant=0.0, tracking=0):
+    # a line of Manrope on its own transparent layer: condensed by `squeeze`,
+    # leaned forward by `slant` (shear, as a fraction of its height), its
+    # letters spaced `tracking` px apart
+    f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), size)
+    f.set_variation_by_name(weight)
+    widths = [f.getlength(c) + tracking for c in text]
+    l, t, r, b = f.getbbox(text)
+    pad = round(abs(slant) * (b - t)) + 8
+    t_im = Image.new('RGBA', (round(sum(widths)) + pad * 2, b - t + 8), (0, 0, 0, 0))
+    d, x = ImageDraw.Draw(t_im), pad
+    for c, w in zip(text, widths):
+        d.text((x, 4 - t), c, font=f, fill=fill)
+        x += w
+    if slant:
+        t_im = t_im.transform(t_im.size, Image.AFFINE, (1, slant, -slant * t_im.height, 0, 1, 0), Image.BICUBIC)
+    return t_im.resize((round(t_im.width * squeeze), t_im.height), Image.LANCZOS)
+
+
+def place(im, layer, centre, angle=0.0, shadow=0):
+    # composite a layer centred on `centre`, turned `angle` degrees (counter-clockwise),
+    # with a soft drop shadow if asked
+    if angle:
+        layer = layer.rotate(angle, resample=Image.BICUBIC, expand=True)
+    x, y = round(centre[0] - layer.width / 2), round(centre[1] - layer.height / 2)
+    if shadow:
+        sh = Image.new('RGBA', layer.size, (0, 0, 0, 0))
+        sh.putalpha(layer.getchannel('A').point(lambda a: a * 0.6).filter(ImageFilter.GaussianBlur(shadow)))
+        im.alpha_composite(sh, (x + shadow, y + shadow))
+    im.alpha_composite(layer, (x, y))
+
+
+def fit_label(im, text, centre, size, width, fill, weight='ExtraBold', squeeze=0.86):
+    # label(), squeezed further if need be so it is no wider than `width`
+    f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), size)
+    f.set_variation_by_name(weight)
+    l, t, r, b = f.getbbox(text)
+    label(im, text, centre, size, fill=fill, squeeze=min(squeeze, width / (r - l + 8)), weight=weight)
+
+
 def dial(im, centre, r, fill='#eadcb6', numbers=True, width=2, long=10, short=7):
     # a printed 0-10 scale round a knob: ticks, and the even numbers
     d = ImageDraw.Draw(im)
@@ -419,6 +459,20 @@ def ce1(src, out):
     # no level knob on the rack: the level control becomes the sync picker
     patch_tiled(im, (448, 300, 548, 470), (286, 266, 436, 471), feather=4)
     label(im, 'sync', (378, 300), 34, fill='#1c1c1e', squeeze=0.95, weight='Bold')
+    # the rack's name in the tray between the footswitches
+    # on the panel under the knobs, where the original has its name: the
+    # model in broad red outlined capitals, the rest in broad orange
+    cream = im.getpixel((900, 470))[:3]
+    f = ImageFont.truetype(os.path.join(HERE, '..', '..', 'src', 'fonts', 'Manrope.ttf'), 52)
+    f.set_variation_by_name('ExtraBold')
+    l, t, r, b = f.getbbox('C1', stroke_width=3)
+    c1 = Image.new('RGBA', (r - l + 8, b - t + 8), (0, 0, 0, 0))
+    ImageDraw.Draw(c1).text((4 - l, 4 - t), 'C1', font=f, fill=cream, stroke_width=3, stroke_fill='#c8201a')
+    c1 = c1.resize((round(c1.width * 1.45), c1.height), Image.LANCZOS)
+    rest = text_layer('Chorus Vibrato', 46, '#e2681e', weight='Bold', squeeze=1.3, tracking=1)
+    x0, y = 640, 472
+    place(im, c1, (x0 + c1.width / 2, y))
+    place(im, rest, (x0 + c1.width + 18 + rest.width / 2, y + 2))
     # the caps turn, their chrome skirts and printed dots stay
     knobs = {'02': (656, 324), '03': (910, 324), '04': (1120, 328)}
     return dict(im=im, knobs=knobs, r=46, switch=(283, 808, 56), led=(283, 598), sat_max=0.3, lum_min=180,
@@ -568,6 +622,9 @@ def roto(src, out):
     for (x, y), wood in (((1218, 583), (1120, 553, 1180, 613)), ((835, 648), (740, 616, 796, 680))):
         patch_tiled(im, wood, (x - 34, y - 32, x + 34, y + 32), feather=8, oval=True)
         im.paste(dark, (x - 17, y - 17), m)
+    # the rack's name on the wood under the footswitch, in the legends' cream
+    # in brass script, like a speaker cabinet's name badge
+    script_logo(im, 'Roto Speaker', (835, 838), 78, fill='#e2bd72', edge='#3a1a08')
     # the reddish wood on cream paper: cut out by its outline (with the jacks
     # and feet, where they are not paper-coloured)
     shape = Image.new('L', im.size, 0)
@@ -699,6 +756,10 @@ def memory_man(src, out):
         lamp(im, (x, y), r=11)
         label(im, text, (x, y + 42), 26, fill=paper, squeeze=0.8)
     label(im, 'SYNC', (515, 755), 26, fill=paper, squeeze=0.8)
+    # the rack's name in the black field, in the legends' red
+    # leaning along the black field's edge, under the subtitle, like the
+    # original's name
+    place(im, text_layer('BBD Delay', 108, '#b3121a', weight='ExtraBold', squeeze=0.9, slant=0.12), (370, 462), angle=-31)
     shape = Image.new('L', im.size, 0)
     ImageDraw.Draw(shape).rounded_rectangle((49, 52, 1476, 982), radius=30, fill=255)
     px = im.convert('RGB').load()
@@ -724,6 +785,11 @@ def gray_comp(src, out):
     pieces = {k: cut_knob(im, c, 158).rotate(a, resample=Image.BICUBIC) for k, c, a in (('02', (430, 312), -36), ('03', (820, 312), 71))}
     # no LED in the drawing: a small one over the footswitch
     lamp(im, (628, 800), r=12)
+    # the rack's name in place of the maker's: plain grey from above it
+    # a broad heavy brand word with the type name small under it
+    patch_tiled(im, (262, 1022, 520, 1072), (240, 1074, 1016, 1170), feather=8)
+    place(im, text_layer('GRAY', 100, '#101010', weight='ExtraBold', squeeze=1.2, tracking=6), (628, 1102))
+    place(im, text_layer('COMPRESSOR', 30, '#101010', weight='Bold', tracking=14), (628, 1160))
     shape = Image.new('L', im.size, 0)
     ImageDraw.Draw(shape).rounded_rectangle((205, 80, 1047, 1190), radius=40, fill=255)
     px = im.convert('RGB').load()
