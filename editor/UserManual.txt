@@ -1,4 +1,4 @@
-ELEVEN RACK EDITOR — LINUX USER MANUAL
+ELEVEN RACK EDITOR — USER MANUAL
 ===================================================================
 
 Eleven Rack Editor is a Linux editor and librarian for the Avid Eleven
@@ -89,7 +89,8 @@ SIGNAL PATH AND AMP / EFFECT CONTROLS
 --------------------------------------------------
 
 The signal path shows the rig's blocks in order. Click a tile to open its
-controls, click its name to bypass/enable it, or drag to change the order.
+controls, click its name to bypass/enable it, or hold the tile for half a
+second and drag it to change the order.
 
 The amp panel contains model-dependent tone controls. The adjacent card
 contains the amp model, cabinet, microphone, axis, Speaker Breakup and
@@ -99,9 +100,11 @@ The lock, reset and # controls manage knob ordering and numeric readouts.
 An effect opens its own panel with the selected model's parameters; its
 footswitch bypasses/enables it. Return to the amp using the panel control.
 
-Rotary controls use simple round pointer knobs. Drag vertically or use
-the mouse wheel to adjust them. Double-click restores the loaded value.
-Settings lets you choose rotary controls or sliders.
+Amps, cabinets and effects are shown as pictures of the device, with
+their knobs on the picture. Drag a knob vertically (hold Shift for fine
+steps) or use the mouse wheel to adjust it. Double-click restores the
+loaded value. While a preset loads, the middle section is dimmed until
+the preset has been read.
 
 MASTER SECTION
 --------------------------------------------------
@@ -152,9 +155,14 @@ interactive operations pause it to avoid unexpected preset changes.
 SETTINGS, ABOUT AND MANUAL
 --------------------------------------------------
 
-Settings contains control style, interface zoom, capture/export folder,
+Settings contains Cache Patches, interface zoom, capture/export folder,
 log-folder access and additional global hardware controls. Lower the
 zoom or enlarge the window if controls do not fit.
+
+Cache Patches (off by default) shows a preset you opened earlier in the
+session at once, from what the Rack sent last time; the editor then
+reads the Rack as usual and corrects anything that changed. Saves from
+the editor or from the Rack's front panel keep the cache up to date.
 
 About identifies Koen de Boevé's Linux application and preserves the
 original authors, project ancestry and research credits. Manual opens
