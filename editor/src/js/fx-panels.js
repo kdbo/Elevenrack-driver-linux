@@ -340,7 +340,7 @@ function refreshDistPanelAfterChainMap() {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    var val = knobDragValue(startVal, startY, e);
     activeWrap.dataset.value = val;
     drawKnob(activeWrap.querySelector('canvas'), val);
     var loHex = activeParamLo.toString(16).padStart(2,'0');
@@ -771,7 +771,7 @@ function refreshReverbPanelAfterChainMap() {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    var val = knobDragValue(startVal, startY, e);
     updateReverbKnob(activeParamLo, val);   // NOT interactive mid-drag — see dragStartTypeIdx above
     // Snapshot before queuing — see the DIST handler above for why (a
     // closure over the shared activeParamLo can fire after mouseup resets
@@ -953,7 +953,7 @@ function refreshWahPanelAfterChainMap() {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    var val = knobDragValue(startVal, startY, e);
     updateWahKnob(activeParamLo, val);
     // Snapshot before queuing — see the DIST handler above for why.
     var lo = activeParamLo;
@@ -1134,7 +1134,7 @@ function refreshVolPanelAfterChainMap() {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    var val = knobDragValue(startVal, startY, e);
     updateVolKnob(activeParamLo, val);
     // Snapshot before queuing — see the DIST handler above for why.
     var lo = activeParamLo;
@@ -1298,7 +1298,7 @@ function refreshFxLoopPanelAfterChainMap() {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    var val = knobDragValue(startVal, startY, e);
     updateFxLoopKnob(activeParamLo, val);
     // Snapshot before queuing — R6, drag-queue race (Sec 20A).
     var lo = activeParamLo;
@@ -1954,19 +1954,14 @@ function refreshDelayPanelAfterChainMap() {
     // query burst (never a cache hit here).
     sel.value = String(model.mid);
     syncLoadedMarker(sel, 'delay-model-select');
-    const dseq2 = ++delayBuildSeq;
-    const dbuilt2 = buildDelayPanel(delayBlk.modelId);
-    delayPendingBuild = { seq: dseq2, cellsByLo: dbuilt2.cellsByLo, model: dbuilt2.model };
-    setTimeout(function() {
-      delayArrivalGate = makeArrivalGate(model.paramLos, 1500, function() {
-        if (delayPendingBuild && delayPendingBuild.seq === dseq2) {
-          delayPendingBuild = null;
-          delayArrivalGate = null;
-          swapInDelayPanel(dbuilt2.frag);
-        }
-      });
-      requestDelayParams();
-    }, 150);
+    // A patch change: the new model's panel goes in at once, not staged
+    // behind its values (the previous model's knobs would stay up until
+    // they all landed, a second or so); the stage is dimmed meanwhile, and
+    // the values paint in as they come (or at once from the patch cache).
+    ++delayBuildSeq;
+    delayPendingBuild = null; delayArrivalGate = null;
+    swapInDelayPanel(buildDelayPanel(delayBlk.modelId).frag);
+    setTimeout(requestDelayParams, 150);
     appLog('refreshDelayPanelAfterChainMap: dropdown resync, mid=0x'
       + delayBlk.modelId.toString(16).padStart(2,'0'));
     return;
@@ -2030,7 +2025,7 @@ function refreshDelayPanelAfterChainMap() {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; delayDragLo = -1; return; }
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    var val = knobDragValue(startVal, startY, e);
     updateDelayKnob(activeParamLo, val);
     // Snapshot before queuing — R6, drag-queue race (Sec 20A).
     var lo = activeParamLo;
@@ -2796,20 +2791,12 @@ function refreshFxHostPanelAfterChainMap() {
     // burst (never a cache hit here).
     sel.value = String(model.mid);
     syncLoadedMarker(sel, 'fxhost-model-select:' + slotId);
-    const seq2 = ++fxHostBuildSeq;
-    const built2 = buildFxHostPanel(blk.modelId);
-    fxHostPendingBuild = { seq: seq2, cellsByLo: built2.cellsByLo, model: built2.model };
-    setTimeout(function() {
-      if (!(fxHostPendingBuild && fxHostPendingBuild.seq === seq2)) return;   // superseded during the 150ms wait
-      fxHostArrivalGate = makeArrivalGate(model.paramLos, 1500, function() {
-        if (fxHostPendingBuild && fxHostPendingBuild.seq === seq2) {
-          fxHostPendingBuild = null;
-          fxHostArrivalGate = null;
-          swapInFxHostPanel(built2.frag);
-        }
-      });
-      requestFxHostParams(slotId);
-    }, 150);
+    // A patch change: the new model's panel goes in at once (see the same
+    // case in refreshDelayPanelAfterChainMap)
+    ++fxHostBuildSeq;
+    fxHostPendingBuild = null; fxHostArrivalGate = null;
+    swapInFxHostPanel(buildFxHostPanel(blk.modelId).frag);
+    setTimeout(function() { requestFxHostParams(slotId); }, 150);
     appLog('refreshFxHostPanelAfterChainMap: dropdown resync, slot=0x' + slotId.toString(16).padStart(2,'0')
       + ' mid=0x' + blk.modelId.toString(16).padStart(2,'0'));
     return;
@@ -2885,7 +2872,7 @@ function fxHostClearSyncIfDriving(model, paramLo) {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    var val = knobDragValue(startVal, startY, e);
     updateFxHostKnob(activeParamLo, val);
     // Snapshot before queuing — see the DIST handler above for why. This is
     // the exact bug that produced paramLo=-1 (byte 0xFF, an illegal SysEx

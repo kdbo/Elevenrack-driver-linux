@@ -57,6 +57,7 @@ function deferPaintOrRun(fn) {
 }
 function flushNavPaint() {
   navPaintDeferred = false;
+  setPatchLoading(false);
   var paints = navPendingPaints;
   navPendingPaints = [];
   paints.forEach(function(fn) { fn(); });
@@ -74,6 +75,86 @@ function flushNavPaint() {
 function beginNavPaintBuffer() {
   if (!navPaintDeferred) navPendingPaints = [];
   navPaintDeferred = true;
+  setPatchLoading(true);
+}
+// ── Patch cache (Settings > Cache Patches, off unless switched on; the
+// switch is kept in localStorage) ──
+// The rack's replies to a patch's read, kept per slot for this session. On
+// a later visit to that slot they are played back through parseSysEx at
+// once, with nothing sent to the rack (transport.js sendHex), so the patch
+// shows straight away; the real read follows as always and corrects what
+// changed since. A few KB a patch.
+// Changes made while on a patch (the rack echoes each one, whether made
+// here or on its front panel) are kept aside: a save, here or on the rack,
+// folds them into the saved slot's entry; leaving the patch unsaved drops
+// them, as the rack itself does.
+var PATCH_CACHE_KEY = 'ee-patch-cache';
+var PATCH_CACHE_CMDS = [0x05, 0x07, 0x0D, 0x11, 0x21, 0x34, 0x36, 0x37, 0x50];   // patch state replies only
+var patchCache = {};
+var patchCacheRec = null;            // { slot, msgs } while a read is recorded
+var patchCacheLive = null;           // { slot, msgs } the changes since, unsaved
+var patchCacheReplaying = false;
+function patchCacheOn() {
+  try { return localStorage.getItem(PATCH_CACHE_KEY) === 'on'; } catch (e) { return false; }
+}
+function setPatchCacheOn(on) {
+  try { localStorage.setItem(PATCH_CACHE_KEY, on ? 'on' : 'off'); } catch (e) {}
+  if (!on) clearPatchCache();
+}
+function clearPatchCache() { patchCache = {}; patchCacheRec = patchCacheLive = null; }
+function patchCacheStart(slot) { patchCacheLive = null; patchCacheRec = patchCacheOn() ? { slot: slot, msgs: [] } : null; }
+function patchCacheRecord(bytes) {
+  if (patchCacheReplaying || !bytes || bytes.length < 6 || bytes[0] !== 0xF0 || PATCH_CACHE_CMDS.indexOf(bytes[5]) === -1) return;
+  var into = patchCacheRec || (patchCacheLive && patchCacheLive.slot === currentSlot ? patchCacheLive : null);
+  if (into) into.msgs.push(Array.from(bytes));
+}
+function patchCacheCommit(slot) {
+  if (patchCacheRec && patchCacheRec.slot === slot && patchCacheRec.msgs.length) {
+    patchCache[slot] = patchCacheRec.msgs;
+    patchCacheLive = { slot: slot, msgs: [] };
+  }
+  patchCacheRec = null;
+}
+// One reply per value: a later one for the same parameter takes the
+// earlier one's place, so an entry stays its own size however often it is saved.
+function patchCacheMsgKey(m) {
+  var cmd = m[5];
+  if (cmd === 0x11) return '11:' + m[6] + ':' + m[7];
+  if (cmd === 0x36 || cmd === 0x37) return cmd + ':' + m[6];
+  return String(cmd);
+}
+// A save (here or on the rack's front panel) of the patch on screen to `slot`.
+function patchCacheSaved(slot) {
+  if (!patchCacheLive) return;
+  var base = (patchCache[patchCacheLive.slot] || []).slice(), at = {};
+  base.forEach(function(m, i) { at[patchCacheMsgKey(m)] = i; });
+  patchCacheLive.msgs.forEach(function(m) {
+    var k = patchCacheMsgKey(m);
+    if (at[k] !== undefined) base[at[k]] = m; else { at[k] = base.length; base.push(m); }
+  });
+  if (base.length) patchCache[slot] = base;
+  if (slot === patchCacheLive.slot) patchCacheLive.msgs = [];
+}
+// Plays a slot's cached replies; true if there were any to play.
+async function patchCacheReplay(slot) {
+  var msgs = patchCacheOn() && patchCache[slot];
+  if (!msgs) return false;
+  patchCacheReplaying = true;
+  try { for (var i = 0; i < msgs.length; i++) { try { await parseSysEx(msgs[i]); } catch (e) { appLog('Patch cache replay: ' + e); } } }
+  finally { patchCacheReplaying = false; }
+  appLog('Patch cache: ' + msgs.length + ' replies played for ' + slotLabel(slot));
+  return true;
+}
+
+// The stage dimmed (and not editable) while a patch loads,
+// so nothing is turned on the previous patch's picture; undimmed by the
+// flush, or after a while should the pull be abandoned without one.
+var patchLoadingTimer = 0;
+function setPatchLoading(on) {
+  clearTimeout(patchLoadingTimer);
+  document.body.classList.toggle('patch-loading', on);
+  if (!on) document.body.classList.remove('patch-cached');
+  if (on) patchLoadingTimer = setTimeout(function() { document.body.classList.remove('patch-loading'); }, 4000);
 }
 
 // Fires onDone once every id in `los` has been reported via the returned
@@ -835,6 +916,39 @@ function updateAvidStatus(running) {
   }
 }
 
+// ── Knob drag: the value a vertical drag has reached. Two pixels a step
+// (a full sweep over 254 px, one step a pixel was too twitchy), eight
+// with Shift held for fine setting; pressing or letting go of Shift
+// mid-drag carries on from the value reached instead of jumping. Each
+// mousedown (capture phase, before any knob's own handler) starts afresh.
+const KNOB_PX_PER_STEP = 2, KNOB_PX_PER_STEP_FINE = 8;
+const knobDragAnchor = { y: null };
+document.addEventListener('mousedown', function(e) {
+  knobDragAnchor.y = null;
+  clearTimeout(knobDragRelease);
+  knobDragWrap = e.target.closest ? e.target.closest('.knob-wrap') : null;
+}, true);
+// The knob being dragged, kept a moment past the release: the rack echoes
+// the values the drag sent, and an echo of an earlier one arriving
+// mid-drag (or just after the last send) must not throw the knob back.
+// Every effect panel's incoming-value route asks knobBeingDragged first;
+// the amp's tone knobs and Delay have their own guards (state.js).
+let knobDragWrap = null, knobDragRelease = 0;
+function endKnobDrag() { clearTimeout(knobDragRelease); knobDragRelease = setTimeout(function() { knobDragWrap = null; }, 400); }
+window.addEventListener('mouseup', endKnobDrag, true);
+window.addEventListener('blur', endKnobDrag);
+function knobBeingDragged(attr, paramLo) {
+  return !!knobDragWrap && parseInt(knobDragWrap.dataset[attr], 16) === paramLo;
+}
+function knobDragValue(startVal, startY, e) {
+  const a = knobDragAnchor;
+  if (a.y === null) { a.y = startY; a.base = startVal; a.last = startVal; a.shift = e.shiftKey; }
+  if (e.shiftKey !== a.shift) { a.y = e.clientY; a.base = a.last; a.shift = e.shiftKey; }
+  a.last = a.base + (a.y - e.clientY) / (e.shiftKey ? KNOB_PX_PER_STEP_FINE : KNOB_PX_PER_STEP);
+  a.last = Math.max(0, Math.min(127, a.last));
+  return Math.round(a.last);
+}
+
 // ── Knob initializer for permanent knobs (Rig Vol, Amp Out) ──
 function initKnob(wrapId, valId, dispFn, onChangeCB) {
   const wrap = document.getElementById(wrapId);
@@ -857,7 +971,7 @@ function initKnob(wrapId, valId, dispFn, onChangeCB) {
     // leave the knob following the mouse with no button held until the next
     // click. e.buttons is 0 the moment the button is up, wherever it happened.
     if (e.buttons === 0) { dragging = false; return; }
-    val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    val = knobDragValue(startVal, startY, e);
     wrap.dataset.value = val;
     drawKnob(canvas, val);
     if (valSpan) valSpan.textContent = dispFn(val);
@@ -2013,6 +2127,8 @@ let chainDragMovingRight = true;  // this drag's current direction, updated only
                                    // set for real on the first real movement past the threshold
 let chainDragStartX     = 0;
 let chainDragStartY     = 0;
+let chainDragStartT     = 0;
+let chainDragHoldTimer  = 0;      // turns the cursor to 'grabbing' once held CHAIN_DRAG_HOLD
 let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
 let chainDragOffsetY    = 0;      // used for grab-offset-independent hit
                                    // testing (see mousemove below)
@@ -2022,7 +2138,9 @@ let chainDragStartOrder = null;   // currentChain snapshot at mousedown — ever
                                    // incoming chain-map broadcast mid-drag
                                    // cannot yank the preview (WATCH FOR, 7/19)
 let chainPreviewOrder   = null;   // order currently shown on screen
-const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
+const CHAIN_DRAG_THRESHOLD = 12;  // px of movement before it counts as a drag
+const CHAIN_DRAG_HOLD = 500;      // ms held before it can: a click that slips is no drag
+                                  // (and hovered before the cursor shows a block can be grabbed)
 
 // 7/28 (2nd pass): the floating ghost clone that used to live here is gone.
 // Charlie's screen recording of Avid's own editor showed no separate ghost at
@@ -2049,6 +2167,19 @@ function wireChainDrag() {
   // handle". Splitting them onto separate elements (thumb vs label) removes
   // that conflict at the source, matching how Avid's own editor works: you
   // grab the pedal graphic, you click the label.
+  // the grab cursor only once a block has been hovered CHAIN_DRAG_HOLD: passing
+  // over the strip shows the blocks as buttons to click
+  let hoverThumb = null, hoverTimer = 0;
+  function setHoverThumb(t) {
+    if (t === hoverThumb) return;
+    clearTimeout(hoverTimer);
+    if (hoverThumb) hoverThumb.classList.remove('grab-hover');
+    hoverThumb = t;
+    if (t) hoverTimer = setTimeout(function() { t.classList.add('grab-hover'); }, CHAIN_DRAG_HOLD);
+  }
+  strip.addEventListener('mouseover', function(ev) { setHoverThumb(ev.target.closest('.chain-thumb')); });
+  strip.addEventListener('mouseleave', function() { setHoverThumb(null); });
+
   strip.addEventListener('mousedown', function(ev) {
     if (ev.button !== 0) return;   // left button only
     const thumb = ev.target.closest('.chain-thumb');
@@ -2063,6 +2194,11 @@ function wireChainDrag() {
     chainDragThumb = thumb;
     chainDragStartX = ev.clientX;
     chainDragStartY = ev.clientY;
+    chainDragStartT = Date.now();
+    clearTimeout(chainDragHoldTimer);
+    chainDragHoldTimer = setTimeout(function() {
+      if (chainDragPending && chainDragThumb) document.body.style.cursor = 'grabbing';
+    }, CHAIN_DRAG_HOLD);
     chainDragLastX  = ev.clientX;
     const r = thumb.getBoundingClientRect();
     chainDragOffsetX = ev.clientX - r.left;   // where within the THUMB it was
@@ -2082,7 +2218,7 @@ function wireChainDrag() {
 
     if (chainDragPending) {
       const dx = ev.clientX - chainDragStartX, dy = ev.clientY - chainDragStartY;
-      if (Math.hypot(dx, dy) < CHAIN_DRAG_THRESHOLD) return;   // still just a click so far
+      if (Math.hypot(dx, dy) < CHAIN_DRAG_THRESHOLD || Date.now() - chainDragStartT < CHAIN_DRAG_HOLD) return;   // still just a click so far
       chainDragPending = false;
       chainDragActive = true;
       chainDragThumb.classList.add('dragging');
@@ -2247,6 +2383,7 @@ function wireChainDrag() {
       sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
       committed = true;
     }
+    clearTimeout(chainDragHoldTimer);
     if (chainDragThumb) chainDragThumb.classList.remove('dragging');
     if (chainDragCont) {
       // Clear the continuous-follow transform/pointer-events (7/28, 10th
@@ -3522,7 +3659,7 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; toneValueDragLo = -1; return; }  // released outside the window
-    const val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    const val = knobDragValue(startVal, startY, e);
     activeWrap.dataset.value = val;
     drawKnob(activeWrap.querySelector('canvas'), val);
     const vEl = document.getElementById('tone-v' + activeIdx);

@@ -452,8 +452,9 @@
     width: 60px; height: 64px; margin-bottom: 4px; flex-shrink: 0;
     align-self: center;   /* fixed width — parent's stretch would otherwise leave it flush-left */
     display: flex; align-items: center; justify-content: center;
-    cursor: grab;
+    cursor: pointer;
   }
+  .chain-thumb.grab-hover { cursor: grab; }   /* hovered a while (ui.js CHAIN_DRAG_HOLD) */
   .chain-thumb.dragging { opacity: 0.35; cursor: grabbing; }
   /* 2026-08-27 — chain row selection ring, Charlie's call: Avid's own
      editor rings the currently-selected block's pedal graphic (a real
@@ -1999,11 +2000,9 @@
     </div>
 
     <div class="settings-row">
-      <div class="settings-row-label">Controls</div>
+      <div class="settings-row-label">Cache Patches</div>
       <div class="settings-row-controls">
-        <button class="settings-btn settings-ctl-btn" data-ctl="knobs">Knobs</button>
-        <button class="settings-btn settings-ctl-btn" data-ctl="sliders">Sliders</button>
-        <div class="settings-path">Knobs: rotary controls with a value arc. Sliders: vertical faders. Same drag, scroll and double-click-to-restore either way.</div>
+        <button class="settings-btn" id="settings-btn-patch-cache">Off</button>
       </div>
     </div>
     <div class="settings-row" id="settings-window-row">

@@ -370,6 +370,7 @@ async function importSlotEntry(entry) {
     + encoded.map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ')
     + ' F7';
   sendHex(hexBulk);
+  if (typeof patchCache !== 'undefined') delete patchCache[slot];   // its cached read (ui.js) no longer holds
 
   // 2. Watch for a rejection during the window. No 0x78 => accepted.
   await sleep(IMPORT_REJECT_MS);

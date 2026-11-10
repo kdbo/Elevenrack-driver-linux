@@ -301,6 +301,7 @@ function handleBridgeMsg(msg) {
       if (msg.bytes && msg.bytes.length === 3 && msg.bytes[0] === 0xB0 && msg.bytes[1] === CC_TUNER) {
         handleTunerCC(msg.bytes[2]);
       }
+      if (typeof patchCacheRecord === 'function') patchCacheRecord(msg.bytes);
       parseSysEx(msg.bytes || []);
       break;
     case 'error':
@@ -515,6 +516,7 @@ document.getElementById('midi-in-select').addEventListener('change', function(e)
 });
 
 function sendHex(hex) {
+  if (typeof patchCacheReplaying !== 'undefined' && patchCacheReplaying) return true;   // a cached patch playing back: nothing goes to the rack
   if (!bridgeReady || !bridgeWs || bridgeWs.readyState !== 1) {
     setStatus('Bridge not connected');
     return false;
@@ -1187,6 +1189,7 @@ function sendRawParamWrite(instId, paramId, rawV0) {
 // the next one starts, while each burst keeps its own internal pacing.
 let pacedBurstQueue = Promise.resolve();
 function runPacedBurst(fn) {
+  if (typeof patchCacheReplaying !== 'undefined' && patchCacheReplaying) return Promise.resolve();   // a cached patch playing back asks the rack nothing
   const run = pacedBurstQueue.then(fn, fn);
   pacedBurstQueue = run.catch(() => {});
   return run;
@@ -1557,6 +1560,7 @@ async function requestPatchStateAfterNav() {
     // header comment (ui.js). Flush now, in one pass, before logging
     // completion — the screen snaps to the new patch here.
     if (typeof flushNavPaint === 'function') flushNavPaint();
+    if (typeof patchCacheCommit === 'function') patchCacheCommit(startSlot);
     var ms = Date.now() - tStart;
     appLog('Nav pull complete: ' + qCount + ' param queries, ' + ms + ' ms');
     startupProgress('Preset controls loaded — finishing startup...', .95);
@@ -1591,6 +1595,20 @@ async function requestPatchStateAfterNav() {
     if (!stale() && typeof captureKnobBaselines === 'function') captureKnobBaselines();
     if (PROBE_UNKNOWN_QUERIES) { await sleep(300); await probeUnknownQueries(); }
     if (PROBE_AMP_PARAM_SWEEP) { await sleep(300); await probeAmpParamSweep(); }
+  }
+
+  // Patch cache (ui.js): the slot as it was last read, shown at once (while
+  // the rack settles); then buffering again for the real read, which
+  // records itself for next time
+  if (!REQUEST_BULK_ON_NAV && typeof patchCacheReplay === 'function') {
+    if (typeof beginNavPaintBuffer === 'function') beginNavPaintBuffer();
+    if (await patchCacheReplay(startSlot)) {
+      if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+      flushNavPaint();
+      beginNavPaintBuffer();
+      document.body.classList.add('patch-cached');
+    }
+    patchCacheStart(startSlot);
   }
 
   await sleep(NAV_RECALL_SETTLE);

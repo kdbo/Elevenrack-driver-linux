@@ -24,7 +24,6 @@
 (function () {
   'use strict';
 
-  const CTL_KEY = 'ee-controls';   // localStorage: 'knobs' | 'sliders'
   const $ = id => document.getElementById(id);
 
   // ── Amp families: which drawn amp each model gets, and what it is based on ──
@@ -39,11 +38,6 @@
     rb01b_red: 'rb', rb01b_blue: 'rb', rb01b_green: 'rb',
     dc_mod_od: 'dc', dc_mod_sod: 'dc', dc_mod800: 'dc', dc_mod_clean: 'dc', dc_vint_crunch: 'dc', dc_vint_od: 'dc', dc_vint_clean: 'dc', dc_bass: 'dc',
   };
-  const FAMILIES = [
-    { key: 'tweed', name: 'Tweed' }, { key: 'black', name: 'Black panel' }, { key: 'ac', name: 'AC' },
-    { key: 'plexi', name: 'Plexi' }, { key: 'lead', name: 'Lead' }, { key: 'tread', name: 'Tread plate' },
-    { key: 'blue', name: 'Blue line' }, { key: 'rb', name: 'RB' }, { key: 'dc', name: 'DC' },
-  ];
   // "Based on" — the amp each model emulates, as Avid's Eleven Rack guide lists them.
   const AMP_BASED_ON = {
     tweed_lux: '1959 Fender® 5E3 Tweed Deluxe', tweed_bass: '1959 Fender® 5F6-A Bassman®',
@@ -645,6 +639,9 @@
   const RENDERS = window.DEVICE_RENDERS || {};
   const RENDER_BASE = '../assets/devices/';
   const RENDER_LED = { 'green-jrc': '#ff3b2a', 'black-op': '#ff3b2a', 'white-boost': '#ff3b2a', 'dc-dist': '#ff3b2a', 'tri-fuzz': '#ff3b2a', 'orange-phaser': '#ff3b2a', 'flanger': '#c070ff', 'multi-chorus': '#3d8bff', 'roto': '#ffb43a', 'dyn3': '#a565ff', 'param-eq': '#a565ff', 'fx-loop': '#a565ff', 'eleven-sr': '#a565ff', 'dyn-delay': '#a565ff' };
+  // a value with no knob in the picture (a treadle's position): a plain knob,
+  // in a column left of the picture with the pedal's other controls under it (CSS px)
+  const BAR_KNOB = 48, SIDE_X = -80, SIDE_Y = 52, SIDE_STEP = 96;
   const renderImgs = {};
   function renderImg(dev, part) {
     const key = dev + '-' + part;
@@ -694,11 +691,8 @@
     const sz = wrapSize(wrap, 56, 56), s = Math.min(sz.w, sz.h), ctx = prep(canvas, s, s);
     const m = RENDERS[dev] || {};
     if (wrap.dataset.bar) {
-      // a value with no knob in the picture: a level bar
-      const bsz = wrapSize(wrap, 200, 14), bc = prep(canvas, bsz.w, bsz.h), v = clamp127(value127) / 127;
-      bc.fillStyle = 'rgba(0,0,0,.55)'; rr(bc, 0, 0, bsz.w, bsz.h, bsz.h / 2); bc.fill();
-      const g = bc.createLinearGradient(0, 0, 0, bsz.h); g.addColorStop(0, '#8fb2f4'); g.addColorStop(1, '#3f6fd6');
-      if (v > 0) { bc.fillStyle = g; rr(bc, 1, 1, Math.max(bsz.h - 2, (bsz.w - 2) * v), bsz.h - 2, (bsz.h - 2) / 2); bc.fill(); }
+      // a value with no knob in the picture (a treadle's position): a plain knob
+      drawPlainKnob(canvas, value127, wrap);
       return;
     }
     if (m.spin !== undefined) {
@@ -778,7 +772,9 @@
     const pl = m.img ? { left: m.img.left + 'px', top: m.img.top + 'px', width: m.img.width + 'px', height: m.img.height + 'px' } : { left: '', top: '', width: '', height: '' };
     Object.assign(body.style, pl);
     if (host !== el) host.style.height = m.height ? m.height + 'px' : '';
-    if (el.classList.contains('pedal')) { el.style.width = m.width + 'px'; el.style.height = m.height + 'px'; }
+    // (with its bars beside the picture, the strip export.py left under it for them goes)
+    const side = Object.keys(m.bars || {}).sort();
+    if (el.classList.contains('pedal')) { el.style.width = m.width + 'px'; el.style.height = (side.length ? m.img.height : m.height) + 'px'; }
     el.style.setProperty('--led', RENDER_LED[dev] || '#ff3b2a');
     el.querySelectorAll('.ctrl-knob').forEach(k => {
       // knob-wrap ids end in the key export.py used: dist-w-02 -> 02, tone-w0 -> 0
@@ -786,8 +782,8 @@
       const bar = w && (m.bars || {})[key];
       if (bar) {
         w.dataset.bar = key; k.classList.add('render-bar');
-        k.style.left = bar[0] + 'px'; k.style.top = bar[1] + 'px';
-        if (w.style.width !== bar[2] + 'px') { w.style.width = bar[2] + 'px'; w.style.height = bar[3] + 'px'; const c = w.querySelector('canvas.knob-canvas'); if (c) drawRenderedKnob(c, clamp127(w.dataset.value), w, dev); }
+        k.style.left = SIDE_X + 'px'; k.style.top = (SIDE_Y + side.indexOf(key) * SIDE_STEP) + 'px';
+        if (w.style.width !== BAR_KNOB + 'px' || changed) { w.style.width = w.style.height = BAR_KNOB + 'px'; const c = w.querySelector('canvas.knob-canvas'); if (c) drawRenderedKnob(c, clamp127(w.dataset.value), w, dev); }
         return;
       }
       if (sl) {
@@ -825,7 +821,8 @@
       cell.classList.add('render-ctrl'); cell.dataset.kind = key.split('-')[0];
       if (p[4]) cell.dataset.style = p[4]; else delete cell.dataset.style;   // e.g. rocker: shade the off half
       // (important: the pedal's selects are otherwise sized to their text)
-      cell.style.left = p[0] + 'px'; cell.style.top = p[1] + 'px';
+      if (side.length) { cell.style.left = SIDE_X + 'px'; cell.style.top = (SIDE_Y + side.length * SIDE_STEP - 22) + 'px'; }
+      else { cell.style.left = p[0] + 'px'; cell.style.top = p[1] + 'px'; }
       c.style.setProperty('width', p[2] + 'px', c.tagName === 'SELECT' ? 'important' : ''); c.style.height = p[3] + 'px';
     });
     // lamps and flipped bats left from the previous model's picture go
@@ -899,19 +896,22 @@
     } else if (slidersOn()) {
       drawGlassFader(canvas, value127, wrap);
     } else {
-      // Reset the fader's backing size/transform and fit the round drawing
-      // to its layout box instead of overflowing it at its native 70px.
-      const size = wrap.clientWidth || 56;
-      const pixels = Math.round(size * (window.devicePixelRatio || 1));
-      canvas.width = pixels;
-      canvas.height = pixels;
-      canvas.dataset.logicalSize = '70';
-      canvas.getContext('2d').setTransform(pixels / 70, 0, 0, pixels / 70, 0, 0);
-      canvas.style.width = '100%';
-      canvas.style.height = '100%';
-      drawRoundKnob(canvas, value127, wrap);
+      drawPlainKnob(canvas, value127, wrap);
     }
   };
+  function drawPlainKnob(canvas, value127, wrap) {
+    // Reset the fader's backing size/transform and fit the round drawing
+    // to its layout box instead of overflowing it at its native 70px.
+    const size = wrap.clientWidth || 56;
+    const pixels = Math.round(size * (window.devicePixelRatio || 1));
+    canvas.width = pixels;
+    canvas.height = pixels;
+    canvas.dataset.logicalSize = '70';
+    canvas.getContext('2d').setTransform(pixels / 70, 0, 0, pixels / 70, 0, 0);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    drawRoundKnob(canvas, value127, wrap);
+  }
   try { drawTickKnob = window.drawTickKnob; } catch (e) {}
   // a graphic EQ's faders on a rendered look slide its rendered carriage
   const drawPlainEqSlider = window.drawEqSlider;
@@ -1019,9 +1019,6 @@
     const ampCard = mk('div', { class: 'glass card amp-card' }, '<h3>Amp, cabinet &amp; mic</h3>');
     ampCard.appendChild(kv(ampDD));
     ampCard.appendChild(mk('div', { class: 'kv' }, '<span class="label">Based on*</span><span class="txt" id="amp-based">—</span>'));
-    const backline = mk('div', { class: 'backline', id: 'backline' });
-    FAMILIES.forEach(f => backline.appendChild(mk('button', { type: 'button', class: 'backline-btn fam-' + f.key, 'data-fam': f.key, title: f.name + ' — click to switch to the first ' + f.name + ' amp' }, '<i></i><i></i>')));
-    ampCard.appendChild(mk('div', { class: 'kv' }, '<span class="label">Backline</span>')).appendChild(backline);
     [cabDD, micDD, axisTog, breakup, truez].forEach(c => { if (c) ampCard.appendChild(kv(c)); });
     ampCard.appendChild(mk('div', { class: 'fine' }, '* Trademarks of their owners, not associated with 11 Edit or Avid. Named only to identify the amp each model is based on.'));
     const fxCard = mk('div', { class: 'glass card fx-card' },
@@ -1097,16 +1094,6 @@
       window.refreshMatrixCells = function () { const r = orig.apply(this, arguments); applyMatrixFilter(); syncMatrixSeg(); return r; };
       try { refreshMatrixCells = window.refreshMatrixCells; } catch (e) {}
     }
-
-    // ── Backline thumbnails: switch to the first amp of that family ──
-    backline.addEventListener('click', function (e) {
-      const b = e.target.closest('.backline-btn'); if (!b) return;
-      const sel = $('amp-select'); if (!sel || sel.disabled || typeof AMP_SELECT_LIST === 'undefined') return;
-      const first = AMP_SELECT_LIST.find(a => AMP_FAMILY[a.key] === b.dataset.fam);
-      if (!first || sel.value === first.key) return;
-      sel.value = first.key;
-      sel.dispatchEvent(new Event('change'));
-    });
   }
 
   function pedalDom(panelId) {
@@ -1150,7 +1137,6 @@
     const obj = $('amp-obj'); if (obj) obj.className = 'amp fam-' + fam;
     const plate = $('amp-plate'); if (plate) plate.textContent = (typeof currentAmpName !== 'undefined' && currentAmpName) ? currentAmpName : 'Eleven Rack';
     const based = $('amp-based'); if (based) based.textContent = key ? (AMP_BASED_ON[key] || '—') : '—';
-    document.querySelectorAll('.backline-btn').forEach(b => b.classList.toggle('on', !!key && b.dataset.fam === fam));
     const cabSel = $('cab-type-select');
     const idx = cabSel ? parseInt(cabSel.value, 10) : -1;
     const n = (idx >= 0 && CAB_SPEAKERS[idx]) ? CAB_SPEAKERS[idx] : 2;
@@ -1347,7 +1333,8 @@
   }
   function installHooks() {
     ['setCurrentAmp', 'updateCabTypeDisplay', 'updateMicTypeDisplay', 'updateAxisDisplay', 'updateBreakupDisplay', 'updateDisplay',
-     'setTrueZDisplay', 'openFxHostPanel', 'closeFxHostPanel', 'renderDistKnobs', 'renderFxHostKnobs', 'updateFxHostKnob', 'refreshBlockBypassDisplays', 'updateMonoIndicator', 'applyNumberDisplayMode'].forEach(hook);
+     'setTrueZDisplay', 'openFxHostPanel', 'closeFxHostPanel', 'renderDistKnobs', 'renderFxHostKnobs', 'updateFxHostKnob', 'refreshBlockBypassDisplays', 'updateMonoIndicator', 'applyNumberDisplayMode',
+     'flushNavPaint', 'swapInFxHostPanel', 'swapInDelayPanel'].forEach(hook);   // (a patch's deferred paints, the cab and mic pickers among them, landing at once)
     ['amp-select', 'cab-type-select', 'mic-type-select', 'dist-model-select', 'reverb-model-select', 'wah-model-select', 'delay-model-select', 'fxhost-model-select']
       .forEach(id => { const s = $(id); if (s) s.addEventListener('change', scheduleSync); });
     const styleObs = new MutationObserver(scheduleSync);
@@ -1488,22 +1475,16 @@
     });
   }
 
-  // ── Controls: knobs or sliders (Settings > Controls) ──
-  function applyControls(mode, persist) {
-    const sliders = mode === 'sliders';
-    document.body.classList.toggle('sliders', sliders);
-    if (persist) { try { localStorage.setItem(CTL_KEY, sliders ? 'sliders' : 'knobs'); } catch (e) {} }
-    document.querySelectorAll('.settings-ctl-btn').forEach(b => b.classList.toggle('on', (b.dataset.ctl === 'sliders') === sliders));
-    repaintAllKnobs();
-  }
-
   // ── Boot ──
   buildLayout();
   installHooks();
-  let saved = null;
-  try { saved = localStorage.getItem(CTL_KEY); } catch (e) {}
-  applyControls(saved || 'knobs', false);
-  document.querySelectorAll('.settings-ctl-btn').forEach(b => b.addEventListener('click', function () { applyControls(b.dataset.ctl, true); }));
+  // Settings > Patch cache (ui.js patchCacheOn)
+  const pcBtn = $('settings-btn-patch-cache');
+  const showPatchCache = () => { const on = patchCacheOn(); pcBtn.textContent = on ? 'On' : 'Off'; pcBtn.classList.toggle('on', on); };
+  if (pcBtn && typeof patchCacheOn === 'function') { showPatchCache(); pcBtn.addEventListener('click', function () { setPatchCacheOn(!patchCacheOn()); showPatchCache(); }); }
+  // (the old Settings > Controls choice of sliders is gone: knobs for everyone)
+  try { localStorage.removeItem('ee-controls'); } catch (e) {}
+  repaintAllKnobs();
   syncAll();
   startVU();
   document.addEventListener('DOMContentLoaded', function () { repaintAllKnobs(); syncAll(); startVU(); });

@@ -245,6 +245,7 @@ async function handleBulkTfxData(data, cmd) {
 
     captureCount++;
     appLog('Save confirmed — capturing TFX slot ' + slotNum + ' (' + slotName + ')');
+    if (typeof patchCacheSaved === 'function') patchCacheSaved(slotNum);   // what is on screen is now that slot's
 
     if (autoStartTime !== null && !autoPaused) {
       togglePause();
@@ -668,10 +669,10 @@ function handlePatchName(data) {
     // silently overwrite the pending rename with hardware's own value.
     if (document.getElementById('patch-name-edit')) return;
     currentPatchName = name;
-    deferPaintOrRun(function() {
-      const nameEl = document.getElementById('patch-name');
-      if (nameEl) { nameEl.textContent = name; nameEl.classList.add('live'); }
-    });
+    // shown at once, not held back with the rest of the patch's paints: it
+    // arrives first, and the stage is dimmed meanwhile (ui.js setPatchLoading)
+    const nameEl = document.getElementById('patch-name');
+    if (nameEl) { nameEl.textContent = name; nameEl.classList.add('live'); }
     setStatus(slotLabel(currentSlot) + ' — ' + name);
     appLog('Patch name: "' + name + '"');
   }
@@ -1110,6 +1111,7 @@ function handleParamReadback(data) {
     const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
     if (distBlk && instId === distBlk.handle) {
       if (paramLo === 0x02 || paramLo === 0x03 || paramLo === 0x04 || paramLo === 0x05) {
+        if (knobBeingDragged('distLo', paramLo)) return;   // the user's drag wins (ui.js knobDragWrap)
         if (typeof updateDistKnob === 'function') updateDistKnob(paramLo, val);
         appLog('CMD 0x11 DIST paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
@@ -1124,6 +1126,7 @@ function handleParamReadback(data) {
     const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
     if (rvBlk && instId === rvBlk.handle) {
       if (paramLo >= 0x02 && paramLo <= 0x06) {
+        if (knobBeingDragged('reverbLo', paramLo)) return;   // the user's drag wins (ui.js knobDragWrap)
         if (typeof updateReverbKnob === 'function') updateReverbKnob(paramLo, val);
         appLog('CMD 0x11 REVERB paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
@@ -1138,6 +1141,7 @@ function handleParamReadback(data) {
     const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
     if (wahBlk && instId === wahBlk.handle) {
       if (paramLo === 0x02) {
+        if (knobBeingDragged('wahLo', paramLo)) return;   // the user's drag wins (ui.js knobDragWrap)
         if (typeof updateWahKnob === 'function') updateWahKnob(paramLo, val);
         appLog('CMD 0x11 WAH paramLo=0x02 val=' + val);
         return;
@@ -1154,6 +1158,7 @@ function handleParamReadback(data) {
     const volBlk = currentChain.find(b => b.slotId === SLOT_VOL);
     if (volBlk && instId === volBlk.handle) {
       if (paramLo >= 0x02 && paramLo <= 0x04) {
+        if (knobBeingDragged('volLo', paramLo)) return;   // the user's drag wins (ui.js knobDragWrap)
         if (typeof updateVolKnob === 'function') updateVolKnob(paramLo, val);
         appLog('CMD 0x11 VOL paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
@@ -1166,6 +1171,7 @@ function handleParamReadback(data) {
     const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
     if (loopBlk && instId === loopBlk.handle) {
       if (paramLo >= 0x02 && paramLo <= 0x04) {
+        if (knobBeingDragged('fxloopLo', paramLo)) return;   // the user's drag wins (ui.js knobDragWrap)
         if (typeof updateFxLoopKnob === 'function') updateFxLoopKnob(paramLo, val);
         appLog('CMD 0x11 FX LOOP paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
@@ -1217,6 +1223,7 @@ function handleParamReadback(data) {
     if (fxHostBlk && instId === fxHostBlk.handle) {
       const fxHostModel = FX1_MODEL_BY_MID[fxHostBlk.modelId];
       if (fxHostModel && fxHostModel.paramLos.indexOf(paramLo) !== -1) {
+        if (knobBeingDragged('fxhostLo', paramLo)) return;   // the user's drag wins (ui.js knobDragWrap)
         if (typeof updateFxHostKnob === 'function') updateFxHostKnob(paramLo, val);
         appLog('CMD 0x11 FX-HOST slot=0x' + openFxHostSlot.toString(16).padStart(2,'0')
           + ' paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);

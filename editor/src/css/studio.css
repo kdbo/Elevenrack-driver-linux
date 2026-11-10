@@ -70,7 +70,7 @@ body.studio .nav-btn, body.studio .input-btn, body.studio #btn-tuner, body.studi
 body.studio .glob-tog, body.studio .mute-btn, body.studio .bt-btn, body.studio .settings-btn, body.studio .dock-btn,
 body.studio .matrix-close-btn, body.studio #btn-restart-bridge, body.studio #btn-start, body.studio #btn-pause, body.studio #btn-stop,
 body.studio .rack-save-btns button, body.studio #btn-about-close, body.studio #btn-watchdog-ok, body.studio #btn-scan-skip,
-body.studio .size-btn, body.studio #rigbal-entry-box .bt-btn, body.studio .seg-btn, body.studio .backline-btn,
+body.studio .size-btn, body.studio #rigbal-entry-box .bt-btn, body.studio .seg-btn,
 body.studio .ctrl-knob > button {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   font-family: var(--ui); font-weight: 700; font-size: 12px; letter-spacing: .01em; line-height: 1.2;
@@ -90,7 +90,7 @@ body.studio .nav-btn:active, body.studio .bt-btn:active, body.studio .settings-b
 /* lit / active state: orange, the only place orange appears */
 body.studio .input-btn.active, body.studio #btn-tuner.on, body.studio .amp-toggle-btn.on, body.studio .tog-btn.on,
 body.studio .glob-tog.tog-on, body.studio #btn-settings.active, body.studio .seg-btn.on, body.studio .dock-btn.locked,
-body.studio #btn-start.running, body.studio #btn-pause.paused, body.studio .backline-btn.on {
+body.studio #btn-start.running, body.studio #btn-pause.paused {
   background: linear-gradient(180deg, #ff8a3a, #ea6a12); border-color: rgba(255,170,110,.6); color: #1a0c04;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 8px 24px rgba(255,122,26,.35); text-shadow: none;
 }
@@ -748,6 +748,15 @@ body.studio .pedal[data-device="tri-fuzz"] .foot { width: 34px; height: 34px; bo
   box-shadow: inset 0 -2px 2px rgba(0,0,0,.35), 0 3px 3px rgba(0,0,0,.6), 0 0 0 5px #b8bdc3, 0 0 0 6px #6a7078, 0 0 0 10px #9ca2a9, 0 0 0 11px #4a4f55, 0 4px 6px 11px rgba(0,0,0,.45); }
 body.studio .pedal[data-device="tri-fuzz"] .foot:active { transform: translateY(1px); }
 
+/* a patch loading (ui.js setPatchLoading): the stage dimmed until it is in */
+body.studio #focus { transition: opacity .15s; }
+body.studio.patch-loading #focus { opacity: .45; pointer-events: none; }
+body.studio.patch-loading.patch-cached #focus { opacity: 1; }   /* shown from the patch cache, the real read still to land */
+/* dragging a control must not select the device it sits on (WebKit tints a
+   selected picture blue) nor pick up its pictures to drag them */
+body.studio #focus.mode-amp, body.studio #focus.mode-fx, body.studio .pedal, body.studio .amp { -webkit-user-select: none; user-select: none; }
+body.studio #focus input, body.studio #focus textarea { -webkit-user-select: text; user-select: text; }
+body.studio .pedal img, body.studio .amp img, body.studio .knob-wrap canvas { -webkit-user-drag: none; }
 /* Wahs, seen from the side: the treadle is the Position control itself
    (studio-ui.js wahSide), so the panel is just the pedal on the floor with
    the LED and bypass switch under it */
@@ -820,10 +829,10 @@ body.studio .pedal[data-render] .ctrl-knob.render-ctrl[data-style="rocker-l0"] >
 body.studio .pedal[data-render] .ctrl-knob > select { margin-top: 14px; width: auto !important; max-width: 110px; padding: 0 4px !important; font-size: 10px !important; background: rgba(12,12,14,.85) !important; border: 1px solid rgba(255,255,255,.25) !important; border-radius: 3px !important; }
 body.studio .pedal[data-render] .ctrl-knob.eq-slider { width: auto !important; }
 /* a level bar for a value with no knob in the picture, its name and value beside it */
-body.studio .pedal[data-render] .ctrl-knob.render-bar { flex-direction: row; gap: 10px; }
-body.studio .pedal[data-render] .ctrl-knob.render-bar label { display: block; order: -1; width: 64px; text-align: right; color: var(--muted); font-size: 9px; letter-spacing: .14em; }
-body.studio .pedal[data-render] .ctrl-knob.render-bar .knob-val { position: static; opacity: 1; transform: none; margin: 0; background: none; color: var(--muted); width: 34px; }
-body.studio .pedal[data-render] .ctrl-knob.render-bar .knob-wrap { cursor: ew-resize; }
+body.studio .pedal[data-render] .ctrl-knob.render-bar { flex-direction: column; gap: 4px; }
+body.studio .pedal[data-render] .ctrl-knob.render-bar label { display: block; order: -1; white-space: nowrap; text-align: center; color: var(--muted); font-size: 9px; letter-spacing: .14em; }
+body.studio .pedal[data-render] .ctrl-knob.render-bar .knob-val { position: static; opacity: 1; transform: none; margin: 0; background: none; color: var(--muted); text-align: center; }
+body.studio .pedal[data-render] .ctrl-knob.render-bar .knob-wrap { cursor: ns-resize; }
 body.studio .pedal[data-render] .ctrl-knob.render-ctrl[data-style="plain"] > button { color: var(--text) !important; font-size: 11px !important; background: rgba(0,0,0,.45) !important; border: 1px solid rgba(255,255,255,.2) !important; border-radius: 6px !important; }
 body.studio .pedal[data-render] .ctrl-knob.render-ctrl[data-style="plain"] > label { display: block; color: var(--muted); font-size: 9px; letter-spacing: .14em; }
 body.studio .pedal[data-render] img.render-tog { position: absolute; z-index: 1; transform: translate(-50%, -50%); pointer-events: none; }
@@ -884,20 +893,6 @@ body.studio .kv .sctrl-track-wrap { flex: 1; min-width: 0; }
 body.studio .kv .sctrl input[type=range] { width: 100%; }
 body.studio .kv .txt { font-size: 11px; color: #c9d0da; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body.studio .kv .val { justify-self: start; }
-body.studio .backline { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
-body.studio .backline-btn { padding: 0; aspect-ratio: 5 / 4; border-radius: 7px; display: grid; grid-template-rows: 30% 1fr; overflow: hidden; box-shadow: 0 6px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.15); background: none; }
-body.studio .backline-btn i { display: block; }
-body.studio .backline-btn.on { outline: 2px solid var(--orange); outline-offset: 1px; box-shadow: 0 0 14px rgba(255,122,26,.45); background: none; }
-body.studio .backline-btn.fam-tweed i:first-child { background: #3a2a18; } body.studio .backline-btn.fam-tweed i:last-child { background: repeating-linear-gradient(45deg, #d8b878 0 2px, #b8965a 2px 4px); }
-body.studio .backline-btn.fam-black i:first-child { background: #111214; } body.studio .backline-btn.fam-black i:last-child { background: repeating-linear-gradient(45deg, #b0b4ba 0 2px, #7d828a 2px 4px); }
-body.studio .backline-btn.fam-ac i:first-child { background: #2a2622; } body.studio .backline-btn.fam-ac i:last-child { background: repeating-linear-gradient(90deg, #6b4a2c 0 3px, #4a2f18 3px 5px); }
-body.studio .backline-btn.fam-plexi i:first-child { background: linear-gradient(180deg, #e0bd62, #a8822e); } body.studio .backline-btn.fam-plexi i:last-child { background: repeating-linear-gradient(45deg, #2b2b2e 0 2px, #444649 2px 4px); }
-body.studio .backline-btn.fam-lead i:first-child { background: #1a1a1c; } body.studio .backline-btn.fam-lead i:last-child { background: repeating-linear-gradient(45deg, #2b2b2e 0 2px, #444649 2px 4px); }
-body.studio .backline-btn.fam-tread i:first-child { background: #4a4d52; } body.studio .backline-btn.fam-tread i:last-child { background: repeating-linear-gradient(0deg, #4a4d52 0 2px, #2f3236 2px 6px); }
-body.studio .backline-btn.fam-blue i:first-child { background: #1a2c5c; } body.studio .backline-btn.fam-blue i:last-child { background: repeating-linear-gradient(45deg, #8c94a4 0 2px, #5d6472 2px 4px); }
-body.studio .backline-btn.fam-rb i:first-child { background: #3b3b40; } body.studio .backline-btn.fam-rb i:last-child { background: repeating-linear-gradient(45deg, #3a3330 0 2px, #1c1816 2px 4px); }
-body.studio .backline-btn.fam-dc i:first-child { background: #2a2d33; } body.studio .backline-btn.fam-dc i:last-child { background: repeating-linear-gradient(45deg, #3b2f24 0 2px, #1e1712 2px 4px); }
-body.studio .backline-note { font-size: 9px; letter-spacing: .06em; text-align: center; color: var(--muted); }
 body.studio .card .fine { display: none; }
 body.studio .fx-card .val { justify-self: start; max-width: 100%; }
 
